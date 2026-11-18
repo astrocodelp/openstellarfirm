@@ -6,23 +6,26 @@ interface SidebarProps {
   selected: string | null;
   /** The assistants that are answering right now. */
   busy: Set<string>;
+  /** The assistants with a step that waits for the person. */
+  waiting: Set<string>;
+  showCloudCard: boolean;
   onSelect(id: string): void;
   onNew(): void;
   onImport(): void;
   onModels(): void;
+  onCloud(): void;
+  onHideCloudCard(): void;
 }
 
-export function Sidebar({
-  assistants,
-  selected,
-  busy,
-  onSelect,
-  onNew,
-  onImport,
-  onModels,
-}: SidebarProps) {
+export function Sidebar(props: SidebarProps) {
+  const { assistants, selected, busy, waiting } = props;
   // Groups keep the order in which their first assistant was made.
   const groups = [...new Set(assistants.map((a) => a.group))];
+  const line = (a: Assistant) => {
+    if (waiting.has(a.id)) return "Waiting for your Approve";
+    if (busy.has(a.id)) return "Working…";
+    return a.lastLine ?? "No messages yet";
+  };
   return (
     <nav className="sidebar" aria-label="Your assistants">
       <div className="sidebar-top">
@@ -31,7 +34,7 @@ export function Sidebar({
           className="icon-btn"
           aria-label="Import an assistant file"
           title="Import an assistant file"
-          onClick={onImport}
+          onClick={props.onImport}
         >
           <Icon name="upload" size={18} />
         </button>
@@ -40,7 +43,7 @@ export function Sidebar({
           className="icon-btn"
           aria-label="New assistant"
           title="New assistant"
-          onClick={onNew}
+          onClick={props.onNew}
         >
           <Icon name="plus" size={18} />
         </button>
@@ -63,36 +66,62 @@ export function Sidebar({
                 type="button"
                 className="row"
                 aria-current={a.id === selected ? "true" : undefined}
-                onClick={() => onSelect(a.id)}
+                onClick={() => props.onSelect(a.id)}
               >
                 <Pet pet={a.pet} color={a.color} />
                 <span className="row-text">
                   <span className="row-name">{a.name}</span>
-                  <span className="row-line">
-                    {busy.has(a.id)
-                      ? "Writing…"
-                      : (a.lastLine ?? "No messages yet")}
-                  </span>
+                  <span className="row-line">{line(a)}</span>
                 </span>
+                {waiting.has(a.id) ? (
+                  <span className="dot" role="img" aria-label="Needs you" />
+                ) : null}
               </button>
             ))}
         </section>
       ))}
 
-      <div className="sidebar-foot">
-        <span className="row-text">
-          <span className="row-name">Your keys, your models</span>
-          <span className="row-line">Nothing is stored in a cloud</span>
-        </span>
-        <button
-          type="button"
-          className="icon-btn"
-          aria-label="Models"
-          title="Models"
-          onClick={onModels}
-        >
-          <Icon name="sliders" size={18} />
-        </button>
+      <div className="sidebar-end">
+        {props.showCloudCard ? (
+          <section className="cloud-card" aria-label="StellarFirm cloud">
+            <div className="cloud-head">
+              <span className="row-name">Need it in the cloud?</span>
+              <button
+                type="button"
+                className="close-btn"
+                aria-label="Hide this"
+                title="Hide this"
+                onClick={props.onHideCloudCard}
+              >
+                <Icon name="close" size={14} />
+              </button>
+            </div>
+            <p className="faint">
+              StellarFirm gives you a team of assistants with their own cloud
+              computers and your connected apps. They keep working when this
+              computer is off.
+            </p>
+            <button type="button" className="btn" onClick={props.onCloud}>
+              See StellarFirm
+              <Icon name="external" size={14} />
+            </button>
+          </section>
+        ) : null}
+        <div className="sidebar-foot">
+          <span className="row-text">
+            <span className="row-name">Your keys, your models</span>
+            <span className="row-line">Nothing is stored in a cloud</span>
+          </span>
+          <button
+            type="button"
+            className="icon-btn"
+            aria-label="Models"
+            title="Models"
+            onClick={props.onModels}
+          >
+            <Icon name="sliders" size={18} />
+          </button>
+        </div>
       </div>
     </nav>
   );

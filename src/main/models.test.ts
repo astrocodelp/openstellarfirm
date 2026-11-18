@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { listModels, ModelError, SseParser, streamChat } from "./models";
+import {
+  listModels,
+  ModelError,
+  SseParser,
+  streamTurn,
+  type TurnEvent,
+} from "./models";
 
 /** A fake model service. No test here touches the network. */
 function sse(chunks: string[], status = 200): typeof fetch {
@@ -16,13 +22,18 @@ function sse(chunks: string[], status = 200): typeof fetch {
     );
 }
 
-const delta = (text: string) =>
-  `data: ${JSON.stringify({ choices: [{ delta: { content: text } }] })}\n\n`;
+const data = (delta: unknown) =>
+  `data: ${JSON.stringify({ choices: [{ delta }] })}\n\n`;
+const delta = (text: string) => data({ content: text });
 
-async function collect(stream: AsyncGenerator<string>): Promise<string> {
-  let out = "";
-  for await (const piece of stream) out += piece;
-  return out;
+async function collect(stream: AsyncGenerator<TurnEvent>) {
+  let text = "";
+  let calls: Extract<TurnEvent, { type: "calls" }>["calls"] = [];
+  for await (const event of stream) {
+    if (event.type === "text") text += event.text;
+    else calls = event.calls;
+  }
+  return { text, calls };
 }
 
 const call = {
@@ -46,7 +57,7 @@ describe("SseParser", () => {
   });
 });
 
-describe("streamChat", () => {
+describe("streamTurn", () => {
   it("yields the text and stops at [DONE]", async () => {
     const half = delta("Hel");
     const fetchImpl = sse([
@@ -56,7 +67,61 @@ describe("streamChat", () => {
       "data: [DONE]\n\n",
       delta("never"),
     ]);
-    expect(await collect(streamChat({ ...call, fetchImpl }))).toBe("Hello");
+    expect(await collect(streamTurn({ ...call, fetchImpl }))).toEqual({
+      text: "Hello",
+      calls: [],
+    });
+  });
+
+  it("joins tool calls that arrive in pieces, by their index", async () => {
+    const fetchImpl = sse([
+      data({
+        tool_calls: [
+          {
+            index: 0,
+            id: "a",
+            function: { name: "read_file", arguments: '{"pa' },
+          },
+        ],
+      }),
+      data({ tool_calls: [{ index: 1, function: { name: "find_files" } }] }),
+      data({ tool_calls: [{ index: 0, function: { arguments: 'th":"x"}' } }] }),
+      data({ tool_calls: [{ index: 1, function: { arguments: "{}" } }] }),
+      "data: [DONE]\n\n",
+    ]);
+    expect((await collect(streamTurn({ ...call, fetchImpl }))).calls).toEqual([
+      { id: "a", name: "read_file", arguments: '{"path":"x"}' },
+      { id: "call_1", name: "find_files", arguments: "{}" },
+    ]);
+  });
+
+  it("sends tools only when there are some", async () => {
+    const bodies: string[] = [];
+    const fetchImpl: typeof fetch = async (_url, init) => {
+      bodies.push(String(init?.body));
+      return new Response(delta("ok"));
+    };
+    await collect(streamTurn({ ...call, fetchImpl }));
+    await collect(
+      streamTurn({
+        ...call,
+        fetchImpl,
+        tools: [
+          { name: "t", description: "d", parameters: { type: "object" } },
+        ],
+      }),
+    );
+    expect(JSON.parse(bodies[0] ?? "{}")).not.toHaveProperty("tools");
+    expect(JSON.parse(bodies[1] ?? "{}").tools).toEqual([
+      {
+        type: "function",
+        function: {
+          name: "t",
+          description: "d",
+          parameters: { type: "object" },
+        },
+      },
+    ]);
   });
 
   it("sends the key only as a bearer header, and refuses a redirect", async () => {
@@ -65,7 +130,7 @@ describe("streamChat", () => {
       seen = { url: String(url), init: init ?? {} };
       return new Response(delta("ok"));
     };
-    await collect(streamChat({ ...call, apiKey: "sk-test", fetchImpl }));
+    await collect(streamTurn({ ...call, apiKey: "sk-test", fetchImpl }));
     expect(seen?.url).toBe("stub://model/v1/chat/completions");
     expect(seen?.url).not.toContain("sk-test");
     expect(String(seen?.init.body)).not.toContain("sk-test");
@@ -78,9 +143,10 @@ describe("streamChat", () => {
     const fetchImpl: typeof fetch = async () =>
       new Response("secret server text sk-test", { status: 401 });
     const error = await collect(
-      streamChat({ ...call, apiKey: "sk-test", fetchImpl }),
+      streamTurn({ ...call, apiKey: "sk-test", fetchImpl }),
     ).catch((e) => e);
     expect(error).toBeInstanceOf(ModelError);
+    expect(error.status).toBe(401);
     expect(error.message).toBe(
       "The model refused the key. Check it in Models.",
     );
@@ -93,7 +159,7 @@ describe("streamChat", () => {
         { status: 400 },
       );
     const error = await collect(
-      streamChat({ ...call, apiKey: "sk-test", fetchImpl }),
+      streamTurn({ ...call, apiKey: "sk-test", fetchImpl }),
     ).catch((e) => e);
     expect(error.message).toBe(
       "The model turned the request down: bad sampler settings for [key]",
@@ -104,7 +170,7 @@ describe("streamChat", () => {
     const fetchImpl: typeof fetch = async () => {
       throw new TypeError("fetch failed: connect ECONNREFUSED 127.0.0.1:11434");
     };
-    const error = await collect(streamChat({ ...call, fetchImpl })).catch(
+    const error = await collect(streamTurn({ ...call, fetchImpl })).catch(
       (e) => e,
     );
     expect(error.message).toMatch(/could not be reached/);

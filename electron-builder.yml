@@ -8,8 +8,25 @@ directories:
 files:
   - dist/**
   - package.json
+  - LICENSE
+  - THIRD-PARTY-NOTICES.md
 asar: true
 npmRebuild: false
+# Fuses switch off, in the shipped program itself, the ways an installed
+# Electron app can be made to run other code: as plain Node, through NODE_OPTIONS
+# or --inspect, or from files outside the signed archive.
+electronFuses:
+  runAsNode: false
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  enableCookieEncryption: true
+  enableEmbeddedAsarIntegrityValidation: true
+  onlyLoadAppFromAsar: true
+  # Stays on while the page is loaded from a file: switched off, the packaged
+  # app cannot load its own page (tested). Serving the page from a protocol of
+  # the app's own would let this go off; that is a follow-up.
+  grantFileProtocolExtraPrivileges: true
+  resetAdHocDarwinSignature: true
 # Local builds stay unsigned. Releases are attached by hand or by a workflow.
 forceCodeSigning: false
 publish: null

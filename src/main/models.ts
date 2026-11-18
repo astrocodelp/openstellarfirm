@@ -4,19 +4,71 @@
  *
  * Rules kept here: the key goes only in the Authorization header, a redirect
  * is an error (so a key never follows one), and an error is a plain sentence
- * that carries no key and nothing the server wrote.
+ * that never carries the key.
  */
+
+export interface ToolCall {
+  id: string;
+  name: string;
+  /** The arguments exactly as the model wrote them: a JSON text. */
+  arguments: string;
+}
+
+interface WireToolCall {
+  id: string;
+  type: "function";
+  function: { name: string; arguments: string };
+}
+
+export type WireMessage =
+  | { role: "system" | "user"; content: string }
+  | { role: "assistant"; content: string; tool_calls?: WireToolCall[] }
+  | { role: "tool"; tool_call_id: string; content: string };
+
+export interface ToolSpec {
+  name: string;
+  description: string;
+  /** A JSON Schema object for the arguments. */
+  parameters: Record<string, unknown>;
+}
 
 export interface ModelCall {
   baseUrl: string;
   apiKey?: string;
   model: string;
-  messages: { role: "system" | "user" | "assistant"; content: string }[];
+  messages: WireMessage[];
+  tools?: ToolSpec[];
   signal?: AbortSignal;
   fetchImpl?: typeof fetch;
 }
 
-export class ModelError extends Error {}
+/** What one model turn produces: text as it arrives, then any tool calls. */
+export type TurnEvent =
+  | { type: "text"; text: string }
+  | { type: "calls"; calls: ToolCall[] };
+
+export class ModelError extends Error {
+  constructor(
+    message: string,
+    /** The HTTP status, when the service answered with one. */
+    readonly status?: number,
+  ) {
+    super(message);
+  }
+}
+
+/** An assistant turn that called tools, in the shape the wire wants back. */
+export function assistantTurn(text: string, calls: ToolCall[]): WireMessage {
+  return {
+    role: "assistant",
+    content: text,
+    tool_calls: calls.map((call) => ({
+      id: call.id,
+      type: "function",
+      function: { name: call.name, arguments: call.arguments },
+    })),
+  };
+}
 
 /** Reads server-sent events as they arrive, whatever way the bytes are split. */
 export class SseParser {
@@ -54,19 +106,27 @@ async function failure(
 ): Promise<ModelError> {
   const status = response.status;
   if (status === 401 || status === 403) {
-    return new ModelError("The model refused the key. Check it in Models.");
+    return new ModelError(
+      "The model refused the key. Check it in Models.",
+      status,
+    );
   }
   if (status === 404) {
     return new ModelError(
       "The model was not found there. Check the model's name in Models.",
+      status,
     );
   }
   if (status === 402) {
-    return new ModelError("The account for this key is out of balance.");
+    return new ModelError(
+      "The account for this key is out of balance.",
+      status,
+    );
   }
   if (status === 429) {
     return new ModelError(
       "The model is busy or the key is at its limit. Try again in a moment.",
+      status,
     );
   }
   const reason =
@@ -75,6 +135,7 @@ async function failure(
     reason
       ? `The model turned the request down: ${reason}`
       : `The model answered with an error (${status}).`,
+    status,
   );
 }
 
@@ -97,16 +158,39 @@ async function reasonOf(response: Response, apiKey?: string): Promise<string> {
 
 function unreachable(error: unknown): ModelError {
   if (error instanceof ModelError) return error;
-  if (error instanceof Error && error.name === "AbortError")
+  if (error instanceof Error && error.name === "AbortError") {
     return new ModelError("Stopped.");
+  }
   return new ModelError(
     "The model could not be reached. Is it running, and is the address right?",
   );
 }
 
-/** Streams an answer as pieces of text. */
-export async function* streamChat(call: ModelCall): AsyncGenerator<string> {
+interface Delta {
+  content?: unknown;
+  tool_calls?: {
+    index?: unknown;
+    id?: unknown;
+    function?: { name?: unknown; arguments?: unknown };
+  }[];
+}
+
+function deltaOf(data: string): Delta | undefined {
+  try {
+    const parsed: unknown = JSON.parse(data);
+    return (parsed as { choices?: { delta?: Delta }[] }).choices?.[0]?.delta;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Streams one model turn. Text is yielded as it arrives. Tool calls arrive in
+ * pieces keyed by their index, so they are joined and yielded once, at the end.
+ */
+export async function* streamTurn(call: ModelCall): AsyncGenerator<TurnEvent> {
   const doFetch = call.fetchImpl ?? fetch;
+  const tools = call.tools ?? [];
   let response: Response;
   try {
     response = await doFetch(`${call.baseUrl}/chat/completions`, {
@@ -116,6 +200,14 @@ export async function* streamChat(call: ModelCall): AsyncGenerator<string> {
         model: call.model,
         messages: call.messages,
         stream: true,
+        ...(tools.length > 0
+          ? {
+              tools: tools.map((tool) => ({
+                type: "function",
+                function: tool,
+              })),
+            }
+          : {}),
       }),
       redirect: "error",
       signal: call.signal,
@@ -129,14 +221,46 @@ export async function* streamChat(call: ModelCall): AsyncGenerator<string> {
   const parser = new SseParser();
   const decoder = new TextDecoder();
   const reader = response.body.getReader();
+  const calls = new Map<number, ToolCall>();
+  const finish = (): TurnEvent | undefined => {
+    const ready = [...calls.entries()]
+      .sort(([a], [b]) => a - b)
+      .map(([index, value]) => ({ ...value, id: value.id || `call_${index}` }))
+      .filter((value) => value.name);
+    return ready.length > 0 ? { type: "calls", calls: ready } : undefined;
+  };
   try {
     for (;;) {
       const { done, value } = await reader.read();
-      if (done) return;
+      if (done) break;
       for (const data of parser.push(decoder.decode(value, { stream: true }))) {
-        if (data === "[DONE]") return;
-        const text = deltaText(data);
-        if (text) yield text;
+        if (data === "[DONE]") {
+          const last = finish();
+          if (last) yield last;
+          return;
+        }
+        const delta = deltaOf(data);
+        if (!delta) continue;
+        if (typeof delta.content === "string" && delta.content) {
+          yield { type: "text", text: delta.content };
+        }
+        for (const piece of delta.tool_calls ?? []) {
+          const index =
+            typeof piece.index === "number" ? piece.index : calls.size;
+          const current = calls.get(index) ?? {
+            id: "",
+            name: "",
+            arguments: "",
+          };
+          if (typeof piece.id === "string") current.id = piece.id;
+          if (typeof piece.function?.name === "string") {
+            current.name += piece.function.name;
+          }
+          if (typeof piece.function?.arguments === "string") {
+            current.arguments += piece.function.arguments;
+          }
+          calls.set(index, current);
+        }
       }
     }
   } catch (error) {
@@ -144,18 +268,8 @@ export async function* streamChat(call: ModelCall): AsyncGenerator<string> {
   } finally {
     reader.releaseLock();
   }
-}
-
-function deltaText(data: string): string {
-  try {
-    const parsed: unknown = JSON.parse(data);
-    const choice = (parsed as { choices?: { delta?: { content?: unknown } }[] })
-      .choices?.[0];
-    const content = choice?.delta?.content;
-    return typeof content === "string" ? content : "";
-  } catch {
-    return "";
-  }
+  const last = finish();
+  if (last) yield last;
 }
 
 /** Lists the models an address serves. Also the way a source is checked. */
@@ -186,8 +300,9 @@ export async function listModels(input: {
     throw new ModelError("That address did not answer like a model service.");
   }
   const rows = (body as { data?: unknown }).data;
-  if (!Array.isArray(rows))
+  if (!Array.isArray(rows)) {
     throw new ModelError("That address did not answer like a model service.");
+  }
   return rows
     .map((row) => (row as { id?: unknown }).id)
     .filter(

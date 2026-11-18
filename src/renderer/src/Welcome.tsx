@@ -7,16 +7,18 @@ import { Icon, Nova, OkLine } from "./ui";
 interface WelcomeProps {
   keychain: boolean;
   onDone(source: ModelSource | null): void;
+  onCloud(): void;
 }
 
 const POINTS = [
   "No account. Nothing is stored in a cloud.",
   "Your own model: a key you bring, or one that runs on this machine.",
+  "It asks before it reaches a new website, and never deletes a file.",
   "Open source under the MIT licence.",
 ];
 
 /** The first run: pick the model the assistants think with. */
-export function Welcome({ keychain, onDone }: WelcomeProps) {
+export function Welcome({ keychain, onDone, onCloud }: WelcomeProps) {
   const [local, setLocal] = useState<LocalModels | null>(null);
 
   useEffect(() => {
@@ -63,6 +65,12 @@ export function Welcome({ keychain, onDone }: WelcomeProps) {
             </li>
           ))}
         </ul>
+        <p className="faint">
+          Need a whole team that works in the cloud?{" "}
+          <button type="button" className="link" onClick={onCloud}>
+            See StellarFirm
+          </button>
+        </p>
       </section>
 
       <section className="card welcome-card" aria-labelledby="welcome-title">

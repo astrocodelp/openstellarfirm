@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { readFileSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -12,13 +13,17 @@ import {
   shell,
 } from "electron";
 import { presetOf } from "../shared/catalog";
+import { cloudCopyUrl, cloudHomeUrl } from "../shared/cloud";
 import { checkEndpoint, isLocalEndpoint } from "../shared/endpoint";
 import { systemPrompt } from "../shared/prompt";
 import {
+  type ApprovalCard,
   type AppState,
   type Assistant,
   type AssistantInput,
   type ChatMessage,
+  type ChatStep,
+  type Decision,
   IPC,
   type IpcResult,
   type LocalModels,
@@ -27,21 +32,38 @@ import {
   type PresetId,
   type Settings,
 } from "../shared/types";
-import { listModels, ModelError, streamChat } from "./models";
+import { runAgent } from "./agent";
+import { folderLabels } from "./folders";
+import { listModels, ModelError, streamTurn, type WireMessage } from "./models";
 import { Secrets } from "./secrets";
 import { Store } from "./store";
 
 const pageUrl = pathToFileURL(join(__dirname, "../renderer/index.html")).href;
-// The dev server is this computer's only: any other address is ignored.
-const devUrl = process.env.STELLARFIRM_OPEN_DEV_URL?.startsWith(
-  "http://localhost:",
-)
-  ? process.env.STELLARFIRM_OPEN_DEV_URL
-  : undefined;
+// The dev server exists only when the app runs from source, and only on this
+// computer. An installed app ignores the variable, so nothing outside it can
+// point its window (and the bridge behind it) at another page.
+const devUrl =
+  !app.isPackaged &&
+  process.env.STELLARFIRM_OPEN_DEV_URL?.startsWith("http://localhost:")
+    ? process.env.STELLARFIRM_OPEN_DEV_URL
+    : undefined;
+
+/** A value from the page is used only when it is a plain, short piece of text. */
+function str(value: unknown, max = 4096): string {
+  if (typeof value !== "string" || value.length > max) {
+    throw new Error("That is not allowed.");
+  }
+  return value;
+}
 
 let store: Store;
 let secrets: Secrets;
 const running = new Map<string, AbortController>();
+/** The step that waits for the person, by assistant. One at a time each. */
+const waiting = new Map<
+  string,
+  { card: ApprovalCard; settle(decision: Decision): void }
+>();
 
 function isAppUrl(url: string): boolean {
   return url === pageUrl || (devUrl !== undefined && url.startsWith(devUrl));
@@ -122,6 +144,10 @@ async function detectLocal(): Promise<LocalModels> {
   return { ollama, lmstudio };
 }
 
+function tell(window: BrowserWindow, channel: string, payload: unknown): void {
+  if (!window.isDestroyed()) window.webContents.send(channel, payload);
+}
+
 function send(
   window: BrowserWindow,
   assistantId: string,
@@ -137,6 +163,39 @@ function send(
   return message;
 }
 
+/**
+ * Shows a step to the person and waits for their own decision. Nothing in the
+ * app answers for them: the only ways out are their click, or Stop.
+ */
+function askPerson(
+  window: BrowserWindow,
+  assistantId: string,
+  ask: Omit<ApprovalCard, "id" | "assistantId">,
+  signal: AbortSignal,
+): Promise<Decision> {
+  return new Promise((resolve, reject) => {
+    const card: ApprovalCard = { ...ask, id: randomUUID(), assistantId };
+    const done = () => {
+      waiting.delete(assistantId);
+      signal.removeEventListener("abort", stopped);
+      tell(window, IPC.approval, { assistantId, card: null });
+    };
+    const stopped = () => {
+      done();
+      reject(new ModelError("Stopped."));
+    };
+    signal.addEventListener("abort", stopped, { once: true });
+    waiting.set(assistantId, {
+      card,
+      settle: (decision) => {
+        done();
+        resolve(decision);
+      },
+    });
+    tell(window, IPC.approval, { assistantId, card });
+  });
+}
+
 async function answer(
   window: BrowserWindow,
   assistant: Assistant,
@@ -145,6 +204,7 @@ async function answer(
   running.set(assistant.id, controller);
   let full = "";
   let failed = false;
+  let steps: ChatStep[] = [];
   try {
     const sourceId = assistant.sourceId ?? store.settings().defaultSourceId;
     const source = sourceId
@@ -152,30 +212,43 @@ async function answer(
       : undefined;
     if (!source)
       throw new ModelError("No model is set up yet. Add one in Models.");
-    const history = store
+    const history: WireMessage[] = store
       .messages(assistant.id)
       .filter((m) => !m.failed)
       .slice(-40)
       .map((m) => ({ role: m.role, content: m.text }));
     const apiKey = await secrets.get(source.id);
-    for await (const piece of streamChat({
-      baseUrl: source.baseUrl,
-      ...(apiKey ? { apiKey } : {}),
-      model: assistant.model ?? source.model,
-      messages: [
-        { role: "system", content: systemPrompt(assistant) },
-        ...history,
-      ],
-      signal: controller.signal,
-    })) {
-      full += piece;
-      if (!window.isDestroyed()) {
-        window.webContents.send(IPC.delta, {
-          assistantId: assistant.id,
-          text: piece,
-        });
-      }
-    }
+    const prompt = systemPrompt({
+      ...assistant,
+      folderLabels: folderLabels(assistant.folders).map((f) => f.label),
+    });
+    const result = await runAgent(
+      assistant,
+      [{ role: "system", content: prompt }, ...history],
+      {
+        turn: (messages, tools) =>
+          streamTurn({
+            baseUrl: source.baseUrl,
+            ...(apiKey ? { apiKey } : {}),
+            model: assistant.model ?? source.model,
+            messages,
+            tools,
+            signal: controller.signal,
+          }),
+        ask: (ask) => askPerson(window, assistant.id, ask, controller.signal),
+        allowSite: (site) => {
+          store.addSite(assistant.id, site);
+        },
+        onText: (text) => {
+          full += text;
+          tell(window, IPC.delta, { assistantId: assistant.id, text });
+        },
+        onActivity: (label) =>
+          tell(window, IPC.activity, { assistantId: assistant.id, label }),
+        signal: controller.signal,
+      },
+    );
+    steps = result.steps;
     if (!full) throw new ModelError("The model sent an empty answer.");
   } catch (error) {
     // A stop keeps what was already written. Anything else says why it failed.
@@ -195,10 +268,9 @@ async function answer(
       "assistant",
       full,
       failed,
+      steps,
     );
-    if (!window.isDestroyed()) {
-      window.webContents.send(IPC.done, { assistantId: assistant.id, message });
-    }
+    tell(window, IPC.done, { assistantId: assistant.id, message });
   } catch {
     // The assistant was removed while it was answering: nothing to keep.
   }
@@ -232,22 +304,76 @@ async function importAssistant(
   return store.importFile(readFileSync(path, "utf8"));
 }
 
+/** Only the system's own picker, opened here, can give an assistant a folder. */
+async function addFolder(
+  window: BrowserWindow,
+  id: string,
+): Promise<Assistant | null> {
+  store.assistant(id);
+  const picked = await dialog.showOpenDialog(window, {
+    title: "Pick a folder this assistant may use",
+    properties: ["openDirectory", "createDirectory"],
+  });
+  const folder = picked.filePaths[0];
+  if (picked.canceled || !folder) return null;
+  return store.addFolder(id, folder);
+}
+
+/** Opens StellarFirm in the person's browser. The address is built here. */
+async function openCloud(target: unknown, assistantId: unknown): Promise<void> {
+  if (target === "home") return shell.openExternal(cloudHomeUrl());
+  if (target === "copy" && typeof assistantId === "string") {
+    return shell.openExternal(cloudCopyUrl(store.exportFile(assistantId)));
+  }
+  throw new Error("That is not allowed.");
+}
+
 function register(window: BrowserWindow): void {
   handle(IPC.getState, () => state());
   handle(IPC.saveAssistant, (_e, input: AssistantInput) =>
     store.saveAssistant(input),
   );
-  handle(IPC.removeAssistant, (_e, id: string) => {
-    running.get(id)?.abort();
-    store.removeAssistant(id);
+  handle(IPC.removeAssistant, (_e, id: unknown) => {
+    running.get(str(id))?.abort();
+    store.removeAssistant(str(id));
   });
-  handle(IPC.exportAssistant, (_e, id: string) => exportAssistant(window, id));
+  handle(IPC.exportAssistant, (_e, id: unknown) =>
+    exportAssistant(window, str(id)),
+  );
   handle(IPC.importAssistant, () => importAssistant(window));
-  handle(IPC.messages, (_e, id: string) => store.messages(id));
-  handle(IPC.send, (_e, id: string, text: string) => send(window, id, text));
-  handle(IPC.stop, (_e, id: string) => {
-    running.get(id)?.abort();
+  handle(IPC.addFolder, (_e, id: unknown) => addFolder(window, str(id)));
+  handle(IPC.removeFolder, (_e, id: unknown, folder: unknown) =>
+    store.removeFolder(str(id), str(folder)),
+  );
+  handle(IPC.removeSite, (_e, id: unknown, site: unknown) =>
+    store.removeSite(str(id), str(site)),
+  );
+  handle(IPC.messages, (_e, id: unknown) => store.messages(str(id)));
+  handle(IPC.send, (_e, id: unknown, text: unknown) =>
+    send(window, str(id), str(text, 100_000)),
+  );
+  handle(IPC.stop, (_e, id: unknown) => {
+    running.get(str(id))?.abort();
   });
+  handle(IPC.pending, (_e, id: unknown) => waiting.get(str(id))?.card ?? null);
+  handle(
+    IPC.decide,
+    (_e, id: string, approvalId: string, decision: Decision) => {
+      const entry = waiting.get(id);
+      // A click on a card that is no longer the waiting one decides nothing.
+      if (!entry || entry.card.id !== approvalId) {
+        throw new Error("That step is no longer waiting.");
+      }
+      if (
+        decision !== "approve" &&
+        decision !== "always" &&
+        decision !== "reject"
+      ) {
+        throw new Error("That is not allowed.");
+      }
+      entry.settle(decision);
+    },
+  );
   handle(IPC.saveSource, (_e, input: ModelSourceInput) => saveSource(input));
   handle(IPC.removeSource, (_e, id: string) => {
     store.removeSource(id);
@@ -282,6 +408,9 @@ function register(window: BrowserWindow): void {
   handle(IPC.setSettings, (_e, patch: Partial<Settings>) =>
     store.setSettings(patch),
   );
+  handle(IPC.openCloud, (_e, target: unknown, assistantId: unknown) =>
+    openCloud(target, assistantId),
+  );
 }
 
 function createWindow(): BrowserWindow {
@@ -302,17 +431,25 @@ function createWindow(): BrowserWindow {
     },
   });
   window.once("ready-to-show", () => window.show());
-  // The window shows only the app's own page. A link opens in the browser.
-  window.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith("https://")) void shell.openExternal(url);
-    return { action: "deny" };
-  });
+  // The window shows only the app's own page: no new window, no other page,
+  // no embedded page. The only links that open are the fixed ones to
+  // StellarFirm, which the main process builds itself.
+  window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   window.webContents.on("will-navigate", (event, url) => {
     if (!isAppUrl(url)) event.preventDefault();
+  });
+  window.webContents.on("will-attach-webview", (event) => {
+    event.preventDefault();
   });
   if (devUrl) void window.loadURL(devUrl);
   else void window.loadFile(join(__dirname, "../renderer/index.html"));
   return window;
+}
+
+// An installed app is never driven from outside: a debugging port would let
+// another program on this computer press Approve for the person.
+if (app.isPackaged && app.commandLine.hasSwitch("remote-debugging-port")) {
+  app.quit();
 }
 
 app.whenReady().then(() => {

@@ -39,6 +39,15 @@ describe("assistants", () => {
     expect(new Store(dir).assistants()).toEqual([saved]);
   });
 
+  it("keeps a name on one line", () => {
+    const saved = store.saveAssistant({
+      ...input,
+      name: "Sco\nut\u0007",
+      skills: [],
+    });
+    expect(saved.name).toBe("Sco ut");
+  });
+
   it("refuses a missing name and an unknown look", () => {
     expect(() =>
       store.saveAssistant({ ...input, name: " ", skills: [] }),
@@ -64,6 +73,53 @@ describe("assistants", () => {
 
   it("never lets an id from the page name a file outside the chats folder", () => {
     expect(() => store.messages("../../state")).toThrow(/no longer here/);
+  });
+});
+
+describe("folders and sites", () => {
+  it("never takes a folder or a site from what the page sends", () => {
+    const sneaky = {
+      ...input,
+      skills: [],
+      folders: ["/"],
+      sites: ["evil.example.com"],
+    };
+    const made = store.saveAssistant(sneaky);
+    expect(made.folders).toEqual([]);
+    expect(made.sites).toEqual([]);
+    store.addFolder(made.id, "/picked/Notes");
+    store.addSite(made.id, "example.com");
+    const saved = store.saveAssistant({ ...sneaky, id: made.id, web: true });
+    expect(saved.folders).toEqual(["/picked/Notes"]);
+    expect(saved.sites).toEqual(["example.com"]);
+    expect(saved.web).toBe(true);
+    // A save that says nothing about web pages leaves that choice as it was.
+    expect(store.saveAssistant({ ...input, skills: [], id: made.id }).web).toBe(
+      true,
+    );
+    expect(store.removeFolder(made.id, "/picked/Notes").folders).toEqual([]);
+    expect(store.removeSite(made.id, "example.com").sites).toEqual([]);
+  });
+
+  it("never puts folders, sites or a model source in a shared file", () => {
+    const made = store.saveAssistant({ ...input, skills: [], web: true });
+    store.addFolder(made.id, "/picked/Notes");
+    store.addSite(made.id, "example.com");
+    const file = JSON.stringify(store.exportFile(made.id));
+    expect(file).not.toContain("/picked/Notes");
+    expect(file).not.toContain("example.com");
+    const imported = store.importFile(
+      JSON.stringify({
+        ...store.exportFile(made.id),
+        folders: ["/"],
+        sites: ["evil.example.com"],
+        web: true,
+      }),
+    );
+    expect(imported.folders).toEqual([]);
+    expect(imported.sites).toEqual([]);
+    // An imported assistant starts with no access: the person turns it on.
+    expect(imported.web).toBe(false);
   });
 });
 
@@ -167,6 +223,17 @@ describe("secrets", () => {
       "sk-test-123",
     );
     expect(readFileSync(file, "utf8")).toBe(before);
+  });
+
+  it("finds no key under a name the app did not make", async () => {
+    const secrets = new Secrets(join(dir, "keys.json"), box(true));
+    await secrets.set("a", "sk-test-123");
+    for (const id of ["__proto__", "constructor", "toString"]) {
+      expect(secrets.has(id), id).toBe(false);
+      expect(await secrets.get(id), id).toBeUndefined();
+      secrets.remove(id);
+    }
+    expect(await secrets.get("a")).toBe("sk-test-123");
   });
 
   it("refuses to save a key when there is no keychain", async () => {

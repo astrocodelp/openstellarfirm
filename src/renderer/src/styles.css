@@ -203,8 +203,15 @@ p {
   font-size: var(--text-caption);
 }
 
-.sidebar-foot {
+.sidebar-end {
   margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding-top: 0.75rem;
+}
+
+.sidebar-foot {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -688,4 +695,153 @@ textarea.input {
   .preview {
     display: none;
   }
+}
+
+/* Tools: what it did, what it is doing, and the step that waits */
+
+.turn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.375rem;
+  max-width: 100%;
+}
+
+.steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  font-size: var(--text-caption);
+}
+
+.step {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  color: var(--ok);
+}
+
+.step span {
+  color: var(--faint);
+}
+
+.step-failed {
+  color: var(--danger);
+}
+
+.activity {
+  color: var(--faint);
+  font-size: var(--text-ui);
+}
+
+.dot {
+  flex-shrink: 0;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--lime);
+}
+
+.approval {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  margin-top: 0.375rem;
+  padding: 1rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 1rem;
+  background: var(--raised);
+  font-size: var(--text-ui);
+}
+
+.approval-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--dim);
+  font-size: var(--text-caption);
+}
+
+.approval-detail {
+  padding: 0.5rem 0.625rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--sunken);
+  overflow-wrap: anywhere;
+}
+
+/* The StellarFirm cloud card, and small shared pieces */
+
+.cloud-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background: var(--raised);
+}
+
+.cloud-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.close-btn {
+  width: 1.75rem;
+  height: 1.75rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--faint);
+  cursor: pointer;
+}
+
+.close-btn:hover {
+  background: var(--active);
+  color: var(--ivory);
+}
+
+.link {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ivory);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+}
+
+.link:hover {
+  color: var(--lime);
+}
+
+.plain {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.plain > legend {
+  padding: 0;
+  margin-bottom: 0.5rem;
+}
+
+.pad {
+  padding: 1rem;
+}
+
+.preview-actions {
+  margin-top: auto;
+  width: 100%;
 }

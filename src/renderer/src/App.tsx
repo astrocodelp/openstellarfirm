@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
-import type { AppState, Assistant, ChatMessage } from "../../shared/types";
+import type {
+  ApprovalCard,
+  AppState,
+  Assistant,
+  ChatMessage,
+  Decision,
+} from "../../shared/types";
 import { AssistantForm } from "./AssistantForm";
 import { api } from "./bridge";
 import { ChatView } from "./ChatView";
@@ -13,6 +19,11 @@ type View =
   | { name: "assistant"; id?: string }
   | { name: "models" };
 
+function without<T>(record: Record<string, T>, key: string): Record<string, T> {
+  const { [key]: _gone, ...rest } = record;
+  return rest;
+}
+
 export function App() {
   const [state, setState] = useState<AppState | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
@@ -20,6 +31,10 @@ export function App() {
   const [chats, setChats] = useState<Record<string, ChatMessage[]>>({});
   /** The answer so far, by assistant. A key here means it is answering. */
   const [streams, setStreams] = useState<Record<string, string>>({});
+  /** What each answering assistant is doing right now. */
+  const [activity, setActivity] = useState<Record<string, string>>({});
+  /** The step that waits for the person, by assistant. */
+  const [approvals, setApprovals] = useState<Record<string, ApprovalCard>>({});
   const [error, setError] = useState("");
 
   const refresh = useCallback(async () => {
@@ -45,8 +60,18 @@ export function App() {
         [assistantId]: (s[assistantId] ?? "") + text,
       }));
     });
+    const offActivity = api.onActivity(({ assistantId, label }) => {
+      setActivity((a) => ({ ...a, [assistantId]: label }));
+    });
+    const offApproval = api.onApproval(({ assistantId, card }) => {
+      setApprovals((a) =>
+        card ? { ...a, [assistantId]: card } : without(a, assistantId),
+      );
+    });
     const offDone = api.onDone(({ assistantId, message }) => {
-      setStreams(({ [assistantId]: _finished, ...rest }) => rest);
+      setStreams((s) => without(s, assistantId));
+      setActivity((a) => without(a, assistantId));
+      setApprovals((a) => without(a, assistantId));
       setChats((c) => {
         const loaded = c[assistantId];
         return loaded ? { ...c, [assistantId]: [...loaded, message] } : c;
@@ -55,19 +80,24 @@ export function App() {
     });
     return () => {
       offDelta();
+      offActivity();
+      offApproval();
       offDone();
     };
   }, [refresh]);
 
-  // Load a chat the first time its assistant is opened.
+  // Load a chat, and any step that waits in it, the first time it is opened.
   useEffect(() => {
     if (!selected || chats[selected]) return;
     let live = true;
-    api
-      .messages(selected)
-      .then((messages) => {
-        if (live)
-          setChats((c) => (c[selected] ? c : { ...c, [selected]: messages }));
+    Promise.all([api.messages(selected), api.pending(selected)])
+      .then(([messages, card]) => {
+        if (!live) return;
+        setChats((c) => (c[selected] ? c : { ...c, [selected]: messages }));
+        if (card) {
+          setApprovals((a) => ({ ...a, [selected]: card }));
+          setStreams((s) => ({ ...s, [selected]: s[selected] ?? "" }));
+        }
       })
       .catch((e) => setError(errorText(e)));
     return () => {
@@ -104,12 +134,22 @@ export function App() {
     }
   }
 
+  async function act(action: () => Promise<unknown>) {
+    setError("");
+    try {
+      await action();
+    } catch (e) {
+      setError(errorText(e));
+    }
+  }
+
   if (!state.settings.onboarded) {
     return (
       <>
         <Welcome
           keychain={state.keychain}
           onDone={() => void finishWelcome()}
+          onCloud={() => void act(() => api.openCloud("home"))}
         />
         <ErrorLine>{error}</ErrorLine>
       </>
@@ -135,17 +175,20 @@ export function App() {
     setStreams((s) => ({ ...s, [a.id]: s[a.id] ?? "" }));
   }
 
+  async function decide(card: ApprovalCard, decision: Decision) {
+    await api.decide(card.assistantId, card.id, decision);
+    // "Always allow" saved a site, so the assistant's own list changed.
+    if (decision === "always") await refresh();
+  }
+
   async function importFile() {
-    setError("");
-    try {
+    await act(async () => {
       const imported = await api.importAssistant();
       if (!imported) return;
       await refresh();
       setSelected(imported.id);
       setView({ name: "chat" });
-    } catch (e) {
-      setError(errorText(e));
-    }
+    });
   }
 
   return (
@@ -154,6 +197,8 @@ export function App() {
         assistants={state.assistants}
         selected={view.name === "chat" ? selected : null}
         busy={new Set(Object.keys(streams))}
+        waiting={new Set(Object.keys(approvals))}
+        showCloudCard={!state.settings.hideCloudCard}
         onSelect={(id) => {
           setSelected(id);
           setView({ name: "chat" });
@@ -161,6 +206,13 @@ export function App() {
         onNew={() => setView({ name: "assistant" })}
         onImport={() => void importFile()}
         onModels={() => setView({ name: "models" })}
+        onCloud={() => void act(() => api.openCloud("home"))}
+        onHideCloudCard={() =>
+          void act(async () => {
+            await api.setSettings({ hideCloudCard: true });
+            await refresh();
+          })
+        }
       />
       <main className="main">
         {error ? (
@@ -185,6 +237,7 @@ export function App() {
                 setView({ name: "chat" });
               });
             }}
+            onChanged={() => void refresh()}
             onRemoved={() => {
               setView({ name: "chat" });
               void refresh();
@@ -197,8 +250,11 @@ export function App() {
             modelLine={modelLine(assistant)}
             messages={chats[assistant.id] ?? []}
             streaming={streams[assistant.id]}
+            activity={activity[assistant.id]}
+            approval={approvals[assistant.id]}
             onSend={(text) => send(assistant, text)}
             onStop={() => void api.stop(assistant.id)}
+            onDecide={decide}
             onCustomize={() => setView({ name: "assistant", id: assistant.id })}
             onModels={() => setView({ name: "models" })}
           />

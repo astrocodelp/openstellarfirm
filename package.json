@@ -29,6 +29,9 @@
     "onlyBuiltDependencies": [
       "electron",
       "esbuild"
+    ],
+    "ignoredBuiltDependencies": [
+      "electron-winstaller"
     ]
   },
   "devDependencies": {

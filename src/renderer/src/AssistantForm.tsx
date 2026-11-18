@@ -14,28 +14,27 @@ interface AssistantFormProps {
   assistant: Assistant | undefined;
   sources: ModelSource[];
   onSaved(assistant: Assistant): void;
+  /** Folders or sites changed; the form stays open. */
+  onChanged(): void;
   onRemoved(): void;
   onCancel(): void;
 }
 
-export function AssistantForm({
-  assistant,
-  sources,
-  onSaved,
-  onRemoved,
-  onCancel,
-}: AssistantFormProps) {
+export function AssistantForm(props: AssistantFormProps) {
+  const { assistant, sources } = props;
   const [name, setName] = useState(assistant?.name ?? "");
   const [group, setGroup] = useState(assistant?.group ?? "Personal");
   const [pet, setPet] = useState<PetId>(assistant?.pet ?? "glim");
   const [color, setColor] = useState<PetColor>(assistant?.color ?? "lime");
   const [brief, setBrief] = useState(assistant?.brief ?? "");
   const [skills, setSkills] = useState<string[]>(assistant?.skills ?? []);
+  const [web, setWeb] = useState(assistant?.web ?? false);
   const [sourceId, setSourceId] = useState(assistant?.sourceId ?? "");
   const [model, setModel] = useState(assistant?.model ?? "");
   const [error, setError] = useState("");
   const [note, setNote] = useState("");
   const [removing, setRemoving] = useState(false);
+  const [copying, setCopying] = useState(false);
   const [busy, setBusy] = useState(false);
   const source = sources.find((s) => s.id === sourceId);
 
@@ -50,7 +49,7 @@ export function AssistantForm({
     setBusy(true);
     setError("");
     try {
-      onSaved(
+      props.onSaved(
         await api.saveAssistant({
           ...(assistant ? { id: assistant.id } : {}),
           name,
@@ -59,6 +58,7 @@ export function AssistantForm({
           color,
           brief,
           skills,
+          web,
           ...(sourceId ? { sourceId } : {}),
           ...(sourceId && model.trim() ? { model: model.trim() } : {}),
         }),
@@ -70,12 +70,16 @@ export function AssistantForm({
     }
   }
 
-  async function exportFile() {
-    if (!assistant) return;
+  /** Runs one small change (a folder, a site, a file) and reports how it went. */
+  async function run(action: () => Promise<unknown>, done?: string) {
     setError("");
     setNote("");
     try {
-      if (await api.exportAssistant(assistant.id)) setNote("Saved the file");
+      const result = await action();
+      if (result !== null && result !== false) {
+        if (done) setNote(done);
+        props.onChanged();
+      }
     } catch (e) {
       setError(errorText(e));
     }
@@ -85,7 +89,7 @@ export function AssistantForm({
     if (!assistant) return;
     try {
       await api.removeAssistant(assistant.id);
-      onRemoved();
+      props.onRemoved();
     } catch (e) {
       setError(errorText(e));
     }
@@ -126,16 +130,8 @@ export function AssistantForm({
             </label>
           </div>
 
-          <fieldset
-            className="stack"
-            style={{ border: 0, padding: 0, margin: 0 }}
-          >
-            <legend
-              className="field-label"
-              style={{ padding: 0, marginBottom: "0.5rem" }}
-            >
-              Look
-            </legend>
+          <fieldset className="stack plain">
+            <legend className="field-label">Look</legend>
             <div className="wrap">
               {PETS.map((p) => (
                 <button
@@ -184,13 +180,8 @@ export function AssistantForm({
             />
           </label>
 
-          <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
-            <legend
-              className="field-label"
-              style={{ padding: 0, marginBottom: "0.5rem" }}
-            >
-              Skills
-            </legend>
+          <fieldset className="plain">
+            <legend className="field-label">Skills</legend>
             <div className="wrap">
               {SKILLS.map((skill) => (
                 <label key={skill.id} className="choice">
@@ -204,6 +195,99 @@ export function AssistantForm({
               ))}
             </div>
           </fieldset>
+
+          <section className="stack" aria-labelledby="access-title">
+            <div className="stack-tight">
+              <h2 className="section-title" id="access-title">
+                What it can use
+              </h2>
+              <p className="faint">
+                It can never change, replace, move or delete a file. What it
+                reads is sent to the model you chose, so with a model on this
+                computer it stays here.
+              </p>
+            </div>
+
+            <label className="choice" style={{ alignSelf: "flex-start" }}>
+              <input
+                type="checkbox"
+                checked={web}
+                onChange={(event) => setWeb(event.target.checked)}
+              />
+              <span>Read web pages</span>
+            </label>
+            <p className="faint">
+              It asks you before it reaches a site for the first time, and every
+              time an address carries extra text.
+            </p>
+
+            {assistant ? (
+              <>
+                {assistant.sites.length > 0 ? (
+                  <ul
+                    className="list card"
+                    aria-label="Sites it may always read"
+                  >
+                    {assistant.sites.map((site) => (
+                      <li key={site}>
+                        <span className="grow mono">{site}</span>
+                        <span className="faint">Always allowed</span>
+                        <button
+                          type="button"
+                          className="btn"
+                          onClick={() =>
+                            void run(() => api.removeSite(assistant.id, site))
+                          }
+                        >
+                          Remove
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+
+                {assistant.folders.length > 0 ? (
+                  <ul className="list card" aria-label="Folders it may use">
+                    {assistant.folders.map((folder) => (
+                      <li key={folder}>
+                        <Icon name="folder" size={18} />
+                        <span className="grow stack-tight">
+                          <span className="mono">{folder}</span>
+                          <span className="faint">
+                            Reads files and adds new ones
+                          </span>
+                        </span>
+                        <button
+                          type="button"
+                          className="btn"
+                          onClick={() =>
+                            void run(() =>
+                              api.removeFolder(assistant.id, folder),
+                            )
+                          }
+                        >
+                          Remove
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+                <div>
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={() => void run(() => api.addFolder(assistant.id))}
+                  >
+                    Add a folder
+                  </button>
+                </div>
+              </>
+            ) : (
+              <p className="faint">
+                Save it first. Then you can pick the folders it may use.
+              </p>
+            )}
+          </section>
 
           <div className="wrap" style={{ alignItems: "flex-start" }}>
             <label className="field grow">
@@ -249,7 +333,7 @@ export function AssistantForm({
             >
               {busy ? "Saving…" : "Save"}
             </button>
-            <button type="button" className="btn" onClick={onCancel}>
+            <button type="button" className="btn" onClick={props.onCancel}>
               Cancel
             </button>
           </div>
@@ -258,14 +342,13 @@ export function AssistantForm({
             <section className="stack" aria-label="Remove">
               {removing ? (
                 <div
-                  className="card stack"
-                  style={{ padding: "1rem" }}
+                  className="card stack pad"
                   role="alertdialog"
                   aria-label={`Remove ${assistant.name}`}
                 >
                   <p>
                     Remove {assistant.name} and its chat from this computer?
-                    This cannot be undone.
+                    This cannot be undone. Files in its folders stay.
                   </p>
                   <div className="wrap">
                     <button
@@ -309,19 +392,74 @@ export function AssistantForm({
           {skills.length === 1 ? "1 skill" : `${skills.length} skills`}
         </span>
         {assistant ? (
-          <div className="stack" style={{ marginTop: "auto", width: "100%" }}>
+          <div className="stack preview-actions">
+            {note ? <OkLine>{note}</OkLine> : null}
             <button
               type="button"
               className="btn"
-              onClick={() => void exportFile()}
+              onClick={() =>
+                void run(
+                  () => api.exportAssistant(assistant.id),
+                  "Saved the file",
+                )
+              }
             >
               <Icon name="download" />
               Export as a file
             </button>
-            {note ? <OkLine>{note}</OkLine> : null}
+            {copying ? (
+              <div
+                className="card stack pad"
+                role="alertdialog"
+                aria-label="Copy to StellarFirm cloud"
+              >
+                <p>
+                  This opens stellarfirm.ai in your browser with this
+                  assistant's saved name, look and brief. You decide there
+                  whether to hire it.
+                </p>
+                <p className="faint">
+                  Not copied: its chats, your model keys, its folders and sites.
+                  StellarFirm is a separate service with its own account and
+                  plans.
+                </p>
+                <div className="wrap" style={{ justifyContent: "center" }}>
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={() => {
+                      setCopying(false);
+                      void run(
+                        () => api.openCloud("copy", assistant.id),
+                        "Opened in your browser",
+                      );
+                    }}
+                  >
+                    Open StellarFirm
+                    <Icon name="external" size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={() => setCopying(false)}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="btn"
+                onClick={() => setCopying(true)}
+              >
+                <Icon name="cloud" />
+                Copy to StellarFirm cloud
+              </button>
+            )}
             <p className="faint">
-              Share it with anyone who runs StellarFirm Open. Keys and models
-              are never in the file.
+              A file can be shared with anyone who runs StellarFirm Open. Keys
+              and models are never in it.
             </p>
           </div>
         ) : null}

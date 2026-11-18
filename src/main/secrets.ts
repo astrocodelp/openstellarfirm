@@ -36,12 +36,18 @@ export class Secrets {
     renameSync(temp, this.file);
   }
 
+  /** Only the app's own ids name a key; anything else names nothing. */
+  private own(all: Record<string, string>, id: string): string | undefined {
+    const value = Object.hasOwn(all, id) ? all[id] : undefined;
+    return typeof value === "string" ? value : undefined;
+  }
+
   has(id: string): boolean {
-    return typeof this.read()[id] === "string";
+    return this.own(this.read(), id) !== undefined;
   }
 
   async get(id: string): Promise<string | undefined> {
-    const sealed = this.read()[id];
+    const sealed = this.own(this.read(), id);
     if (!sealed) return undefined;
     const { plain, stale } = await this.box.open(Buffer.from(sealed, "base64"));
     if (stale) await this.set(id, plain);
@@ -63,7 +69,7 @@ export class Secrets {
 
   remove(id: string): void {
     const all = this.read();
-    if (!(id in all)) return;
+    if (!Object.hasOwn(all, id)) return;
     delete all[id];
     this.write(all);
   }

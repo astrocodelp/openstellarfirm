@@ -74,6 +74,14 @@ const ICONS = {
   download: <path d="M12 4v11M7 10l5 5 5-5M5 20h14" />,
   upload: <path d="M12 20V9M7 14l5-5 5 5M5 4h14" />,
   alert: <path d="M12 4 3 20h18zM12 10v5M12 17.5h.01" />,
+  close: <path d="M6 6l12 12M18 6 6 18" />,
+  external: <path d="M14 5h5v5M19 5l-8 8M11 7H6v11h11v-5" />,
+  cloud: (
+    <path d="M7 18a4 4 0 0 1-.6-7.96A6 6 0 0 1 18 9.5a4.25 4.25 0 0 1 0 8.5z" />
+  ),
+  folder: (
+    <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+  ),
   sliders: (
     <>
       <path d="M4 7h9M19 7h1M4 17h1M11 17h9" />

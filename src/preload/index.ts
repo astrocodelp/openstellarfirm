@@ -26,17 +26,26 @@ const api: OpenApi = {
   removeAssistant: (id) => call(IPC.removeAssistant, id),
   exportAssistant: (id) => call(IPC.exportAssistant, id),
   importAssistant: () => call(IPC.importAssistant),
+  addFolder: (id) => call(IPC.addFolder, id),
+  removeFolder: (id, folder) => call(IPC.removeFolder, id, folder),
+  removeSite: (id, site) => call(IPC.removeSite, id, site),
   messages: (id) => call(IPC.messages, id),
   send: (id, text) => call(IPC.send, id, text),
   stop: (id) => call(IPC.stop, id),
+  pending: (id) => call(IPC.pending, id),
+  decide: (id, approvalId, decision) =>
+    call(IPC.decide, id, approvalId, decision),
   saveSource: (input) => call(IPC.saveSource, input),
   removeSource: (id) => call(IPC.removeSource, id),
   probeModels: (input) => call(IPC.probeModels, input),
   checkSource: (id) => call(IPC.checkSource, id),
   detectLocal: () => call(IPC.detectLocal),
   setSettings: (patch) => call(IPC.setSettings, patch),
+  openCloud: (target, assistantId) => call(IPC.openCloud, target, assistantId),
   onDelta: (listener) => listen(IPC.delta, listener),
   onDone: (listener) => listen(IPC.done, listener),
+  onActivity: (listener) => listen(IPC.activity, listener),
+  onApproval: (listener) => listen(IPC.approval, listener),
 };
 
 contextBridge.exposeInMainWorld("stellarOpen", api);

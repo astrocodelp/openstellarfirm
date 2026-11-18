@@ -10,8 +10,8 @@ import type {
 /**
  * The page talks to the app through `window.stellarOpen`. In a plain browser
  * (`pnpm dev:ui`) there is no app behind it, so this stand-in keeps a little
- * data in memory. It calls no model and saves nothing: it is for working on
- * the screens only.
+ * data in memory. It calls no model, opens nothing and saves nothing: it is
+ * for working on the screens only.
  */
 function preview(): OpenApi {
   const now = () => new Date().toISOString();
@@ -34,6 +34,9 @@ function preview(): OpenApi {
         color: "sky",
         brief: "You help me research and write. Give a source for every claim.",
         skills: ["research", "write"],
+        folders: ["/Users/you/Documents/Notes"],
+        web: true,
+        sites: ["example.com"],
         lastLine: "This is the browser preview.",
         createdAt: now(),
       },
@@ -45,6 +48,9 @@ function preview(): OpenApi {
         color: "rose",
         brief: "You help me plan trips.",
         skills: ["plan"],
+        folders: [],
+        web: false,
+        sites: [],
         createdAt: now(),
       },
     ],
@@ -64,6 +70,18 @@ function preview(): OpenApi {
     chats.set(assistantId, [...(chats.get(assistantId) ?? []), message]);
     return message;
   };
+  const change = (
+    assistantId: string,
+    edit: (a: Assistant) => Assistant,
+  ): Assistant => {
+    const found = state.assistants.find((a) => a.id === assistantId);
+    if (!found) throw new Error("That assistant is no longer here.");
+    const next = edit(found);
+    state.assistants = state.assistants.map((a) =>
+      a.id === assistantId ? next : a,
+    );
+    return next;
+  };
   return {
     getState: async () => structuredClone(state),
     saveAssistant: async (input) => {
@@ -72,6 +90,9 @@ function preview(): OpenApi {
         ...existing,
         ...input,
         id: existing?.id ?? id(),
+        folders: existing?.folders ?? [],
+        sites: existing?.sites ?? [],
+        web: input.web ?? existing?.web ?? false,
         createdAt: existing?.createdAt ?? now(),
       };
       state.assistants = existing
@@ -84,6 +105,17 @@ function preview(): OpenApi {
     },
     exportAssistant: async () => false,
     importAssistant: async () => null,
+    addFolder: async () => null,
+    removeFolder: async (assistantId, folder) =>
+      change(assistantId, (a) => ({
+        ...a,
+        folders: a.folders.filter((f) => f !== folder),
+      })),
+    removeSite: async (assistantId, site) =>
+      change(assistantId, (a) => ({
+        ...a,
+        sites: a.sites.filter((s) => s !== site),
+      })),
     messages: async (assistantId) => chats.get(assistantId) ?? [],
     send: async (assistantId, text) => {
       const message = say(assistantId, "user", text);
@@ -99,6 +131,8 @@ function preview(): OpenApi {
       return message;
     },
     stop: async () => {},
+    pending: async () => null,
+    decide: async () => {},
     saveSource: async (input) => {
       const next: ModelSource = {
         id: input.id ?? id(),
@@ -122,11 +156,14 @@ function preview(): OpenApi {
       state.settings = { ...state.settings, ...patch };
       return state.settings;
     },
+    openCloud: async () => {},
     onDelta: () => () => {},
     onDone: (listener) => {
       doneListeners.add(listener);
       return () => doneListeners.delete(listener);
     },
+    onActivity: () => () => {},
+    onApproval: () => () => {},
   };
 }
 

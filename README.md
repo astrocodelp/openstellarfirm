@@ -7,9 +7,9 @@ You give each assistant a name, a look and a job. It thinks with your own
 model: one that runs on this machine (Ollama, LM Studio), your own key, or your
 own endpoint. There is no account, no server of ours, and no fee.
 
-> **Early.** This is the first working slice. Today an assistant can talk. It
-> cannot yet open files, use apps or act for you. See [What is built](#what-is-built)
-> and the [Roadmap](#roadmap).
+> **Early.** An assistant can talk, read and add files in folders you pick,
+> and read web pages you allow. It cannot yet use your apps or your screen.
+> See [What is built](#what-is-built) and the [Roadmap](#roadmap).
 
 Made by the team behind [StellarFirm](https://stellarfirm.ai), where a whole
 team of AI Agent Assistants works for your company in the cloud.
@@ -22,17 +22,25 @@ team of AI Agent Assistants works for your company in the cloud.
   this computer, OpenAI, OpenRouter, Mistral, Together AI, or your own
   endpoint such as a LiteLLM gateway. An assistant can have a model of its own.
 - **Chat that streams**, with Stop. Each assistant keeps its own chat.
-- **Share an assistant as a file.** Export and import. A file never holds a key
-  or a model source.
+- **Folders you pick.** An assistant can list, find and read files there, and
+  save a new file. It can never change, replace, move or delete one.
+- **Web pages, with your Approve.** It asks before it reaches a site for the
+  first time. You can allow a site for good, and take that back.
+- **Share an assistant as a file.** Export and import. A file never holds a
+  key, a model, a folder or a site.
+- **Copy to StellarFirm cloud.** One button opens stellarfirm.ai in your
+  browser with an assistant's name, look and brief, where you can hire it to
+  work in the cloud. StellarFirm is a separate service with its own account
+  and plans.
 - **First run** that finds a model already running on this computer.
 
 ## What is not built yet
 
-Honest list, so nobody is surprised:
-
-- No tools: an assistant cannot read files, browse, or use your apps.
-- No computer use, no approvals, no connections (MCP), no Poppy.
+- No use of your screen or your apps, and no connections (MCP).
+- No Poppy (acting for you at a company).
 - No native Claude or Gemini wire (use an OpenAI-compatible address for now).
+- Tools need a model that supports tool calls. With one that does not, the
+  assistant only talks, and says so.
 - No light theme, no auto-update, no signed installers, no app icon.
 
 ## Privacy and safety
@@ -42,12 +50,16 @@ Honest list, so nobody is surprised:
   disk. It is read only in the main process, sent only to the address it was
   saved with, never to the page, and never shown again. With no keychain, a
   key is refused rather than saved in the clear.
+- What an assistant reads is sent to the model you chose. With a model on this
+  computer, it stays here.
 - A remote model address must be `https`. Plain `http` is allowed only for a
   model on this computer. A model call never follows a redirect.
-- The app makes no network call of its own: no telemetry, no update check, no
-  fonts from a CDN. The only calls are the ones to the model you set up.
-- The page runs sandboxed with context isolation and a strict Content Security
-  Policy, and can reach the main process only through one typed bridge.
+- The app has no telemetry, no update check, and loads nothing from a CDN.
+  The only calls it makes are to the model you set up and to the web pages you
+  approved. A link to stellarfirm.ai opens in your browser, only on your click.
+
+The full list of what the code enforces, and what it does not, is in
+[SECURITY.md](SECURITY.md).
 
 ## Run it
 
@@ -66,24 +78,22 @@ pnpm package    # an unsigned installer in release/
 
 ## How it is laid out
 
-| Folder         | What                                                                                                     |
-| -------------- | -------------------------------------------------------------------------------------------------------- |
-| `src/shared`   | Types, the pets, skills and model presets, the address check, the system prompt. No Node or DOM imports. |
-| `src/main`     | The main process: the JSON store, sealed keys, the one model client, and the calls the page can make.    |
-| `src/preload`  | The only bridge between the page and the main process.                                                   |
-| `src/renderer` | The React screens and one stylesheet built on tokens.                                                    |
+| Folder         | What                                                                                                                                                |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/shared`   | Types, the pets, skills and model presets, the address checks, the system prompt, the links to StellarFirm. No Node or DOM imports.                 |
+| `src/main`     | The main process: the JSON store, sealed keys, the one model client, the folder and web tools, the loop that runs them, and the gate that asks you. |
+| `src/preload`  | The only bridge between the page and the main process.                                                                                              |
+| `src/renderer` | The React screens and one stylesheet built on tokens.                                                                                               |
 
 ## Roadmap
 
-1. **Tools with approvals.** Read tools run on their own; anything that sends,
-   deletes or spends waits for your Approve.
-2. **This computer.** Folders you pick (nothing is deleted there), then the
-   screen and apps, with Take over and Pause.
-3. **Connections.** MCP servers by address or on this computer, with your own
-   sign-ins kept in the keychain.
-4. **Companies.** Acting for you at a company that supports the Personal Agent
+1. **Connections.** MCP servers by address or on this computer, with your own
+   sign-ins kept in the keychain. Anything that sends, deletes or spends waits
+   for your Approve.
+2. **This computer.** The screen and apps, with Take over and Pause.
+3. **Companies.** Acting for you at a company that supports the Personal Agent
    Protocol (Poppy).
-5. **Releases.** Signed builds for macOS and Windows, with updates.
+4. **Releases.** Signed builds for macOS and Windows, with updates.
 
 ## Name and brand
 
@@ -93,4 +103,5 @@ its own name and look.
 
 ## Licence
 
-[MIT](LICENSE).
+[MIT](LICENSE). Other people's work inside a built app is listed in
+[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
