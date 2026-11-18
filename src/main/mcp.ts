@@ -105,10 +105,12 @@ function cleanJson(value: unknown, depth: number): unknown {
   if (typeof value === "object") {
     const out: Record<string, unknown> = {};
     for (const [key, item] of Object.entries(value).slice(0, 100)) {
-      // A key named like this would change the object's own type.
-      if (key === "__proto__") continue;
+      // A key named like this would change the object's own type. It is
+      // checked after cleaning, since cleaning trims the name.
+      const name = plain(key, 100);
+      if (name === "__proto__") continue;
       const clean = cleanJson(item, depth + 1);
-      if (clean !== undefined) out[plain(key, 100)] = clean;
+      if (clean !== undefined) out[name] = clean;
     }
     return out;
   }
