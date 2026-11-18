@@ -76,6 +76,14 @@ describe("personas folder", () => {
     }
   });
 
+  it("never brings screen access, whatever a persona file claims", () => {
+    for (const { name, raw } of loaded) {
+      expect(raw.screen, name).toBeUndefined();
+      const { assistant } = readAssistantFile({ ...raw, screen: true });
+      expect("screen" in assistant, name).toBe(false);
+    }
+  });
+
   it("never says bot or robot", () => {
     for (const { name } of loaded) {
       expect(readFileSync(join(DIR, name), "utf8"), name).not.toMatch(

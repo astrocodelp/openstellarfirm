@@ -24,11 +24,23 @@ export interface WireToolCall {
   signature?: string;
 }
 
+/** One picture, base64, as a tool result may carry beside its text. */
+export interface ImagePart {
+  mediaType: string;
+  data: string;
+}
+
 /** The neutral message list. Each wire maps it to its own service's shape. */
 export type WireMessage =
   | { role: "system" | "user"; content: string }
   | { role: "assistant"; content: string; tool_calls?: WireToolCall[] }
-  | { role: "tool"; tool_call_id: string; content: string };
+  | {
+      role: "tool";
+      tool_call_id: string;
+      content: string;
+      /** At most one picture, sent beside the text in the way the wire allows. */
+      image?: ImagePart;
+    };
 
 export interface ToolSpec {
   name: string;

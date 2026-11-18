@@ -227,6 +227,27 @@ describe("hostile backups", () => {
     expect(JSON.stringify(store.assistants())).not.toContain("sk-test");
   });
 
+  it("never carries the screen switch out or in", () => {
+    const store = fresh();
+    const a = store.saveAssistant({
+      ...base,
+      name: "Looker",
+      group: "Home",
+      brief: "",
+      skills: [],
+      screen: true,
+    });
+    store.appendMessage(a.id, "assistant", "Done.", false, [
+      { label: "Looked at the screen at 14:05", ok: true },
+    ]);
+    const built = JSON.stringify(buildBackup(store, true));
+    expect(built).not.toMatch(/"screen"/);
+    expect(built).not.toContain("base64");
+    const other = fresh();
+    restoreBackup(other, file([entry({ screen: true })]));
+    expect(other.assistants()[0]?.screen).toBe(false);
+  });
+
   it("ignores __proto__ and other odd keys", () => {
     const store = fresh();
     const raw = `{"format":"stellarfirm-open.backup","version":1,"exportedAt":"x",

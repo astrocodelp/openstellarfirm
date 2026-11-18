@@ -64,6 +64,7 @@ export function cleanAssistant(
     ),
     skills,
     web: raw.web === true,
+    screen: raw.screen === true,
     ...(ID.test(sourceId) ? { sourceId } : {}),
     ...(model ? { model } : {}),
   };
@@ -78,7 +79,7 @@ export function isAssistantFile(file: unknown): boolean {
 
 /**
  * Reads one assistant file field by field. A shared file never brings a model
- * source, a model or web access with it, and never a folder or a site (it has
+ * source, a model, web access or screen access with it, and never a folder or a site (it has
  * no field for them): the person picks those for themselves.
  */
 export function readAssistantFile(file: unknown): {
@@ -91,6 +92,7 @@ export function readAssistantFile(file: unknown): {
     sourceId: _source,
     model: _model,
     web: _web,
+    screen: _screen,
     ...assistant
   } = cleanAssistant(file);
   const raw = (file as { summary?: unknown }).summary;

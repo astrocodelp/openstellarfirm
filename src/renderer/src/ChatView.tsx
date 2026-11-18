@@ -127,7 +127,8 @@ export function ChatView(props: ChatViewProps) {
   const scroller = useRef<HTMLDivElement>(null);
   const box = useRef<HTMLTextAreaElement>(null);
   const busy = streaming !== undefined;
-  const canAct = assistant.folders.length > 0 || assistant.web;
+  const canAct =
+    assistant.folders.length > 0 || assistant.web || assistant.screen === true;
 
   // Keep the newest text in view while an answer is written.
   // biome-ignore lint/correctness/useExhaustiveDependencies: scroll when the chat's content changes

@@ -132,6 +132,58 @@ describe("folders and sites", () => {
   });
 });
 
+describe("screen access", () => {
+  it("is off by default and is set only by the person's own save", () => {
+    const made = store.saveAssistant({ ...input, skills: [] });
+    expect(made.screen).toBe(false);
+    const on = store.saveAssistant({
+      ...input,
+      skills: [],
+      id: made.id,
+      screen: true,
+    });
+    expect(on.screen).toBe(true);
+    // A save that says nothing about the screen leaves that choice as it was.
+    expect(
+      store.saveAssistant({ ...input, skills: [], id: made.id }).screen,
+    ).toBe(true);
+    expect(
+      store.saveAssistant({ ...input, skills: [], id: made.id, screen: false })
+        .screen,
+    ).toBe(false);
+  });
+
+  it("reads an assistant saved before the switch existed as off", () => {
+    const made = store.saveAssistant({ ...input, skills: [] });
+    const file = join(dir, "state.json");
+    const state = JSON.parse(readFileSync(file, "utf8"));
+    delete state.assistants[0].screen;
+    writeFileSync(file, JSON.stringify(state));
+    expect(store.assistant(made.id).screen).toBe(false);
+  });
+
+  it("never puts the switch in a shared file, and never takes it from one", () => {
+    const made = store.saveAssistant({ ...input, skills: [], screen: true });
+    const exported = store.exportFile(made.id);
+    expect(JSON.stringify(exported)).not.toMatch(/screen/i);
+    const imported = store.importFile(
+      JSON.stringify({ ...exported, screen: true }),
+    );
+    expect(imported.screen).toBe(false);
+  });
+
+  it("keeps no picture in a saved chat, whatever the answer's steps say", () => {
+    const made = store.saveAssistant({ ...input, skills: [], screen: true });
+    store.appendMessage(made.id, "assistant", "I can see a window.", false, [
+      { label: "Looked at the screen at 14:05", ok: true },
+    ]);
+    const saved = readFileSync(join(dir, "chats", `${made.id}.json`), "utf8");
+    expect(saved).toContain("Looked at the screen at 14:05");
+    expect(saved).not.toContain("base64");
+    expect(saved).not.toContain("image");
+  });
+});
+
 describe("assistant files", () => {
   it("round-trips an assistant without any model source", () => {
     const source = store.saveSource({ preset: "ollama", model: "m" });

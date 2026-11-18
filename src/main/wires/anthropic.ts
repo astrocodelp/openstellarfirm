@@ -35,7 +35,19 @@ function headers(apiKey?: string): Record<string, string> {
 type Block =
   | { type: "text"; text: string }
   | { type: "tool_use"; id: string; name: string; input: unknown }
-  | { type: "tool_result"; tool_use_id: string; content: string };
+  | {
+      type: "tool_result";
+      tool_use_id: string;
+      content:
+        | string
+        | (
+            | { type: "text"; text: string }
+            | {
+                type: "image";
+                source: { type: "base64"; media_type: string; data: string };
+              }
+          )[];
+    };
 
 interface Turn {
   role: "user" | "assistant";
@@ -74,7 +86,19 @@ export function toAnthropic(messages: WireMessage[]): {
         {
           type: "tool_result",
           tool_use_id: message.tool_call_id,
-          content: message.content,
+          content: message.image
+            ? [
+                { type: "text", text: message.content },
+                {
+                  type: "image",
+                  source: {
+                    type: "base64",
+                    media_type: message.image.mediaType,
+                    data: message.image.data,
+                  },
+                },
+              ]
+            : message.content,
         },
       ]);
     } else if (message.role === "assistant") {

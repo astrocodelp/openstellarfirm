@@ -72,6 +72,7 @@ export class Store {
       ...a,
       folders: a.folders ?? [],
       web: a.web ?? false,
+      screen: a.screen ?? false,
       sites: a.sites ?? [],
     }));
     return parsed;
@@ -111,6 +112,7 @@ export class Store {
       const next: Assistant = {
         ...clean,
         web: input.web === undefined ? existing.web : clean.web,
+        screen: input.screen === undefined ? existing.screen : clean.screen,
         folders: existing.folders,
         sites: existing.sites,
         id,
