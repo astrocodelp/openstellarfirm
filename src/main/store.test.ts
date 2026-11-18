@@ -382,7 +382,13 @@ describe("the theme", () => {
       }),
     );
     const old = store;
-    expect(old.settings()).toEqual({ onboarded: true, theme: "system" });
+    expect(old.settings()).toEqual({
+      onboarded: true,
+      theme: "system",
+      textSize: "default",
+      sendWith: "enter",
+      checkUpdates: false,
+    });
     writeFileSync(
       join(dir, "state.json"),
       JSON.stringify({

@@ -1,6 +1,11 @@
 /** Types shared by the main process, the preload and the page. No Node or DOM imports. */
 
+import type { LinkName } from "./links";
+import type { SendKey, TextSize } from "./preferences";
 import type { Theme } from "./theme";
+import type { UpdateCheck } from "./update";
+
+export type { LinkName, SendKey, TextSize, UpdateCheck };
 
 export const PET_IDS = [
   "blip",
@@ -170,6 +175,17 @@ export interface Settings {
   defaultSourceId?: string;
   /** True once the person closed the StellarFirm cloud card in the sidebar. */
   hideCloudCard?: boolean;
+  /** How big the text is: the root size the whole page scales from. */
+  textSize: TextSize;
+  /** What sends a message in the chat box. */
+  sendWith: SendKey;
+  /** Off until the person turns it on: a once-a-day look at the newest version. */
+  checkUpdates: boolean;
+  /** When the update check last ran, and the newest version it found. */
+  lastUpdateCheck?: string;
+  newestVersion?: string;
+  /** The version whose notice the person closed. */
+  dismissedVersion?: string;
 }
 
 export interface AppState {
@@ -180,6 +196,10 @@ export interface AppState {
   /** False when this computer has no keychain to keep a key in. */
   keychain: boolean;
   platform: string;
+  /** This app's own version, such as "0.1.0". */
+  version: string;
+  /** The folder the app keeps everything in, shown as plain text. */
+  dataDir: string;
 }
 
 export interface LocalModels {
@@ -276,6 +296,24 @@ export interface OpenApi {
    * process from fixed parts; the page never supplies one.
    */
   openCloud(target: "home" | "copy", assistantId?: string): Promise<void>;
+  /**
+   * Opens one of the app's fixed links in the browser, by name. The address
+   * is built in the main process; the page never supplies one.
+   */
+  openLink(name: LinkName): Promise<void>;
+  /** Opens the app's own data folder. The page names no path. */
+  openDataFolder(): Promise<void>;
+  /**
+   * Forgets every site "Always allow" remembered, for every assistant, so each
+   * asks again. Returns how many were forgotten.
+   */
+  clearApprovals(): Promise<number>;
+  /** Deletes every chat and keeps the assistants. Returns how many chats. */
+  deleteAllChats(): Promise<number>;
+  /** One check for a newer version, on the person's click. */
+  checkForUpdate(): Promise<UpdateCheck>;
+  /** Closes the notice for the version that is shown now. */
+  dismissUpdate(): Promise<Settings>;
   onDelta(listener: (delta: ChatDelta) => void): () => void;
   onDone(listener: (done: ChatDone) => void): () => void;
   onActivity(listener: (activity: ChatActivity) => void): () => void;
@@ -309,6 +347,12 @@ export const IPC = {
   detectLocal: "source:detect",
   setSettings: "settings:set",
   openCloud: "cloud:open",
+  openLink: "link:open",
+  openDataFolder: "data:open",
+  clearApprovals: "approvals:clear",
+  deleteAllChats: "chats:deleteAll",
+  checkForUpdate: "update:check",
+  dismissUpdate: "update:dismiss",
   delta: "chat:delta",
   done: "chat:done",
   activity: "chat:activity",

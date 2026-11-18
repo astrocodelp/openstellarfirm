@@ -16,6 +16,7 @@ import {
 import { presetOf } from "../shared/catalog";
 import { cloudCopyUrl, cloudHomeUrl, MAX_LINK_WINDOWS } from "../shared/cloud";
 import { checkEndpoint, isLocalEndpoint } from "../shared/endpoint";
+import { linkUrl } from "../shared/links";
 import { systemPrompt } from "../shared/prompt";
 import { type Theme, windowBackground } from "../shared/theme";
 import {
@@ -36,6 +37,7 @@ import {
   type PresetId,
   type Settings,
 } from "../shared/types";
+import { availableUpdate } from "../shared/update";
 import { runAgent } from "./agent";
 import {
   backupName,
@@ -49,6 +51,7 @@ import { listModels, ModelError, streamTurn, type WireMessage } from "./models";
 import { electronScreen } from "./screen-capture";
 import { Secrets } from "./secrets";
 import { Store } from "./store";
+import { scheduleUpdateChecks, UpdateChecker } from "./update-check";
 
 const pageUrl = pathToFileURL(join(__dirname, "../renderer/index.html")).href;
 // The dev server exists only when the app runs from source, and only on this
@@ -71,6 +74,7 @@ function str(value: unknown, max = 4096): string {
 let store: Store;
 let secrets: Secrets;
 let connections: ConnectionService;
+let updates: UpdateChecker;
 const running = new Map<string, AbortController>();
 /** The step that waits for the person, by assistant. One at a time each. */
 const waiting = new Map<
@@ -113,6 +117,8 @@ async function state(): Promise<AppState> {
     settings: store.settings(),
     keychain: await secrets.available(),
     platform: process.platform,
+    version: app.getVersion(),
+    dataDir: store.folder,
   };
 }
 
@@ -410,6 +416,28 @@ async function openCloud(target: unknown, assistantId: unknown): Promise<void> {
   throw new Error("That is not allowed.");
 }
 
+/**
+ * Opens one of the app's fixed links. The page sends a name; the address is
+ * built here, and the release link only while a newer version is known.
+ */
+function openLink(name: unknown): Promise<void> {
+  const newest = availableUpdate(store.settings(), app.getVersion());
+  return shell.openExternal(linkUrl(name, newest));
+}
+
+/** The app's own data folder, opened by the system. The page names no path. */
+async function openDataFolder(): Promise<void> {
+  const problem = await shell.openPath(store.folder);
+  if (problem) throw new Error("The folder could not be opened.");
+}
+
+function deleteAllChats(): number {
+  // An answer that is still being written would save itself after the delete.
+  if (running.size > 0)
+    throw new Error("An assistant is still answering. Stop it first, or wait.");
+  return store.deleteAllChats();
+}
+
 function register(window: BrowserWindow): void {
   handle(IPC.getState, () => state());
   handle(IPC.saveAssistant, (_e, input: AssistantInput) =>
@@ -515,6 +543,15 @@ function register(window: BrowserWindow): void {
   handle(IPC.openCloud, (_e, target: unknown, assistantId: unknown) =>
     openCloud(target, assistantId),
   );
+  handle(IPC.openLink, (_e, name: unknown) => openLink(name));
+  handle(IPC.openDataFolder, () => openDataFolder());
+  handle(IPC.clearApprovals, () => store.clearApprovals());
+  handle(IPC.deleteAllChats, () => deleteAllChats());
+  handle(
+    IPC.checkForUpdate,
+    async () => (await updates.check(true)) ?? { status: "unknown" },
+  );
+  handle(IPC.dismissUpdate, () => store.dismissUpdate());
 }
 
 /**
@@ -590,6 +627,16 @@ app.whenReady().then(() => {
     secrets,
     appVersion: app.getVersion(),
   });
+  updates = new UpdateChecker({
+    fetch,
+    now: () => new Date(),
+    version: app.getVersion(),
+    settings: () => store.settings(),
+    record: (at, newest) => {
+      store.recordUpdateCheck(at, newest);
+    },
+  });
+  scheduleUpdateChecks(updates);
   // The page asks for no camera, microphone or location, so every ask is refused.
   applyTheme(store.settings().theme);
   nativeTheme.on("updated", paintWindows);

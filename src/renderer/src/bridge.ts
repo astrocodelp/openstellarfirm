@@ -63,9 +63,18 @@ function preview(): OpenApi {
     ],
     sources: [source],
     connections: [],
-    settings: { onboarded: true, theme: "system", defaultSourceId: source.id },
+    settings: {
+      onboarded: true,
+      theme: "system",
+      textSize: "default",
+      sendWith: "enter",
+      checkUpdates: false,
+      defaultSourceId: source.id,
+    },
     keychain: true,
     platform: "browser",
+    version: "0.0.0",
+    dataDir: "/Users/you/Library/Application Support/StellarFirm Open",
   };
   const chats = new Map<string, ChatMessage[]>();
   const doneListeners = new Set<(done: ChatDone) => void>();
@@ -212,6 +221,20 @@ function preview(): OpenApi {
       return state.settings;
     },
     openCloud: async () => {},
+    openLink: async () => {},
+    openDataFolder: async () => {},
+    clearApprovals: async () => {
+      const count = state.assistants.reduce((n, a) => n + a.sites.length, 0);
+      state.assistants = state.assistants.map((a) => ({ ...a, sites: [] }));
+      return count;
+    },
+    deleteAllChats: async () => {
+      const count = chats.size;
+      chats.clear();
+      return count;
+    },
+    checkForUpdate: async () => ({ status: "current" }),
+    dismissUpdate: async () => state.settings,
     onDelta: () => () => {},
     onDone: (listener) => {
       doneListeners.add(listener);
