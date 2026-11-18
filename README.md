@@ -36,6 +36,14 @@ team of AI Agent Assistants works for your company in the cloud.
   its web address. Every call asks first and shows what would be sent. A tool
   the server marks as read-only, with a name that does not read like a change,
   can be allowed for good; everything else asks every time.
+- **Your own Composio account.** One connection that reaches many apps
+  (mail, calendars, GitHub, search and more) through Composio, on your own
+  Composio key. Your usage and any cost are between you and Composio.
+- **Look up a company.** See what a company publishes for personal agents
+  (the Personal Agent Protocol's `poppy.json`), and add one of its servers as
+  a connection yourself.
+- **Settings.** Theme, text size, the send key, what is remembered, your data
+  folder, and an update check you can turn on.
 - **A look at your screen.** Off until you turn it on for an assistant. Every
   look asks first, and the picture is never saved. It can only look.
 - **Tools on small models too.** A model that cannot call tools asks for them
@@ -75,9 +83,18 @@ team of AI Agent Assistants works for your company in the cloud.
   computer, it stays here.
 - A remote model address must be `https`. Plain `http` is allowed only for a
   model on this computer. A model call never follows a redirect.
-- The app has no telemetry, no update check, and loads nothing from a CDN.
-  The only calls it makes are to the model you set up and to the web pages you
-  approved. A link to stellarfirm.ai opens in your browser, only on your click.
+- The app has no telemetry and loads nothing from a CDN. It talks to the model
+  you set up, the web pages you approved and the connections you added. Three
+  more calls exist, and each starts only when you ask:
+  - **Update check** (off by default). When you turn it on, or press "Check
+    now", the app asks GitHub once a day which version is the newest. It sends
+    nothing about you, and it never downloads or installs anything.
+  - **Composio.** Adding or using a Composio connection contacts Composio with
+    your own key.
+  - **Look up a company.** Contacts the site you typed, once, and sends
+    nothing but the request itself.
+- Links to stellarfirm.ai, composio.dev and this project's pages open in your
+  browser, only on your click.
 
 The full list of what the code enforces, and what it does not, is in
 [SECURITY.md](SECURITY.md).

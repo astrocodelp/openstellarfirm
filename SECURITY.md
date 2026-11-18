@@ -30,6 +30,7 @@ app's version and operating system. Please do not include a real key.
 | A file or web page an assistant reads             | Given to the model marked as information, not instructions. It can still mislead a model, which is why the rules below are enforced in code and not in the prompt.                                                                                                             |
 | A connection (MCP server)                         | Everything it sends is checked: tool names, descriptions and schemas are validated and cut, answers are capped, and results reach the model marked as information.                                                                                                             |
 | A picture of the screen                           | Reaches the model as information. The prompt says text in it is never an instruction.                                                                                                                                                                                          |
+| A company's published file (`poppy.json`)         | Read strictly, every text cut and cleaned, shown as plain text. Only a web address and a name are ever copied into a form you review.                                                                                                                                          |
 | An imported assistant file, a backup or a persona | Checked field by field. It never brings a key, a model, a folder, a site, a connection, web access or screen access with it. A backup only adds new assistants and never changes or removes one you have. Chats in it come in as plain text.                                   |
 | A model service's answers and errors              | A redirect is an error. An error is shown as a short plain line with the key taken out.                                                                                                                                                                                        |
 | The page                                          | Sandboxed, isolated, under a strict Content Security Policy. It reaches the main process only through one typed bridge, and every call is checked there.                                                                                                                       |
@@ -51,6 +52,23 @@ app's version and operating system. Please do not include a real key.
   error; an answer is capped at 2 MB and a request at 30 seconds; at most 10
   connections and 40 tools each. Which assistants may use a connection is set
   only by you.
+- **Composio.** An optional preset of a connection. It uses your own Composio
+  key, sent only to Composio's one fixed address in Composio's own header. The
+  address and the header are set in the main process, never by the page, a
+  file or a server. Its tools are general ones: any that runs, executes,
+  manages or changes something asks every time, with its arguments on the
+  card.
+- **Company look-up.** When you press Look up and type a site name, the app
+  contacts that site once and reads `https://<site>/.well-known/poppy.json`.
+  It sends no key and no cookie. The same checks as a web page read apply, a
+  redirect is never followed, and the file is capped at 256 KB and 10 seconds.
+  What the file says is shown as plain text and never sent to a model. Nothing
+  is saved or connected by it.
+- **Update check.** Off by default. When on, or when you press "Check now",
+  the app makes one request a day to GitHub's public releases address for this
+  project, with no key and no cookie, reads only the release tag, follows no
+  redirect, and never downloads or installs anything. It can only show that a
+  version is available, with a button that opens the release page.
 - **The screen.** Off until you turn it on for one assistant. Every look
   shows a card first, and there is no "Always allow" for it. The picture is
   taken only after you approve, in the main process, is held in memory for one
@@ -70,7 +88,8 @@ app's version and operating system. Please do not include a real key.
   only queries the app adds to a model address are fixed, non-secret text.
 - **Files you export.** Saved and opened only through the system's own
   dialogs, opened by the main process. The page never names a file path.
-- **StellarFirm links.** The only links the app opens are built in the main
+- **Links.** The only links the app opens (stellarfirm.ai, composio.dev and
+  this project's source, community and release pages) are built in the main
   process from fixed parts, on your click. "Copy to StellarFirm cloud" carries
   an assistant's name, look and brief after the `#` of the address, which a
   browser does not send to a server.
@@ -93,6 +112,9 @@ Said plainly, so nobody relies on more than is there:
 - **A connection is someone else's server.** What you send it leaves this
   computer, and what it does with a tool call is up to it. Its tool
   descriptions reach the model, cut and cleaned, and could still mislead it.
+- **Composio sees what you send through it.** What an assistant sends there,
+  and the answers, pass through your Composio account. Composio's own terms
+  and costs apply to you.
 - **A look at the screen shows everything visible.** Close anything private
   before you approve. Many models on this computer cannot read pictures.
 - **Earlier answers stay in the chat.** If an assistant quoted a file in an
