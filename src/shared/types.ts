@@ -17,12 +17,21 @@ export const PRESET_IDS = [
   "ollama",
   "lmstudio",
   "openai",
+  "anthropic",
+  "gemini",
   "openrouter",
   "mistral",
   "together",
   "custom",
 ] as const;
 export type PresetId = (typeof PRESET_IDS)[number];
+
+/**
+ * The way a model service is spoken to. The preset decides it in the main
+ * process; the page never sends one. A source saved before this existed
+ * has none, and reads as "openai".
+ */
+export type Wire = "openai" | "anthropic" | "gemini";
 
 export interface Assistant {
   id: string;
@@ -94,6 +103,8 @@ export interface ModelSource {
   preset: PresetId;
   name: string;
   baseUrl: string;
+  /** Set from the preset when saved. */
+  wire: Wire;
   model: string;
   hasKey: boolean;
 }

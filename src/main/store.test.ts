@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -167,6 +167,55 @@ describe("model sources", () => {
     });
     expect(saved.baseUrl).toBe("https://api.openai.com/v1");
     expect(store.settings().defaultSourceId).toBe(saved.id);
+  });
+
+  it("decides the wire from the preset, never from the page", () => {
+    const sent = (preset: "anthropic" | "gemini" | "openai" | "custom") =>
+      store.saveSource({
+        preset,
+        baseUrl: "https://models.example.com/v1",
+        wire: "openai",
+        model: "m",
+      } as never);
+    expect(sent("anthropic")).toMatchObject({
+      baseUrl: "https://api.anthropic.com/v1",
+      wire: "anthropic",
+    });
+    expect(sent("gemini")).toMatchObject({
+      baseUrl: "https://generativelanguage.googleapis.com/v1beta",
+      wire: "gemini",
+    });
+    expect(sent("openai").wire).toBe("openai");
+    expect(sent("custom").wire).toBe("openai");
+    const first = store.sources()[0];
+    const again = store.saveSource({
+      id: first?.id,
+      preset: "openai",
+      wire: "gemini",
+      model: "m",
+    } as never);
+    expect(again.wire).toBe("openai");
+  });
+
+  it("reads a source saved before wires existed as openai", () => {
+    writeFileSync(
+      join(dir, "state.json"),
+      JSON.stringify({
+        v: 1,
+        assistants: [],
+        sources: [
+          {
+            id: "11111111-1111-1111-1111-111111111111",
+            preset: "openai",
+            name: "OpenAI",
+            baseUrl: "https://api.openai.com/v1",
+            model: "m",
+          },
+        ],
+        settings: { onboarded: true },
+      }),
+    );
+    expect(store.sources()[0]?.wire).toBe("openai");
   });
 
   it("checks a custom address", () => {

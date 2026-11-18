@@ -26,6 +26,7 @@ import {
   type ModelSourceInput,
   PRESET_IDS,
   type Settings,
+  type Wire,
 } from "../shared/types";
 
 /** Everything the app keeps, in plain JSON files in its own data folder. */
@@ -63,6 +64,9 @@ export class Store {
     // A file this version did not write is left alone rather than overwritten.
     if (parsed.v !== 1)
       throw new Error("This data was saved by a newer version of the app.");
+    // A source saved before wires existed has none: it speaks "openai".
+    for (const source of parsed.sources as { wire?: Wire }[])
+      source.wire ??= "openai";
     // Assistants saved before tools existed have no folders, sites or web.
     parsed.assistants = parsed.assistants.map((a) => ({
       ...a,
@@ -253,6 +257,7 @@ export class Store {
         preset: preset.id,
         name,
         baseUrl,
+        wire: preset.wire,
         model,
       };
       state.sources = state.sources.map((s) =>
@@ -269,6 +274,7 @@ export class Store {
       preset: preset.id,
       name,
       baseUrl,
+      wire: preset.wire,
       model,
     };
     state.sources.push(created);
