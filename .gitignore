@@ -1,6 +1,8 @@
 node_modules/
 dist/
 release/
+electron-builder.signed.json
+signing-status-*.json
 *.tsbuildinfo
 .DS_Store
 .env

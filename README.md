@@ -41,7 +41,9 @@ team of AI Agent Assistants works for your company in the cloud.
 - No native Claude or Gemini wire (use an OpenAI-compatible address for now).
 - Tools need a model that supports tool calls. With one that does not, the
   assistant only talks, and says so.
-- No light theme, no auto-update, no signed installers, no app icon.
+- No light theme, no auto-update, no app icon. A release is unsigned until
+  the certificates in [issue 4](https://github.com/astrocodelp/worker-bot-open-source/issues/4)
+  are set, and the release says so.
 
 ## Privacy and safety
 
@@ -76,6 +78,13 @@ pnpm build      # dist/
 pnpm package    # an unsigned installer in release/
 ```
 
+## Releases
+
+A maintainer publishes installers by pushing a version tag (`v0.1.0`, or
+`v0.1.0-rc.1` for a release candidate). The steps, the runners, and the
+signing secrets are in [docs/releasing.md](docs/releasing.md). Signed builds
+are still [issue 4](https://github.com/astrocodelp/worker-bot-open-source/issues/4).
+
 ## How it is laid out
 
 | Folder         | What                                                                                                                                                |
@@ -93,7 +102,9 @@ pnpm package    # an unsigned installer in release/
 2. **This computer.** The screen and apps, with Take over and Pause.
 3. **Companies.** Acting for you at a company that supports the Personal Agent
    Protocol (Poppy).
-4. **Releases.** Signed builds for macOS and Windows, with updates.
+4. **Releases.** The tag workflow publishes installers. Signed builds and
+   updates are still to come
+   ([issue 4](https://github.com/astrocodelp/worker-bot-open-source/issues/4)).
 
 ## Name and brand
 

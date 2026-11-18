@@ -71,7 +71,10 @@ Said plainly, so nobody relies on more than is there:
 - **Copy to StellarFirm cloud has a length limit.** The assistant travels in
   the address, and Windows cannot open an address longer than 2,081
   characters, so a long brief is refused there with a plain message.
-- **No signed installers yet.** Build from source, or wait for signed releases.
+- **Installers from a GitHub Release may be unsigned.** Until the signing
+  secrets in [docs/releasing.md](docs/releasing.md) are set, Gatekeeper and
+  SmartScreen warn. Signed releases are the plan in
+  [issue 4](https://github.com/astrocodelp/worker-bot-open-source/issues/4).
 - **The file protocol keeps its extra privileges** in the packaged app, because
   the page is loaded from a file. Serving it from a protocol of the app's own
   would let that go off.

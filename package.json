@@ -23,6 +23,8 @@
     "format": "biome check --write .",
     "package": "pnpm build && electron-builder --publish never",
     "package:mac": "pnpm build && electron-builder --mac --publish never",
+    "package:mac-x64": "pnpm build && electron-builder --mac --x64 --publish never",
+    "package:mac-arm64": "pnpm build && electron-builder --mac --arm64 --publish never",
     "package:win": "pnpm build && electron-builder --win --x64 --publish never"
   },
   "pnpm": {

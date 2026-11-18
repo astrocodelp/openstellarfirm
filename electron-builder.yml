@@ -27,7 +27,9 @@ electronFuses:
   # the app's own would let this go off; that is a follow-up.
   grantFileProtocolExtraPrivileges: true
   resetAdHocDarwinSignature: true
-# Local builds stay unsigned. Releases are attached by hand or by a workflow.
+# Local builds stay unsigned. A GitHub Release (docs/releasing.md) signs only
+# when that platform's signing secrets are set, and the release says so when
+# they are not.
 forceCodeSigning: false
 publish: null
 mac:
