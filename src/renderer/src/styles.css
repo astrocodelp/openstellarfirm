@@ -767,6 +767,7 @@ textarea.input {
 }
 
 .approval-detail {
+  white-space: pre-wrap;
   padding: 0.5rem 0.625rem;
   border: 1px solid var(--line);
   border-radius: var(--radius);

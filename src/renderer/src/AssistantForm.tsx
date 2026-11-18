@@ -2,6 +2,7 @@ import { type FormEvent, useState } from "react";
 import { COLORS, PETS, SKILLS } from "../../shared/catalog";
 import type {
   Assistant,
+  Connection,
   ModelSource,
   PetColor,
   PetId,
@@ -14,6 +15,7 @@ interface AssistantFormProps {
   /** The assistant to change; none makes a new one. */
   assistant: Assistant | undefined;
   sources: ModelSource[];
+  connections: Connection[];
   onSaved(assistant: Assistant): void;
   /** Folders or sites changed; the form stays open. */
   onChanged(): void;
@@ -22,7 +24,7 @@ interface AssistantFormProps {
 }
 
 export function AssistantForm(props: AssistantFormProps) {
-  const { assistant, sources } = props;
+  const { assistant, sources, connections } = props;
   const [name, setName] = useState(assistant?.name ?? "");
   const [group, setGroup] = useState(assistant?.group ?? "Personal");
   const [pet, setPet] = useState<PetId>(assistant?.pet ?? "glim");
@@ -30,6 +32,9 @@ export function AssistantForm(props: AssistantFormProps) {
   const [brief, setBrief] = useState(assistant?.brief ?? "");
   const [skills, setSkills] = useState<string[]>(assistant?.skills ?? []);
   const [web, setWeb] = useState(assistant?.web ?? false);
+  const [connectionIds, setConnectionIds] = useState<string[]>(
+    assistant?.connections ?? [],
+  );
   const [sourceId, setSourceId] = useState(assistant?.sourceId ?? "");
   const [model, setModel] = useState(assistant?.model ?? "");
   const [error, setError] = useState("");
@@ -75,6 +80,7 @@ export function AssistantForm(props: AssistantFormProps) {
           brief,
           skills,
           web,
+          connections: connectionIds,
           ...(sourceId ? { sourceId } : {}),
           ...(sourceId && model.trim() ? { model: model.trim() } : {}),
         }),
@@ -327,6 +333,75 @@ export function AssistantForm(props: AssistantFormProps) {
               </p>
             )}
           </section>
+
+          <fieldset className="stack-tight">
+            <legend className="section-title">Connections</legend>
+            {connections.length === 0 ? (
+              <p className="faint">
+                Add a connection from the sidebar, then pick it here.
+              </p>
+            ) : (
+              <>
+                <p className="faint">
+                  The tools of these connections are offered to this assistant.
+                  Each call still asks you first.
+                </p>
+                <div className="stack-tight">
+                  {connections.map((connection) => (
+                    <label className="choice" key={connection.id}>
+                      <input
+                        type="checkbox"
+                        checked={connectionIds.includes(connection.id)}
+                        onChange={(event) =>
+                          setConnectionIds((ids) =>
+                            event.target.checked
+                              ? [...ids, connection.id]
+                              : ids.filter((id) => id !== connection.id),
+                          )
+                        }
+                      />
+                      <span>{connection.name}</span>
+                    </label>
+                  ))}
+                </div>
+              </>
+            )}
+            {assistant && assistant.connectionTools.length > 0 ? (
+              <ul className="list card" aria-label="Reads it may always use">
+                {assistant.connectionTools.map((key) => {
+                  const at = key.indexOf(":");
+                  const connectionId = key.slice(0, at);
+                  const tool = key.slice(at + 1);
+                  const name =
+                    connections.find((c) => c.id === connectionId)?.name ?? "";
+                  return (
+                    <li key={key}>
+                      <span className="grow mono">
+                        {name ? `${name}: ` : ""}
+                        {tool}
+                      </span>
+                      <span className="faint">Always allowed</span>
+                      <button
+                        type="button"
+                        className="btn"
+                        onClick={() =>
+                          void run(() =>
+                            api.removeConnectionTool(
+                              assistant.id,
+                              connectionId,
+                              tool,
+                            ),
+                          )
+                        }
+                      >
+                        Remove
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : null}
+          </fieldset>
 
           <div className="wrap" style={{ alignItems: "flex-start" }}>
             <label className="field grow">

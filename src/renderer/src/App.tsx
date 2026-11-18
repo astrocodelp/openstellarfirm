@@ -10,6 +10,7 @@ import { AssistantForm } from "./AssistantForm";
 import { BackupScreen } from "./Backup";
 import { api } from "./bridge";
 import { ChatView } from "./ChatView";
+import { ConnectionsScreen } from "./Connections";
 import { ModelsScreen } from "./Models";
 import { Sidebar } from "./Sidebar";
 import { ErrorLine, message as errorText, Nova } from "./ui";
@@ -19,6 +20,7 @@ type View =
   | { name: "chat" }
   | { name: "assistant"; id?: string }
   | { name: "models" }
+  | { name: "connections" }
   | { name: "backup" };
 
 function without<T>(record: Record<string, T>, key: string): Record<string, T> {
@@ -209,6 +211,7 @@ export function App() {
         onImport={() => void importFile()}
         onBackup={() => setView({ name: "backup" })}
         onModels={() => setView({ name: "models" })}
+        onConnections={() => setView({ name: "connections" })}
         onCloud={() => void act(() => api.openCloud("home"))}
         onHideCloudCard={() =>
           void act(async () => {
@@ -229,6 +232,12 @@ export function App() {
             onBack={() => setView({ name: "chat" })}
             onCloud={() => void act(() => api.openCloud("home"))}
           />
+        ) : view.name === "connections" ? (
+          <ConnectionsScreen
+            state={state}
+            onChanged={refresh}
+            onBack={() => setView({ name: "chat" })}
+          />
         ) : view.name === "models" ? (
           <ModelsScreen
             state={state}
@@ -240,6 +249,7 @@ export function App() {
             key={view.id ?? "new"}
             assistant={editing}
             sources={state.sources}
+            connections={state.connections}
             onSaved={(saved) => {
               void refresh().then(() => {
                 setSelected(saved.id);

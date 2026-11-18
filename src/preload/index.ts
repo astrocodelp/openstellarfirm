@@ -37,6 +37,11 @@ const api: OpenApi = {
   pending: (id) => call(IPC.pending, id),
   decide: (id, approvalId, decision) =>
     call(IPC.decide, id, approvalId, decision),
+  checkConnection: (input) => call(IPC.checkConnection, input),
+  saveConnection: (input) => call(IPC.saveConnection, input),
+  removeConnection: (id) => call(IPC.removeConnection, id),
+  removeConnectionTool: (assistantId, connectionId, tool) =>
+    call(IPC.removeConnectionTool, assistantId, connectionId, tool),
   saveSource: (input) => call(IPC.saveSource, input),
   removeSource: (id) => call(IPC.removeSource, id),
   probeModels: (input) => call(IPC.probeModels, input),

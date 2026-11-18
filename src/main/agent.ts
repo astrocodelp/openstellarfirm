@@ -1,4 +1,5 @@
 import type { ChatStep, Decision } from "../shared/types";
+import type { McpGate } from "./connections";
 import {
   assistantTurn,
   ModelError,
@@ -46,6 +47,8 @@ export interface AgentDeps {
   onActivity(label: string): void;
   signal: AbortSignal;
   web?: WebDeps;
+  /** The tools of the assistant's connections, behind the same gate. */
+  mcp?: McpGate;
   /**
    * Names the model source and model, so that once a model has refused tools
    * the next answers go straight to asking for them in writing.
@@ -65,7 +68,7 @@ export async function runAgent(
 ): Promise<AgentResult> {
   const messages = [...history];
   const steps: ChatStep[] = [];
-  const specs = toolsFor(assistant);
+  const specs = [...toolsFor(assistant), ...(deps.mcp?.specs ?? [])];
   const offered = specs.map((spec) => spec.name);
   // The assistant's own list, so a site allowed mid-answer counts at once.
   const live: ToolAssistant = { ...assistant, sites: [...assistant.sites] };
@@ -186,7 +189,9 @@ async function runCall(
 ): Promise<string> {
   let planned: ReturnType<typeof planCall>;
   try {
-    planned = planCall(assistant, name, rawArguments, deps.web, seen.files);
+    planned = deps.mcp?.owns(name)
+      ? deps.mcp.plan(name, rawArguments, seen.files)
+      : planCall(assistant, name, rawArguments, deps.web, seen.files);
   } catch (error) {
     steps.push({ label: "Turned down a step that is not allowed", ok: false });
     return toolFailure(error);
@@ -201,6 +206,12 @@ async function runCall(
     if (decision === "always" && planned.ask.site) {
       assistant.sites.push(planned.ask.site);
       deps.allowSite(planned.ask.site);
+    } else if (decision === "always" && planned.ask.remember) {
+      // Only a read the gate offered to remember is ever remembered.
+      deps.mcp?.remember(
+        planned.ask.remember.connectionId,
+        planned.ask.remember.tool,
+      );
     }
   }
   deps.onActivity(planned.doing);
