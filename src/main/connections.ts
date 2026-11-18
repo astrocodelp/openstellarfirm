@@ -182,7 +182,7 @@ export function buildGate(
           ...planned,
           ask: {
             ...card,
-            why: "It has read from your folders in this answer, and these arguments can carry text out. Check they hold nothing private.",
+            why: "It has read from your folders or looked at your screen in this answer, and these arguments can carry text out. Check they hold nothing private.",
           },
         };
       }
