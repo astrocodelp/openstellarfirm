@@ -143,14 +143,13 @@ Nothing from `node_modules` ships in the app: the code is bundled, and every
 dependency is a build tool. Install scripts are blocked except for `electron`
 and `esbuild` (`pnpm.onlyBuiltDependencies`).
 
-`pnpm audit` on 18 November 2026 reports three advisories, all in the
-packaging tool's own dependencies, none in code that ships or that reads
+`pnpm audit` on 19 November 2026 reports one advisory, on two paths, in the
+packaging tool's own dependencies. It is not in code that ships or that reads
 untrusted input:
 
-| Advisory                                  | Package                             | Why it is deferred                                                                                                                    |
-| ----------------------------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| GHSA-fc5q-39xc-vjpf (high)                | `picomatch`, via `electron-builder` | No fixed version exists yet. It is a slow-pattern problem in a glob matcher that only ever sees this repository's own build patterns. |
-| GHSA-g3hv-75wg-m249 (moderate, two paths) | `minimatch`, via `electron-builder` | Fixed only in a new major version that `electron-builder` does not use yet. Same reason: build patterns only.                         |
+| Advisory                                  | Package                             | Why it is deferred                                                                                                                                                                   |
+| ----------------------------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| GHSA-g3hv-75wg-m249 (moderate, two paths) | `minimatch`, via `electron-builder` | Fixed only in a new major version that `electron-builder` does not use yet. It is a slow-pattern problem in a glob matcher that only ever sees this repository's own build patterns. |
 
-Review date: 18 December 2026, or when `electron-builder` updates, whichever
+Review date: 19 December 2026, or when `electron-builder` updates, whichever
 comes first.

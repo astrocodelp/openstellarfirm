@@ -60,7 +60,7 @@ Start with [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## How decisions are made
 
-- The roadmap is public, in the README and on the project board.
+- The roadmap is public, in the README.
 - Small changes are decided in the pull request.
 - A change to the promise above, to the security rules in
   [SECURITY.md](SECURITY.md), or to the licence is decided by the maintainers

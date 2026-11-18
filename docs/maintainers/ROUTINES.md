@@ -141,10 +141,10 @@ Report the counts.
 ## 8. Roadmap and first issues
 
 ```text
-1. Compare the Roadmap section of README.md with the open issues and the
-   project board. List roadmap items with no issue, and issues on the board
-   that are closed or stale. Do not edit the README or the board: put the
-   list in the daily report.
+1. Compare the Roadmap section of README.md with the open issues (and the
+   project board, if the repository has one). List roadmap items with no
+   issue, and issues that are closed or stale. Do not edit the README or a
+   board: put the list in the daily report.
 2. Make sure at least five open issues carry good first issue. If there are
    fewer, look through open bugs and docs issues for small, well-described
    ones and propose them in the daily report, with the file to start in.
