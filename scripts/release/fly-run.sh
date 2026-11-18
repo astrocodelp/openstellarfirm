@@ -50,6 +50,7 @@ if [ "$mode" = release ]; then
   cpus=4
   memory=8192
   env_line="\"RELEASE_REF\": \"$ref\""
+  skip_secrets=false
   # The script is fetched from the repository at that exact tag, then run.
   cmd='set -euo pipefail; curl --proto =https --tlsv1.2 -fsSL "https://raw.githubusercontent.com/'"$repo"'/${RELEASE_REF}/scripts/release/build-linux-win.sh" -o /tmp/build-linux-win.sh; exec bash /tmp/build-linux-win.sh'
 else
@@ -57,6 +58,8 @@ else
   cpus=2
   memory=4096
   env_line="\"CHECK_REF\": \"$ref\""
+  # Checks never need a secret, so the Machine is started without the app's.
+  skip_secrets=true
   # A checked ref can be anyone's pull request, so its code must not see the
   # app's secrets: it runs as the unprivileged `node` user with an empty
   # environment. Releases are built only from the maintainers' own tags.
@@ -74,6 +77,7 @@ cmd_json="${cmd//\"/\\\"}"
 cat > "$body" <<JSON
 {
   "region": "$region",
+  "skip_secrets": $skip_secrets,
   "config": {
     "image": "$image",
     "env": { $env_line },

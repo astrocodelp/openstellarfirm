@@ -59,9 +59,14 @@ A short commit hash will not work, because Git cannot fetch one by name.
 
 The ref can be someone else's pull request (`refs/pull/<number>/head`), so the
 checked code is treated as untrusted: it runs as the unprivileged `node` user
-with an empty environment and never sees the app's secrets. Release builds are
+with an empty environment, in a Machine started without the app's secrets.
+Release builds are
 different: they run with the secrets, so they are only ever started for a tag a
 maintainer pushed.
+
+Every Machine of a Fly app receives all of that app's secrets. Keep the release
+secrets in a Fly app of their own (set `FLY_APP`), not in an app that holds
+other projects' secrets, so a release build can only ever see its own.
 
 ## What is not done yet
 
