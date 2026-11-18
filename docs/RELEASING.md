@@ -57,6 +57,12 @@ This starts a small Machine on the plain `node:22-bookworm` image that fetches
 that ref and runs `scripts/ci.sh`. Read the result in the Machine's logs.
 A short commit hash will not work, because Git cannot fetch one by name.
 
+The ref can be someone else's pull request (`refs/pull/<number>/head`), so the
+checked code is treated as untrusted: it runs as the unprivileged `node` user
+with an empty environment and never sees the app's secrets. Release builds are
+different: they run with the secrets, so they are only ever started for a tag a
+maintainer pushed.
+
 ## What is not done yet
 
 - **Signing.** Builds are unsigned until certificates exist. macOS needs an Apple

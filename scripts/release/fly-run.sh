@@ -57,7 +57,10 @@ else
   cpus=2
   memory=4096
   env_line="\"CHECK_REF\": \"$ref\""
-  cmd='set -euo pipefail; corepack enable; mkdir /tmp/src; cd /tmp/src; git init -q; git fetch -q --depth 1 "https://github.com/'"$repo"'.git" "$CHECK_REF"; git checkout -q FETCH_HEAD; exec bash scripts/ci.sh'
+  # A checked ref can be anyone's pull request, so its code must not see the
+  # app's secrets: it runs as the unprivileged `node` user with an empty
+  # environment. Releases are built only from the maintainers' own tags.
+  cmd='set -euo pipefail; corepack enable; install -d -o node -g node /tmp/src; cd /tmp/src; exec env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin HOME=/home/node CI=1 CHECK_REF="$CHECK_REF" setpriv --reuid=node --regid=node --init-groups bash -c '"'"'set -euo pipefail; git init -q; git fetch -q --depth 1 https://github.com/'"$repo"'.git "$CHECK_REF"; git checkout -q FETCH_HEAD; exec bash scripts/ci.sh'"'"
 fi
 
 body="$(mktemp)"
