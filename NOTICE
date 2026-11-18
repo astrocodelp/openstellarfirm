@@ -1,0 +1,36 @@
+StellarFirm Open
+Copyright 2026 Vasileios Drosatos and Astro Code L.P.
+
+This software is licensed under the Apache License, Version 2.0, with the
+"Commons Clause" License Condition v1.0. The full text is in LICENSE.
+
+In short, and the LICENSE file is what counts:
+
+  - You may use it, at home and at work, read it, change it and share it.
+  - You may not sell it, or sell a product or service whose value comes
+    entirely or substantially from it, without a commercial licence from
+    Astro Code L.P. See COMMERCIAL.md.
+
+What this licence covers
+
+  Only the contents of this repository.
+
+What this licence does not cover
+
+  - StellarFirm cloud (stellarfirm.ai), its apps and its services.
+  - StellarFirm for Universities, StellarFirm for Scientists and StellarFirm
+    for Course Creators.
+  - Any other software or service of Astro Code L.P.
+  - The names "StellarFirm" and "StellarFirm Open", the logos and the pet
+    characters. The licence gives no right to use them as your own. If you
+    share a changed version, give it its own name and look.
+
+Earlier versions
+
+  Versions of this repository published before this notice was added were
+  released under the MIT licence. Those versions stay under the MIT licence
+  for anyone who has them. Everything from this notice on is under the terms
+  above.
+
+Other people's work that ships inside a built app is listed in
+THIRD-PARTY-NOTICES.md.

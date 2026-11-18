@@ -1,7 +1,8 @@
 # StellarFirm Open
 
-An open-source desktop app for personal AI assistants that run on your own
-computer, on a model you choose. For macOS and Windows. MIT licensed.
+A desktop app for personal AI assistants that run on your own computer, on a
+model you choose. For macOS, Windows and Linux. The code is open: free to use,
+change and share, not to sell.
 
 You give each assistant a name, a look and a job. It thinks with your own
 model: one that runs on this machine (Ollama, LM Studio), your own key, or your
@@ -95,13 +96,35 @@ pnpm package    # an unsigned installer in release/
    Protocol (Poppy).
 4. **Releases.** Signed builds for macOS and Windows, with updates.
 
-## Name and brand
+## Community
 
-The MIT licence covers the code. "StellarFirm" and the pet characters are
-marks of Astro Code L.P. If you distribute a changed version, please give it
-its own name and look.
+This is built in the open by the people who use it. Add a persona, try it on
+your system, fix a bug, or build a roadmap item.
+
+- [COMMUNITY.md](COMMUNITY.md): the promise the project keeps, where to talk,
+  ways to help.
+- [CONTRIBUTING.md](CONTRIBUTING.md): the rules for a pull request.
+- [Discussions](https://github.com/astrocodelp/worker-bot-open-source/discussions):
+  questions, ideas, personas.
+- [CONTRIBUTORS.md](CONTRIBUTORS.md): everyone who helped.
 
 ## Licence
 
-[MIT](LICENSE). Other people's work inside a built app is listed in
+Apache License 2.0 with the Commons Clause: see [LICENSE](LICENSE) and
+[NOTICE](NOTICE).
+
+- You may use it, at home and at work, read it, change it and share it.
+- You may not sell it, or a product or service built on it, without a
+  commercial licence from Astro Code L.P. See [COMMERCIAL.md](COMMERCIAL.md).
+
+Because selling is not allowed, this is not an "open source" licence in the
+Open Source Initiative's sense. The source is open to read, change and share.
+
+The licence covers this repository only. It does not cover StellarFirm cloud
+(stellarfirm.ai), StellarFirm for Universities, for Scientists or for Course
+Creators, or any other Astro Code software. "StellarFirm" and the pet
+characters are marks of Astro Code L.P.: if you share a changed version, give
+it its own name and look.
+
+Other people's work inside a built app is listed in
 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).

@@ -14,7 +14,7 @@ const POINTS = [
   "No account. Nothing is stored in a cloud.",
   "Your own model: a key you bring, or one that runs on this machine.",
   "It asks before it reaches a new website, and never deletes a file.",
-  "Open source under the MIT licence.",
+  "The code is open: free to use, change and share.",
 ];
 
 /** The first run: pick the model the assistants think with. */
