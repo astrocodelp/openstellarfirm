@@ -208,7 +208,11 @@ export function ChatView(props: ChatViewProps) {
             ) : (
               <>
                 <p className="dim">It needs a model to think with first.</p>
-                <button type="button" className="btn" onClick={props.onModels}>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={props.onModels}
+                >
                   Set up a model
                 </button>
               </>

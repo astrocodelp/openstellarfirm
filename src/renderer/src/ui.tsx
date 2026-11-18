@@ -129,6 +129,32 @@ export function Icon({
   );
 }
 
+/**
+ * The head every screen starts with: a way back, the title, and a lede that
+ * says what the screen is for. One pattern keeps the screens the same.
+ */
+export function ScreenHead({
+  title,
+  onBack,
+  children,
+}: {
+  title: string;
+  onBack?: () => void;
+  children?: ReactNode;
+}) {
+  return (
+    <header className="screen-head">
+      {onBack ? (
+        <button type="button" className="btn back-btn" onClick={onBack}>
+          Back to chats
+        </button>
+      ) : null}
+      <h1 className="screen-title">{title}</h1>
+      {children ? <p className="dim">{children}</p> : null}
+    </header>
+  );
+}
+
 /** An error, always as an icon and a sentence, announced to a screen reader. */
 export function ErrorLine({ children }: { children: ReactNode }) {
   if (!children) return null;

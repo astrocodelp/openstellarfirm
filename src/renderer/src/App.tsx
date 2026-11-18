@@ -209,6 +209,14 @@ export function App() {
         busy={new Set(Object.keys(streams))}
         waiting={new Set(Object.keys(approvals))}
         showCloudCard={!state.settings.hideCloudCard}
+        current={
+          view.name === "models" ||
+          view.name === "connections" ||
+          view.name === "backup" ||
+          view.name === "settings"
+            ? view.name
+            : undefined
+        }
         notice={
           newVersion ? (
             <UpdateNotice
