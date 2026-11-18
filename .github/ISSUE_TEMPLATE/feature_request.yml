@@ -1,0 +1,31 @@
+name: Feature request
+description: Suggest something the app should do.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the idea. Please say what is missing and what you want
+        instead. Check the [roadmap](https://github.com/astrocodelp/worker-bot-open-source#roadmap)
+        first, in case it is already planned.
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What you cannot do today, or what is harder than it should be.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you want
+      description: A plain description of the change.
+    validations:
+      required: true
+  - type: textarea
+    id: extras
+    attributes:
+      label: Anything else
+      description: Context, examples or links.
+    validations:
+      required: false
