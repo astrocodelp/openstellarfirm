@@ -14,6 +14,10 @@ import { isIP } from "node:net";
 
 export class WebError extends Error {}
 
+/** The one honest name the app gives itself when it reads a site. */
+export const USER_AGENT =
+  "StellarFirm-Open (+https://github.com/astrocodelp/worker-bot-open-source)";
+
 const MAX_BYTES = 600 * 1024;
 const MAX_CHARS = 20_000;
 const TIMEOUT_MS = 15_000;
@@ -217,8 +221,7 @@ export const nodeDeps: WebDeps = {
           method: "GET",
           timeout: TIMEOUT_MS,
           headers: {
-            "user-agent":
-              "StellarFirm-Open (+https://github.com/astrocodelp/worker-bot-open-source)",
+            "user-agent": USER_AGENT,
             accept: "text/html,text/plain,application/json;q=0.9",
           },
           // Connect to the address that was checked, whatever the name says now.

@@ -162,6 +162,7 @@ function preview(): OpenApi {
       const next: Connection = {
         id: input.id ?? id(),
         name: input.name,
+        preset: "custom",
         baseUrl: input.baseUrl,
         hasKey: Boolean(input.apiKey),
         tools: [
@@ -180,6 +181,46 @@ function preview(): OpenApi {
       ];
       return next;
     },
+    checkComposio: async () => [
+      {
+        name: "COMPOSIO_SEARCH_TOOLS",
+        description: "Find tools.",
+        readOnly: true,
+      },
+      {
+        name: "COMPOSIO_MULTI_EXECUTE_TOOL",
+        description: "Run tools.",
+        readOnly: false,
+      },
+    ],
+    saveComposio: async (input) => {
+      const next: Connection = {
+        id: input.id ?? id(),
+        name: input.name,
+        preset: "composio",
+        baseUrl: "https://connect.composio.dev/mcp",
+        hasKey: Boolean(input.apiKey),
+        tools: [],
+        checkedAt: now(),
+      };
+      state.connections = [
+        ...state.connections.filter((c) => c.id !== next.id),
+        next,
+      ];
+      return next;
+    },
+    lookupCompany: async (domain) => ({
+      domain,
+      name: "Example company",
+      signIn: true,
+      apis: [
+        {
+          type: "mcp",
+          url: `https://mcp.${domain}/mcp`,
+          description: "Product search",
+        },
+      ],
+    }),
     removeConnection: async (connectionId) => {
       state.connections = state.connections.filter(
         (c) => c.id !== connectionId,

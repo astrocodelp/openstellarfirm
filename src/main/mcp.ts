@@ -33,9 +33,19 @@ export interface McpTool {
   readOnly: boolean;
 }
 
+/** Composio's one MCP address. The Composio preset always uses it. */
+export const COMPOSIO_MCP_URL = "https://connect.composio.dev/mcp";
+/** The header Composio takes a person's own key in. */
+export const COMPOSIO_KEY_HEADER = "x-consumer-api-key";
+
 export interface McpOptions {
   baseUrl: string;
   apiKey?: string;
+  /**
+   * How the key travels. Decided in the main process from a connection's
+   * preset, never by a page, an import or a server.
+   */
+  keyStyle?: "bearer" | "composio";
   /** The app's version, sent as the client's own. */
   appVersion?: string;
   signal?: AbortSignal;
@@ -62,7 +72,7 @@ const CHANGE_WORDS = new Set(
     "publish share invite email message notify delete remove destroy drop " +
     "clear archive close cancel move rename merge approve pay buy purchase " +
     "order book transfer refund subscribe charge run execute exec deploy " +
-    "upload import"
+    "upload import manage connect workbench bash shell multi"
   ).split(" "),
 );
 
@@ -297,7 +307,9 @@ export class McpClient {
       ...(this.sessionId ? { "Mcp-Session-Id": this.sessionId } : {}),
       // The key goes in this header only, and only to the saved address.
       ...(this.options.apiKey
-        ? { Authorization: `Bearer ${this.options.apiKey}` }
+        ? this.options.keyStyle === "composio"
+          ? { [COMPOSIO_KEY_HEADER]: this.options.apiKey }
+          : { Authorization: `Bearer ${this.options.apiKey}` }
         : {}),
     };
   }

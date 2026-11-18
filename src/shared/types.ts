@@ -141,6 +141,25 @@ export interface ModelSourceInput {
   apiKey?: string;
 }
 
+export type ConnectionPreset = "custom" | "composio";
+
+/** What the page may send for a Composio connection: no address, no header. */
+export interface ComposioInput {
+  id?: string;
+  name: string;
+  /** Sent once, on check or save. Never returned. Empty keeps the saved key. */
+  apiKey?: string;
+}
+
+/** What a company says it offers to personal agents. Plain, cleaned text. */
+export interface CompanyOffer {
+  domain: string;
+  name: string;
+  /** True when the file says sign-in is offered. */
+  signIn: boolean;
+  apis: { type: "mcp" | "openapi"; url: string; description: string }[];
+}
+
 /** One tool a connection offers. Only the main process ever sets these. */
 export interface ConnectionTool {
   name: string;
@@ -154,6 +173,8 @@ export interface ConnectionTool {
 export interface Connection {
   id: string;
   name: string;
+  /** "composio" is the preset that uses the person's own Composio key. */
+  preset: ConnectionPreset;
   baseUrl: string;
   hasKey: boolean;
   tools: ConnectionTool[];
@@ -272,6 +293,11 @@ export interface OpenApi {
   /** Connects, lists the tools the server offers, and saves the connection. */
   saveConnection(input: ConnectionInput): Promise<Connection>;
   removeConnection(id: string): Promise<void>;
+  /** Like checkConnection, for the Composio preset: the address is fixed. */
+  checkComposio(input: ComposioInput): Promise<ConnectionTool[]>;
+  saveComposio(input: ComposioInput): Promise<Connection>;
+  /** Reads what a company publishes for personal agents. Saves nothing. */
+  lookupCompany(domain: string): Promise<CompanyOffer>;
   /** Takes back an "Always allow" for one read of one connection. */
   removeConnectionTool(
     assistantId: string,
@@ -339,6 +365,9 @@ export const IPC = {
   checkConnection: "connection:check",
   saveConnection: "connection:save",
   removeConnection: "connection:remove",
+  checkComposio: "connection:composio:check",
+  saveComposio: "connection:composio:save",
+  lookupCompany: "company:lookup",
   removeConnectionTool: "assistant:connection-tool:remove",
   saveSource: "source:save",
   removeSource: "source:remove",
