@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import {
   existsSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
   renameSync,
   rmSync,
@@ -17,6 +18,14 @@ import {
 } from "../shared/assistant-file";
 import { presetOf } from "../shared/catalog";
 import { checkEndpoint } from "../shared/endpoint";
+import {
+  cleanSendKey,
+  cleanTextSize,
+  DEFAULT_SEND_KEY,
+  DEFAULT_TEXT_SIZE,
+  isSendKey,
+  isTextSize,
+} from "../shared/preferences";
 import { cleanTheme, DEFAULT_THEME, isTheme } from "../shared/theme";
 import {
   type Assistant,
@@ -29,6 +38,7 @@ import {
   type Settings,
   type Wire,
 } from "../shared/types";
+import { cleanVersion } from "../shared/update";
 
 /** Everything the app keeps, in plain JSON files in its own data folder. */
 
@@ -46,9 +56,48 @@ const MAX_SOURCES = 20;
 const MAX_MESSAGES = 500;
 const MAX_FOLDERS = 10;
 const MAX_SITES = 100;
+
+/** Seconds-precise ISO times only, so a bad value never reaches a date. */
+function cleanTime(value: unknown): string | undefined {
+  if (typeof value !== "string" || value.length > 40) return undefined;
+  const time = new Date(value);
+  return Number.isNaN(time.getTime()) ? undefined : time.toISOString();
+}
+
+/**
+ * Reads settings from a file that may be older than this version or edited by
+ * hand: every value is checked, and anything unknown reads as its default.
+ */
+function cleanSettings(raw: Partial<Settings> | undefined): Settings {
+  const base = raw ?? ({} as Partial<Settings>);
+  const settings: Settings = {
+    ...base,
+    onboarded: base.onboarded === true,
+    theme: cleanTheme(base.theme),
+    textSize: cleanTextSize(base.textSize),
+    sendWith: cleanSendKey(base.sendWith),
+    checkUpdates: base.checkUpdates === true,
+  };
+  const checked = cleanTime(base.lastUpdateCheck);
+  const newest = cleanVersion(base.newestVersion);
+  const dismissed = cleanVersion(base.dismissedVersion);
+  delete settings.lastUpdateCheck;
+  delete settings.newestVersion;
+  delete settings.dismissedVersion;
+  if (checked) settings.lastUpdateCheck = checked;
+  if (newest) settings.newestVersion = newest;
+  if (dismissed) settings.dismissedVersion = dismissed;
+  return settings;
+}
+
 export class Store {
   constructor(private readonly dir: string) {
     mkdirSync(join(dir, "chats"), { recursive: true });
+  }
+
+  /** The folder everything is kept in, shown to the person as plain text. */
+  get folder(): string {
+    return this.dir;
   }
 
   private read(): StoredState {
@@ -58,7 +107,13 @@ export class Store {
         v: 1,
         assistants: [],
         sources: [],
-        settings: { onboarded: false, theme: DEFAULT_THEME },
+        settings: {
+          onboarded: false,
+          theme: DEFAULT_THEME,
+          textSize: DEFAULT_TEXT_SIZE,
+          sendWith: DEFAULT_SEND_KEY,
+          checkUpdates: false,
+        },
       };
     }
     const parsed = JSON.parse(readFileSync(file, "utf8")) as StoredState;
@@ -69,10 +124,7 @@ export class Store {
     for (const source of parsed.sources as { wire?: Wire }[])
       source.wire ??= "openai";
     // Settings saved before the theme existed follow the computer.
-    parsed.settings = {
-      ...parsed.settings,
-      theme: cleanTheme(parsed.settings?.theme),
-    };
+    parsed.settings = cleanSettings(parsed.settings);
     // Assistants saved before tools existed have no folders, sites or web.
     parsed.assistants = parsed.assistants.map((a) => ({
       ...a,
@@ -313,8 +365,21 @@ export class Store {
   setSettings(patch: Partial<Settings>): Settings {
     if (patch.theme !== undefined && !isTheme(patch.theme))
       throw new Error("That theme is not known.");
+    if (patch.textSize !== undefined && !isTextSize(patch.textSize))
+      throw new Error("That text size is not known.");
+    if (patch.sendWith !== undefined && !isSendKey(patch.sendWith))
+      throw new Error("That way of sending is not known.");
+    if (
+      patch.checkUpdates !== undefined &&
+      typeof patch.checkUpdates !== "boolean"
+    )
+      throw new Error("That is not allowed.");
     const state = this.read();
     if (patch.theme !== undefined) state.settings.theme = patch.theme;
+    if (patch.textSize !== undefined) state.settings.textSize = patch.textSize;
+    if (patch.sendWith !== undefined) state.settings.sendWith = patch.sendWith;
+    if (patch.checkUpdates !== undefined)
+      state.settings.checkUpdates = patch.checkUpdates;
     if (typeof patch.onboarded === "boolean")
       state.settings.onboarded = patch.onboarded;
     if (typeof patch.hideCloudCard === "boolean")
@@ -327,6 +392,67 @@ export class Store {
     }
     this.write(state);
     return state.settings;
+  }
+
+  /**
+   * What an update check leaves behind: when it ran, and the newest version it
+   * saw (null forgets one, undefined keeps what is there). Only the update
+   * check calls this, so the page cannot set either.
+   */
+  recordUpdateCheck(at: Date, newest?: string | null): Settings {
+    const state = this.read();
+    state.settings.lastUpdateCheck = at.toISOString();
+    if (newest === null) delete state.settings.newestVersion;
+    else if (newest !== undefined) {
+      const clean = cleanVersion(newest);
+      if (!clean) throw new Error("That is not a version.");
+      state.settings.newestVersion = clean;
+    }
+    this.write(state);
+    return state.settings;
+  }
+
+  /** Closes the notice for the newest version, so it is not shown again. */
+  dismissUpdate(): Settings {
+    const state = this.read();
+    if (state.settings.newestVersion)
+      state.settings.dismissedVersion = state.settings.newestVersion;
+    this.write(state);
+    return state.settings;
+  }
+
+  /**
+   * Forgets what the person approved "always", so everything asks again. Today
+   * that is the sites an assistant may read. Any other kind of remembered
+   * permission added later is cleared here too, and counted in the result.
+   */
+  clearApprovals(): number {
+    const state = this.read();
+    let count = 0;
+    state.assistants = state.assistants.map((a) => {
+      count += a.sites.length;
+      return a.sites.length > 0 ? { ...a, sites: [] } : a;
+    });
+    if (count > 0) this.write(state);
+    return count;
+  }
+
+  /** Deletes every chat and keeps the assistants. Returns how many chats there were. */
+  deleteAllChats(): number {
+    const folder = join(this.dir, "chats");
+    let count = 0;
+    for (const name of readdirSync(folder)) {
+      if (!name.endsWith(".json")) continue;
+      rmSync(join(folder, name), { force: true });
+      count += 1;
+    }
+    const state = this.read();
+    state.assistants = state.assistants.map((a) => {
+      const { lastLine: _gone, ...rest } = a;
+      return rest;
+    });
+    this.write(state);
+    return count;
   }
 
   exportFile(id: string): AssistantFile {

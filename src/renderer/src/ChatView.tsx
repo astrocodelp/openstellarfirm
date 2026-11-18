@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { type SendKey, sendHint, sendsMessage } from "../../shared/preferences";
 import type {
   ApprovalCard,
   Assistant,
@@ -30,6 +31,9 @@ interface ChatViewProps {
   onDecide(card: ApprovalCard, decision: Decision): Promise<void>;
   onCustomize(): void;
   onModels(): void;
+  /** What sends a message, and whether the keys are a Mac's. */
+  sendWith: SendKey;
+  mac: boolean;
 }
 
 function Steps({ steps }: { steps: ChatStep[] }) {
@@ -166,12 +170,9 @@ export function ChatView(props: ChatViewProps) {
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
-    // Enter sends; Shift+Enter is a new line. Not while an input method is composing.
-    if (
-      event.key === "Enter" &&
-      !event.shiftKey &&
-      !event.nativeEvent.isComposing
-    ) {
+    // The person's choice decides what sends; the other way is a new line.
+    // Not while an input method is composing.
+    if (!event.nativeEvent.isComposing && sendsMessage(props.sendWith, event)) {
       event.preventDefault();
       void send();
     }
@@ -268,6 +269,7 @@ export function ChatView(props: ChatViewProps) {
             placeholder={`Message ${assistant.name}`}
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={onKeyDown}
+            aria-describedby="send-hint"
           />
           {busy ? (
             <button
@@ -292,6 +294,9 @@ export function ChatView(props: ChatViewProps) {
             </button>
           )}
         </div>
+        <p className="faint composer-hint" id="send-hint">
+          {sendHint(props.sendWith, props.mac)}
+        </p>
       </div>
     </>
   );

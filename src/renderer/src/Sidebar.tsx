@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { Assistant } from "../../shared/types";
 import { Icon, Nova, OkLine, Pet } from "./ui";
 
@@ -17,6 +18,8 @@ interface SidebarProps {
   onSettings(): void;
   onCloud(): void;
   onHideCloudCard(): void;
+  /** A quiet notice above the foot, such as "a new version is available". */
+  notice?: ReactNode;
 }
 
 export function Sidebar(props: SidebarProps) {
@@ -118,6 +121,7 @@ export function Sidebar(props: SidebarProps) {
             </button>
           </section>
         ) : null}
+        {props.notice}
         <div className="sidebar-foot">
           <span className="row-text">
             <span className="row-name">Your keys, your models</span>

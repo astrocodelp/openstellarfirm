@@ -975,3 +975,48 @@ textarea.input {
   color: var(--faint);
   opacity: 1;
 }
+
+/* Settings */
+
+.settings-section {
+  padding-top: 1.75rem;
+  border-top: 1px solid var(--line);
+}
+
+.settings-section .choice {
+  align-self: flex-start;
+}
+
+.data-path {
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--sunken);
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.confirm {
+  padding: 0.875rem;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-card);
+  background: var(--raised);
+}
+
+.composer-hint {
+  margin-top: 0.375rem;
+  padding-left: 0.75rem;
+}
+
+html[data-text-size="small"] {
+  font-size: 93.75%;
+}
+
+html[data-text-size="large"] {
+  font-size: 112.5%;
+}
+
+.stack-tight + .settings-section {
+  padding-top: 0;
+  border-top: 0;
+}

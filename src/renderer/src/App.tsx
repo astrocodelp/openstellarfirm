@@ -6,6 +6,7 @@ import type {
   ChatMessage,
   Decision,
 } from "../../shared/types";
+import { availableUpdate } from "../../shared/update";
 import { AssistantForm } from "./AssistantForm";
 import { BackupScreen } from "./Backup";
 import { api } from "./bridge";
@@ -13,6 +14,7 @@ import { ChatView } from "./ChatView";
 import { ModelsScreen } from "./Models";
 import { SettingsScreen } from "./Settings";
 import { Sidebar } from "./Sidebar";
+import { UpdateNotice } from "./UpdateNotice";
 import { ErrorLine, message as errorText, Nova } from "./ui";
 import { Welcome } from "./Welcome";
 
@@ -45,6 +47,7 @@ export function App() {
     try {
       const next = await api.getState();
       document.documentElement.dataset.platform = next.platform;
+      document.documentElement.dataset.textSize = next.settings.textSize;
       setState(next);
       setSelected((current) =>
         current && next.assistants.some((a) => a.id === current)
@@ -160,6 +163,7 @@ export function App() {
     );
   }
 
+  const newVersion = availableUpdate(state.settings, state.version);
   const assistant = state.assistants.find((a) => a.id === selected);
   const editing =
     view.name === "assistant"
@@ -203,6 +207,20 @@ export function App() {
         busy={new Set(Object.keys(streams))}
         waiting={new Set(Object.keys(approvals))}
         showCloudCard={!state.settings.hideCloudCard}
+        notice={
+          newVersion ? (
+            <UpdateNotice
+              version={newVersion}
+              onSee={() => void act(() => api.openLink("release"))}
+              onDismiss={() =>
+                void act(async () => {
+                  await api.dismissUpdate();
+                  await refresh();
+                })
+              }
+            />
+          ) : null
+        }
         onSelect={(id) => {
           setSelected(id);
           setView({ name: "chat" });
@@ -231,6 +249,8 @@ export function App() {
             state={state}
             onChanged={refresh}
             onBack={() => setView({ name: "chat" })}
+            onBackup={() => setView({ name: "backup" })}
+            onChatsDeleted={() => setChats({})}
           />
         ) : view.name === "backup" ? (
           <BackupScreen
@@ -275,6 +295,8 @@ export function App() {
             onDecide={decide}
             onCustomize={() => setView({ name: "assistant", id: assistant.id })}
             onModels={() => setView({ name: "models" })}
+            sendWith={state.settings.sendWith}
+            mac={state.platform === "darwin"}
           />
         ) : (
           <div className="empty">
