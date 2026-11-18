@@ -9,7 +9,8 @@ model: one that runs on this machine (Ollama, LM Studio), your own key, or your
 own endpoint. There is no account, no server of ours, and no fee.
 
 > **Early.** An assistant can talk, read and add files in folders you pick,
-> and read web pages you allow. It cannot yet use your apps or your screen.
+> read web pages you allow, use the tools of servers you connect, and look at
+> your screen when you approve. It cannot click, type or use your apps.
 > See [What is built](#what-is-built) and the [Roadmap](#roadmap).
 
 Made by the team behind [StellarFirm](https://stellarfirm.ai), where a whole
@@ -19,30 +20,49 @@ team of AI Agent Assistants works for your company in the cloud.
 
 - **Assistants you make your own.** Name, group, one of six pets in five
   colours, a brief in your own words, and skills (lines of guidance).
-- **Your own model.** Any OpenAI-compatible address: Ollama and LM Studio on
-  this computer, OpenAI, OpenRouter, Mistral, Together AI, or your own
-  endpoint such as a LiteLLM gateway. An assistant can have a model of its own.
+- **Starter personas.** Coder, Legal, Writer, Researcher, Planner, Tutor,
+  Accountant and Marketing, each a starting point you can change. They live in
+  [`personas/`](personas), one file each, and anyone can add one.
+- **Your own model.** On this computer with Ollama or LM Studio; your own key
+  for OpenAI, Anthropic (Claude), Google (Gemini), OpenRouter, Mistral or
+  Together AI; or any OpenAI-compatible address, such as a LiteLLM gateway. An
+  assistant can have a model of its own.
 - **Chat that streams**, with Stop. Each assistant keeps its own chat.
 - **Folders you pick.** An assistant can list, find and read files there, and
   save a new file. It can never change, replace, move or delete one.
 - **Web pages, with your Approve.** It asks before it reaches a site for the
   first time. You can allow a site for good, and take that back.
-- **Share an assistant as a file.** Export and import. A file never holds a
-  key, a model, a folder or a site.
+- **Connections.** Let an assistant use the tools of a remote MCP server by
+  its web address. Every call asks first and shows what would be sent. A tool
+  the server marks as read-only, with a name that does not read like a change,
+  can be allowed for good; everything else asks every time.
+- **A look at your screen.** Off until you turn it on for an assistant. Every
+  look asks first, and the picture is never saved. It can only look.
+- **Tools on small models too.** A model that cannot call tools asks for them
+  in writing, through the same approvals.
+- **Move or back up.** One file with all your assistants, and your chats only
+  if you tick that, to open on another computer. A single assistant can be
+  shared as a file too. A file never holds a key, a model, a folder, a site or
+  a connection.
 - **Copy to StellarFirm cloud.** One button opens stellarfirm.ai in your
   browser with an assistant's name, look and brief, where you can hire it to
-  work in the cloud. StellarFirm is a separate service with its own account
-  and plans.
+  work in the cloud. StellarFirm is a separate paid service with its own
+  account and plans.
+- **Light and dark**, following your computer or your choice.
 - **First run** that finds a model already running on this computer.
 
 ## What is not built yet
 
-- No use of your screen or your apps, and no connections (MCP).
-- No Poppy (acting for you at a company).
-- No native Claude or Gemini wire (use an OpenAI-compatible address for now).
-- Tools need a model that supports tool calls. With one that does not, the
-  assistant only talks, and says so.
-- No light theme, no auto-update, no signed installers, no app icon.
+- **No control of your computer.** An assistant cannot click, type or use
+  your apps.
+- **No servers started as a command.** A connection is a web address. The app
+  does not start programs.
+- **No sign-in with a company (Poppy).** Version 1.0 of the Personal Agent
+  Protocol needs an identity that lives on a server, which an app that runs
+  only on your computer does not have.
+- **No signed installers and no automatic update.** Build from source, or use
+  an unsigned release and check its sums. See
+  [docs/RELEASING.md](docs/RELEASING.md).
 
 ## Privacy and safety
 
@@ -75,26 +95,30 @@ pnpm typecheck
 pnpm lint
 pnpm build      # dist/
 pnpm package    # an unsigned installer in release/
+bash scripts/ci.sh   # everything the maintainers check, in one go
 ```
 
 ## How it is laid out
 
-| Folder         | What                                                                                                                                                |
-| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/shared`   | Types, the pets, skills and model presets, the address checks, the system prompt, the links to StellarFirm. No Node or DOM imports.                 |
-| `src/main`     | The main process: the JSON store, sealed keys, the one model client, the folder and web tools, the loop that runs them, and the gate that asks you. |
-| `src/preload`  | The only bridge between the page and the main process.                                                                                              |
-| `src/renderer` | The React screens and one stylesheet built on tokens.                                                                                               |
+| Folder         | What                                                                                                                                                               |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `src/shared`   | Types, the pets, skills and model presets, the address checks, the system prompt, the assistant file format, the links to StellarFirm. No Node or DOM imports.     |
+| `src/main`     | The main process: the JSON store, sealed keys, the model wires, the folder, web, connection and screen tools, the loop that runs them, and the gate that asks you. |
+| `src/preload`  | The only bridge between the page and the main process.                                                                                                             |
+| `src/renderer` | The React screens and one stylesheet built on tokens.                                                                                                              |
+| `personas`     | Starter personas, one JSON file each.                                                                                                                              |
+| `scripts`      | Build, checks and release scripts.                                                                                                                                 |
+| `docs`         | Releasing, and the maintainer assistant's instructions.                                                                                                            |
 
 ## Roadmap
 
-1. **Connections.** MCP servers by address or on this computer, with your own
-   sign-ins kept in the keychain. Anything that sends, deletes or spends waits
-   for your Approve.
-2. **This computer.** The screen and apps, with Take over and Pause.
-3. **Companies.** Acting for you at a company that supports the Personal Agent
-   Protocol (Poppy).
-4. **Releases.** Signed builds for macOS and Windows, with updates.
+1. **Signed releases** for macOS, Windows and Linux.
+2. **Sign-ins for connections** (OAuth), kept in the keychain.
+3. **More personas and skills** from the community.
+4. **This computer.** Using your apps, with Take over and Pause, once it can
+   be done safely.
+5. **Companies.** Acting for you at a company that supports the Personal
+   Agent Protocol (Poppy), when the protocol allows agents on a device.
 
 ## Community
 

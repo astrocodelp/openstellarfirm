@@ -34,7 +34,8 @@ the work is agreed before you spend time on it.
   Never call a real model or service from a test.
 - **Keys stay in the main process.** Never send a key to the page, put one in
   an address, a log, an error or a file in the clear.
-- **One model client.** Every model call goes through `src/main/models.ts`.
+- **One model client.** Every model call goes through `src/main/models.ts`
+  and the wires in `src/main/wires/`.
 - **The page gets no Node.** New abilities are a typed call in
   `src/shared/types.ts`, handled and checked in `src/main`, exposed in
   `src/preload`.
