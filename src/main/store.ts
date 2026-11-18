@@ -10,6 +10,7 @@ import {
 import { join } from "node:path";
 import { presetOf } from "../shared/catalog";
 import { checkEndpoint } from "../shared/endpoint";
+import { cleanTheme, DEFAULT_THEME, isTheme } from "../shared/theme";
 import {
   type Assistant,
   type AssistantInput,
@@ -110,13 +111,18 @@ export class Store {
         v: 1,
         assistants: [],
         sources: [],
-        settings: { onboarded: false },
+        settings: { onboarded: false, theme: DEFAULT_THEME },
       };
     }
     const parsed = JSON.parse(readFileSync(file, "utf8")) as StoredState;
     // A file this version did not write is left alone rather than overwritten.
     if (parsed.v !== 1)
       throw new Error("This data was saved by a newer version of the app.");
+    // Settings saved before the theme existed follow the computer.
+    parsed.settings = {
+      ...parsed.settings,
+      theme: cleanTheme(parsed.settings?.theme),
+    };
     // Assistants saved before tools existed have no folders, sites or web.
     parsed.assistants = parsed.assistants.map((a) => ({
       ...a,
@@ -353,7 +359,10 @@ export class Store {
   }
 
   setSettings(patch: Partial<Settings>): Settings {
+    if (patch.theme !== undefined && !isTheme(patch.theme))
+      throw new Error("That theme is not known.");
     const state = this.read();
+    if (patch.theme !== undefined) state.settings.theme = patch.theme;
     if (typeof patch.onboarded === "boolean")
       state.settings.onboarded = patch.onboarded;
     if (typeof patch.hideCloudCard === "boolean")

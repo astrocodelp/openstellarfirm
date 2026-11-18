@@ -21,6 +21,7 @@
     "test": "vitest run",
     "lint": "biome check .",
     "format": "biome check --write .",
+    "icon": "electron scripts/icon.mjs",
     "package": "pnpm build && electron-builder --publish never",
     "package:mac": "pnpm build && electron-builder --mac --publish never",
     "package:win": "pnpm build && electron-builder --win --x64 --publish never"

@@ -1,5 +1,7 @@
 /** Types shared by the main process, the preload and the page. No Node or DOM imports. */
 
+import type { Theme } from "./theme";
+
 export const PET_IDS = [
   "blip",
   "glim",
@@ -110,6 +112,8 @@ export interface ModelSourceInput {
 
 export interface Settings {
   onboarded: boolean;
+  /** How the app looks: follow the computer, or always dark or light. */
+  theme: Theme;
   defaultSourceId?: string;
   /** True once the person closed the StellarFirm cloud card in the sidebar. */
   hideCloudCard?: boolean;

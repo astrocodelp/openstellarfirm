@@ -4,23 +4,47 @@
  * One lime button per view. One focus ring. Sizes are rem.
  */
 :root {
+  /* The brand, which both themes draw from. */
   --night: #070709;
+  --ivory: #f3efe6;
+  --lime: #d9ff3f;
+  --lime-hover: #e8ff85;
+  --lime-ink: #0c0c0f;
+
+  /* Dark is the base. Every colour a component uses is one of these tokens. */
+  --bg: #070709;
   --raised: #0e0e12;
   --sunken: #0a0a0d;
   --hover: #17171c;
   --active: #1d1d23;
-  --ivory: #f3efe6;
+  --text: #f3efe6;
   --dim: oklch(0.851 0.014 87);
   --faint: oklch(0.77 0.013 87);
   --line: rgb(243 239 230 / 0.1);
   --line-strong: rgb(243 239 230 / 0.18);
-  --lime: #d9ff3f;
-  --lime-hover: #e8ff85;
-  --lime-ink: #0c0c0f;
+  /* The edge of a control: at least 3:1 against the surface it sits on. */
+  --control-line: rgb(243 239 230 / 0.42);
+  --control-line-on: rgb(243 239 230 / 0.7);
+  --focus: #f3efe6;
+  --selection: rgb(217 255 63 / 0.3);
+  /* Lime as a mark or a word on the page, where the fill would not read. */
+  --signal: #d9ff3f;
+  --lime-edge: #d9ff3f;
   --ok: oklch(0.835 0.108 180);
   --ok-wash: oklch(0.835 0.108 180 / 0.12);
   --ok-line: oklch(0.835 0.108 180 / 0.4);
   --danger: oklch(0.782 0.126 34);
+
+  --pet-lime: #d9ff3f;
+  --pet-sky: #7cc7ff;
+  --pet-nebula: #b79cff;
+  --pet-rose: #ff9fb8;
+  --pet-moon: #e8e4d8;
+  --pet-eye: #0c0c0f;
+
+  --nova-body: #f3efe6;
+  --nova-visor: #0c0c0f;
+  --nova-glint: #d9ff3f;
 
   --text-caption: 0.75rem;
   --text-ui: 0.8125rem;
@@ -38,6 +62,50 @@
   color-scheme: dark;
 }
 
+/*
+ * Light. The app sets Electron's theme from the person's choice, so this one
+ * media query is all the page needs: no attribute, and no flash on start.
+ * Lime stays a fill (the primary button). As a word or a mark it becomes a
+ * deep green that holds its own on ivory.
+ */
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #f3efe6;
+    --raised: #fbf9f4;
+    --sunken: #ebe6da;
+    --hover: #e2dccd;
+    --active: #d9d3c2;
+    --text: #070709;
+    --dim: #3b3932;
+    --faint: #58554b;
+    --line: rgb(7 7 9 / 0.14);
+    --line-strong: rgb(7 7 9 / 0.28);
+    --control-line: rgb(7 7 9 / 0.55);
+    --control-line-on: rgb(7 7 9 / 0.85);
+    --focus: #070709;
+    --selection: rgb(217 255 63 / 0.6);
+    --signal: #4a6300;
+    --lime-edge: #5a7500;
+    --ok: oklch(0.43 0.09 180);
+    --ok-wash: oklch(0.43 0.09 180 / 0.1);
+    --ok-line: oklch(0.43 0.09 180 / 0.45);
+    --danger: oklch(0.48 0.18 30);
+
+    --pet-lime: #647f00;
+    --pet-sky: #1a6fb0;
+    --pet-nebula: #7050d8;
+    --pet-rose: #c43b69;
+    --pet-moon: #6b675b;
+    --pet-eye: #f3efe6;
+
+    --nova-body: #070709;
+    --nova-visor: #f3efe6;
+    --nova-glint: #4a6300;
+
+    color-scheme: light;
+  }
+}
+
 * {
   box-sizing: border-box;
 }
@@ -50,8 +118,8 @@ body,
 
 body {
   margin: 0;
-  background: var(--night);
-  color: var(--ivory);
+  background: var(--bg);
+  color: var(--text);
   font-family: var(--font);
   font-size: var(--text-ui);
   line-height: 1.5;
@@ -73,12 +141,12 @@ p {
 }
 
 :focus-visible {
-  outline: 2px solid var(--ivory);
+  outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
 
 ::selection {
-  background: rgb(217 255 63 / 0.3);
+  background: var(--selection);
 }
 
 .visually-hidden {
@@ -284,7 +352,7 @@ p {
   justify-content: center;
   gap: 0.5rem;
   padding: 0 0.875rem;
-  border: 1px solid var(--line-strong);
+  border: 1px solid var(--control-line);
   border-radius: var(--radius);
   background: transparent;
   font-weight: 500;
@@ -302,7 +370,7 @@ p {
 }
 
 .btn-primary {
-  border-color: transparent;
+  border-color: var(--lime-edge);
   background: var(--lime);
   color: var(--lime-ink);
   font-weight: 600;
@@ -324,7 +392,7 @@ p {
   align-items: center;
   justify-content: center;
   padding: 0;
-  border: 1px solid var(--line);
+  border: 1px solid var(--control-line);
   border-radius: 999px;
   background: var(--raised);
   cursor: pointer;
@@ -348,7 +416,7 @@ p {
   height: var(--control);
   width: 100%;
   padding: 0 0.75rem;
-  border: 1px solid var(--line-strong);
+  border: 1px solid var(--control-line);
   border-radius: var(--radius);
   background: var(--sunken);
   font-size: var(--text-body);
@@ -435,7 +503,7 @@ textarea.input {
   gap: 0.5rem;
   min-height: var(--control);
   padding: 0 0.875rem 0 0.625rem;
-  border: 1px solid var(--line);
+  border: 1px solid var(--control-line);
   border-radius: 999px;
   background: transparent;
   cursor: pointer;
@@ -443,7 +511,7 @@ textarea.input {
 
 .choice[aria-pressed="true"],
 .choice:has(input:checked) {
-  border-color: rgb(243 239 230 / 0.45);
+  border-color: var(--control-line-on);
   background: var(--hover);
 }
 
@@ -451,7 +519,7 @@ textarea.input {
   width: 1rem;
   height: 1rem;
   margin: 0;
-  accent-color: var(--ivory);
+  accent-color: var(--text);
 }
 
 .pet-choice {
@@ -476,7 +544,7 @@ textarea.input {
 }
 
 .pet .eye {
-  fill: var(--lime-ink);
+  fill: var(--pet-eye);
 }
 
 /* Chat */
@@ -568,13 +636,13 @@ textarea.input {
   align-items: flex-end;
   gap: 0.5rem;
   padding: 0.5rem;
-  border: 1px solid var(--line-strong);
+  border: 1px solid var(--control-line);
   border-radius: 1.5rem;
   background: var(--raised);
 }
 
 .composer:focus-within {
-  border-color: rgb(243 239 230 / 0.45);
+  border-color: var(--control-line-on);
 }
 
 .composer textarea {
@@ -591,7 +659,7 @@ textarea.input {
 }
 
 .send {
-  border-color: transparent;
+  border-color: var(--lime-edge);
   background: var(--lime);
   color: var(--lime-ink);
 }
@@ -601,6 +669,7 @@ textarea.input {
 }
 
 .send:disabled {
+  border-color: var(--line-strong);
   background: var(--active);
   color: var(--faint);
   cursor: default;
@@ -742,7 +811,7 @@ textarea.input {
   width: 0.5rem;
   height: 0.5rem;
   border-radius: 999px;
-  background: var(--lime);
+  background: var(--signal);
 }
 
 .approval {
@@ -809,21 +878,21 @@ textarea.input {
 
 .close-btn:hover {
   background: var(--active);
-  color: var(--ivory);
+  color: var(--text);
 }
 
 .link {
   padding: 0;
   border: 0;
   background: transparent;
-  color: var(--ivory);
+  color: var(--text);
   text-decoration: underline;
   text-underline-offset: 0.2em;
   cursor: pointer;
 }
 
 .link:hover {
-  color: var(--lime);
+  color: var(--signal);
 }
 
 .plain {
@@ -844,4 +913,24 @@ textarea.input {
 .preview-actions {
   margin-top: auto;
   width: 100%;
+}
+
+/* The choice that holds the focused radio shows the ring, since the radio is small. */
+.choice:has(input:focus-visible) {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .btn,
+  .icon-btn,
+  .choice,
+  .row {
+    transition: background-color 120ms ease-out;
+  }
+}
+
+::placeholder {
+  color: var(--faint);
+  opacity: 1;
 }

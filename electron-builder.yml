@@ -31,6 +31,7 @@ electronFuses:
 forceCodeSigning: false
 publish: null
 mac:
+  icon: build/icon.png
   category: public.app-category.productivity
   hardenedRuntime: true
   gatekeeperAssess: false
@@ -42,6 +43,7 @@ mac:
     - target: zip
       arch: [x64, arm64]
 win:
+  icon: build/icon.png
   target:
     - target: nsis
       arch: [x64]

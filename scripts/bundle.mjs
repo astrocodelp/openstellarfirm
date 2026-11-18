@@ -1,3 +1,4 @@
+import { copyFile, mkdir } from "node:fs/promises";
 import { build } from "esbuild";
 
 // The main process and the preload are bundled to CommonJS: a sandboxed
@@ -13,6 +14,9 @@ const common = {
 };
 
 export async function bundleMain() {
+  // The window's icon is read from beside the bundle, inside the packaged app.
+  await mkdir("dist", { recursive: true });
+  await copyFile("build/icon.png", "dist/icon.png");
   await build({
     ...common,
     entryPoints: ["src/main/index.ts"],

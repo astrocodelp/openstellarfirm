@@ -55,7 +55,7 @@ function preview(): OpenApi {
       },
     ],
     sources: [source],
-    settings: { onboarded: true, defaultSourceId: source.id },
+    settings: { onboarded: true, theme: "system", defaultSourceId: source.id },
     keychain: true,
     platform: "browser",
   };
