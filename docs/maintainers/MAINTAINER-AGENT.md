@@ -146,7 +146,7 @@ edit your comment instead of adding a second one.
 
 ### Labels
 
-`bug`, `persona`, `idea`, `docs`, `good first issue`, `help wanted`,
+`bug`, `enhancement`, `persona`, `docs`, `good first issue`, `help wanted`,
 `needs-triage` (new, not yet read), `needs-info` (waiting for the author),
 `needs-maintainer` (a person must decide), `on-device` (touches the promise),
 `security-rule` (touches SECURITY.md's rules), `macos`, `windows`, `linux`,
