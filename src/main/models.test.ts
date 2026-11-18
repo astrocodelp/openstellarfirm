@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  assistantTurn,
   listModels,
   ModelError,
   SseParser,
@@ -122,6 +123,24 @@ describe("streamTurn", () => {
         },
       },
     ]);
+  });
+
+  it("does not send a call's signature on the OpenAI wire", async () => {
+    const bodies: string[] = [];
+    const fetchImpl: typeof fetch = async (_url, init) => {
+      bodies.push(String(init?.body));
+      return new Response(delta("ok"));
+    };
+    const calls = [{ id: "a", name: "t", arguments: "{}", signature: "sig" }];
+    await collect(
+      streamTurn({
+        ...call,
+        fetchImpl,
+        messages: [...call.messages, assistantTurn("", calls)],
+      }),
+    );
+    expect(bodies[0]).not.toContain("sig");
+    expect(bodies[0]).toContain('"tool_calls"');
   });
 
   it("sends the key only as a bearer header, and refuses a redirect", async () => {

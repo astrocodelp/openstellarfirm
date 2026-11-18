@@ -1,3 +1,4 @@
+import { presetOf } from "../../shared/catalog";
 import type {
   AppState,
   Assistant,
@@ -21,6 +22,7 @@ function preview(): OpenApi {
     preset: "ollama",
     name: "Ollama",
     baseUrl: "http://localhost:11434/v1",
+    wire: "openai",
     model: "example-model",
     hasKey: false,
   };
@@ -139,6 +141,7 @@ function preview(): OpenApi {
         preset: input.preset,
         name: input.name ?? input.preset,
         baseUrl: input.baseUrl ?? "",
+        wire: presetOf(input.preset).wire,
         model: input.model,
         hasKey: Boolean(input.apiKey),
       };

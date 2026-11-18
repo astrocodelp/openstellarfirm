@@ -229,6 +229,7 @@ async function answer(
         turn: (messages, tools) =>
           streamTurn({
             baseUrl: source.baseUrl,
+            wire: source.wire,
             ...(apiKey ? { apiKey } : {}),
             model: assistant.model ?? source.model,
             messages,
@@ -390,6 +391,7 @@ function register(window: BrowserWindow): void {
       const key = input.apiKey?.trim();
       return listModels({
         baseUrl: probeAddress(input),
+        wire: presetOf(input.preset).wire,
         ...(key ? { apiKey: key } : {}),
       });
     },
@@ -406,6 +408,7 @@ function register(window: BrowserWindow): void {
     }
     return listModels({
       baseUrl: source.baseUrl,
+      wire: source.wire,
       ...(key ? { apiKey: key } : {}),
     });
   });

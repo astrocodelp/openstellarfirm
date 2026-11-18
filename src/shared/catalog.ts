@@ -1,4 +1,4 @@
-import type { PetColor, PetId, PresetId } from "./types";
+import type { PetColor, PetId, PresetId, Wire } from "./types";
 
 /** A pet is one filled shape and two eyes, on a 48 by 48 canvas. */
 export interface PetShape {
@@ -117,17 +117,20 @@ export interface Preset {
   name: string;
   /** Empty for "custom": the person types the address. */
   baseUrl: string;
+  /** How the service is spoken to. */
+  wire: Wire;
   /** True when the model runs on this computer and needs no key. */
   local: boolean;
   note: string;
 }
 
-/** Every preset speaks the OpenAI-compatible chat completions wire. */
+/** Most presets speak the OpenAI-compatible chat completions wire. */
 export const PRESETS: Preset[] = [
   {
     id: "ollama",
     name: "Ollama",
     baseUrl: "http://localhost:11434/v1",
+    wire: "openai",
     local: true,
     note: "Runs on this computer. Free, and nothing leaves this machine.",
   },
@@ -135,6 +138,7 @@ export const PRESETS: Preset[] = [
     id: "lmstudio",
     name: "LM Studio",
     baseUrl: "http://localhost:1234/v1",
+    wire: "openai",
     local: true,
     note: "Runs on this computer. Free, and nothing leaves this machine.",
   },
@@ -142,13 +146,31 @@ export const PRESETS: Preset[] = [
     id: "openai",
     name: "OpenAI",
     baseUrl: "https://api.openai.com/v1",
+    wire: "openai",
     local: false,
     note: "Your own key.",
+  },
+  {
+    id: "anthropic",
+    name: "Anthropic (Claude)",
+    baseUrl: "https://api.anthropic.com/v1",
+    wire: "anthropic",
+    local: false,
+    note: "Your own Anthropic key.",
+  },
+  {
+    id: "gemini",
+    name: "Google (Gemini)",
+    baseUrl: "https://generativelanguage.googleapis.com/v1beta",
+    wire: "gemini",
+    local: false,
+    note: "Your own Google AI key.",
   },
   {
     id: "openrouter",
     name: "OpenRouter",
     baseUrl: "https://openrouter.ai/api/v1",
+    wire: "openai",
     local: false,
     note: "Your own key. You name the model.",
   },
@@ -156,6 +178,7 @@ export const PRESETS: Preset[] = [
     id: "mistral",
     name: "Mistral",
     baseUrl: "https://api.mistral.ai/v1",
+    wire: "openai",
     local: false,
     note: "Your own key.",
   },
@@ -163,6 +186,7 @@ export const PRESETS: Preset[] = [
     id: "together",
     name: "Together AI",
     baseUrl: "https://api.together.ai/v1",
+    wire: "openai",
     local: false,
     note: "Your own key. You name the model.",
   },
@@ -170,6 +194,7 @@ export const PRESETS: Preset[] = [
     id: "custom",
     name: "Your own endpoint",
     baseUrl: "",
+    wire: "openai",
     local: false,
     note: "Any OpenAI-compatible address, such as a LiteLLM gateway.",
   },
