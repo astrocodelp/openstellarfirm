@@ -46,11 +46,12 @@ export function BackupScreen({ onChanged, onBack, onCloud }: BackupProps) {
   return (
     <div className="screen">
       <div className="screen-body">
-        <button type="button" className="btn" onClick={onBack}>
-          <Icon name="back" />
-          Back
-        </button>
         <div className="stack-tight">
+          <div>
+            <button type="button" className="btn" onClick={onBack}>
+              Back to chats
+            </button>
+          </div>
           <h1 className="screen-title">Move or back up</h1>
           <p className="dim">
             Everything stays on this computer. To use your assistants on another
