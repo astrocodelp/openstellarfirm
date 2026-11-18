@@ -112,6 +112,12 @@ The MIT licence covers the code. "StellarFirm" and the pet characters are
 marks of Astro Code L.P. If you distribute a changed version, please give it
 its own name and look.
 
+## Contributing
+
+Fork the repository and open a pull request against `main`. Only Astro Code
+maintainers push to `main`, and they use pull requests too. The steps are in
+[CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## Licence
 
 [MIT](LICENSE). Other people's work inside a built app is listed in

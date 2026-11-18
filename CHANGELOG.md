@@ -15,6 +15,8 @@ The app is at version 0.1.0. There is no tagged release yet.
   publishes them on this repository's GitHub Releases. Signing is used when
   the certificates are set. An unsigned release says so in its title. See
   [docs/releasing.md](docs/releasing.md).
+- How to contribute: fork the repository, open a pull request against `main`,
+  and wait for CI and a maintainer. See [CONTRIBUTING.md](CONTRIBUTING.md).
 - A desktop app for macOS and Windows. You make assistants (name, group, one
   of six pets in five colours, a brief, and skills) that talk through a model
   you set up: Ollama or LM Studio on this computer, your own key, or your own

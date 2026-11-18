@@ -2,6 +2,33 @@
 
 Thank you for helping. A few rules keep the app small and safe.
 
+## How to contribute
+
+Only Astro Code maintainers push to `main`. Everyone else forks this
+repository and opens a pull request.
+
+1. Fork the repository and clone your fork.
+2. Name the branch for the change, in lowercase with hyphens
+   (`fix-copy-link`, `docs-releasing`).
+3. Keep the branch in step with this repository's `main`. Add it once as
+   `upstream`, then rebase before you open the pull request and again if
+   `main` moves:
+
+   ```bash
+   git remote add upstream https://github.com/astrocodelp/worker-bot-open-source.git
+   git fetch upstream
+   git rebase upstream/main
+   ```
+
+   Push that branch to your fork.
+4. Open the pull request against `main`.
+5. CI has to pass. Run the checks in the next section first. The pull request
+   runs them again.
+6. A maintainer reviews it and approves it. The merge is a squash merge.
+
+Maintainers open pull requests too. A direct push to `main` is for an
+emergency, and the change still gets a pull request afterwards.
+
 ## Before you open a pull request
 
 ```bash
