@@ -6,7 +6,7 @@ import type {
   ConnectionTool,
 } from "../../shared/types";
 import { api } from "./bridge";
-import { ErrorLine, message as errorText, OkLine } from "./ui";
+import { ErrorLine, message as errorText, OkLine, ScreenHead } from "./ui";
 
 function host(baseUrl: string): string {
   try {
@@ -491,22 +491,14 @@ export function ConnectionsScreen({ state, onChanged, onBack }: ScreenProps) {
   return (
     <div className="screen">
       <div className="screen-body">
-        <div className="stack-tight">
-          <div>
-            <button type="button" className="btn" onClick={onBack}>
-              Back to chats
-            </button>
-          </div>
-          <h1 className="screen-title">Your connections</h1>
-          <p className="dim">
-            A connection lets an assistant use the tools of another service, by
-            its web address. You choose which assistants may use it, in each
-            assistant's own settings. Every call asks you first, and shows what
-            would be sent. A tool the service says only reads can be allowed for
-            good; every other tool asks every time. What an assistant sends to a
-            connection leaves this computer.
-          </p>
-        </div>
+        <ScreenHead title="Your connections" onBack={onBack}>
+          A connection lets an assistant use the tools of another service, by
+          its web address. You choose which assistants may use it, in each
+          assistant's own settings. Every call asks you first, and shows what
+          would be sent. A tool the service says only reads can be allowed for
+          good; every other tool asks every time. What an assistant sends to a
+          connection leaves this computer.
+        </ScreenHead>
 
         <section className="stack" aria-labelledby="connections-title">
           <h2 className="section-title" id="connections-title">
@@ -639,7 +631,7 @@ export function ConnectionsScreen({ state, onChanged, onBack }: ScreenProps) {
             GitHub and Slack, through your own Composio account.
           </p>
           {composio ? (
-            <div className="card" style={{ padding: "1rem" }}>
+            <div className="card pad">
               <ComposioForm
                 keychain={state.keychain}
                 onSaved={() => {
@@ -671,7 +663,7 @@ export function ConnectionsScreen({ state, onChanged, onBack }: ScreenProps) {
               Filled in from the company look-up. Check it, then add it.
             </p>
           ) : null}
-          <div className="card" style={{ padding: "1rem" }}>
+          <div className="card pad">
             <ConnectionForm
               key={prefill?.n ?? 0}
               keychain={state.keychain}
@@ -692,7 +684,7 @@ export function ConnectionsScreen({ state, onChanged, onBack }: ScreenProps) {
             Companies can publish what they offer to people's AI agents. Type a
             site name to see it. Nothing is saved or connected by a look-up.
           </p>
-          <div className="card" style={{ padding: "1rem" }}>
+          <div className="card pad">
             <CompanyLookup onFill={fill} />
           </div>
         </section>
