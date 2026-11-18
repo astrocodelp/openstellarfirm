@@ -235,6 +235,7 @@ async function answer(
             tools,
             signal: controller.signal,
           }),
+        modeKey: `${source.id}\n${assistant.model ?? source.model}`,
         ask: (ask) => askPerson(window, assistant.id, ask, controller.signal),
         allowSite: (site) => {
           store.addSite(assistant.id, site);
