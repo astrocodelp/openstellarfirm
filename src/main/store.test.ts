@@ -48,6 +48,15 @@ describe("assistants", () => {
     expect(saved.name).toBe("Sco ut");
   });
 
+  it("keeps line breaks and tabs in a brief, and drops other control characters", () => {
+    const saved = store.saveAssistant({
+      ...input,
+      brief: "One\n\tTwo\u0007\u0000 three\r",
+      skills: [],
+    });
+    expect(saved.brief).toBe("One\n\tTwo three");
+  });
+
   it("refuses a missing name and an unknown look", () => {
     expect(() =>
       store.saveAssistant({ ...input, name: " ", skills: [] }),

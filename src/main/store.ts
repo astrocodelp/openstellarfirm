@@ -83,7 +83,14 @@ export function cleanAssistant(
     group: text(raw.group, 40) || "Personal",
     pet,
     color,
-    brief: text(raw.brief, 4000),
+    // Line breaks and tabs stay; other control characters are taken out, so
+    // the brief is the same text wherever it is shown or copied to.
+    brief: text(
+      typeof raw.brief === "string"
+        ? raw.brief.replace(/[^\P{Cc}\n\t]+/gu, "")
+        : "",
+      4000,
+    ),
     skills,
     web: raw.web === true,
     ...(ID.test(sourceId) ? { sourceId } : {}),
@@ -362,7 +369,9 @@ export class Store {
   }
 
   exportFile(id: string): AssistantFile {
-    const a = this.assistant(id);
+    // Cleaned again on the way out, so a file made by an older version of the
+    // app is the same shape as one made today.
+    const a = cleanAssistant(this.assistant(id));
     return {
       format: "stellarfirm-open.assistant",
       version: 1,
