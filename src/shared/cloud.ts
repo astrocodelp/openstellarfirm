@@ -49,7 +49,7 @@ export function cloudCopyUrl(
   const url = `${CLOUD}/import-assistant#v=1&a=${base64Url(JSON.stringify(assistant))}`;
   if (url.length > maxLength) {
     throw new Error(
-      "This assistant's brief is too long to copy by link. Shorten it, or export it as a file.",
+      "This assistant's brief is too long to copy by link. Shorten the brief, then copy again.",
     );
   }
   return url;
