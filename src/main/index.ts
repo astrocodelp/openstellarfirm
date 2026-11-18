@@ -8,6 +8,7 @@ import {
   dialog,
   type IpcMainInvokeEvent,
   ipcMain,
+  nativeTheme,
   safeStorage,
   session,
   shell,
@@ -16,6 +17,7 @@ import { presetOf } from "../shared/catalog";
 import { cloudCopyUrl, cloudHomeUrl, MAX_LINK_WINDOWS } from "../shared/cloud";
 import { checkEndpoint, isLocalEndpoint } from "../shared/endpoint";
 import { systemPrompt } from "../shared/prompt";
+import { type Theme, windowBackground } from "../shared/theme";
 import {
   type ApprovalCard,
   type AppState,
@@ -459,13 +461,32 @@ function register(window: BrowserWindow): void {
     });
   });
   handle(IPC.detectLocal, () => detectLocal());
-  handle(IPC.setSettings, (_e, patch: Partial<Settings>) =>
-    store.setSettings(patch),
-  );
+  handle(IPC.setSettings, (_e, patch: Partial<Settings>) => {
+    const next = store.setSettings(patch);
+    applyTheme(next.theme);
+    return next;
+  });
   handle(IPC.openCloud, (_e, target: unknown, assistantId: unknown) =>
     openCloud(target, assistantId),
   );
 }
+
+/**
+ * The page styles itself with the system's light or dark setting, so the
+ * choice is made here: Electron answers the page's own question with it.
+ */
+function applyTheme(theme: Theme): void {
+  nativeTheme.themeSource = theme;
+  paintWindows();
+}
+
+function paintWindows(): void {
+  const color = windowBackground(nativeTheme.shouldUseDarkColors);
+  for (const window of BrowserWindow.getAllWindows())
+    window.setBackgroundColor(color);
+}
+
+const windowIcon = join(__dirname, "../icon.png");
 
 function createWindow(): BrowserWindow {
   const window = new BrowserWindow({
@@ -474,7 +495,8 @@ function createWindow(): BrowserWindow {
     minWidth: 880,
     minHeight: 600,
     show: false,
-    backgroundColor: "#070709",
+    backgroundColor: windowBackground(nativeTheme.shouldUseDarkColors),
+    icon: windowIcon,
     title: "StellarFirm Open",
     titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "default",
     webPreferences: {
@@ -518,6 +540,9 @@ app.whenReady().then(() => {
     },
   });
   // The page asks for no camera, microphone or location, so every ask is refused.
+  applyTheme(store.settings().theme);
+  nativeTheme.on("updated", paintWindows);
+  if (process.platform === "darwin") app.dock?.setIcon(windowIcon);
   session.defaultSession.setPermissionRequestHandler(
     (_contents, _permission, done) => done(false),
   );

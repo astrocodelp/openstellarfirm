@@ -302,3 +302,44 @@ describe("secrets", () => {
     expect(secrets.has("a")).toBe(false);
   });
 });
+
+describe("the theme", () => {
+  it("reads as the system's setting until the person chooses", () => {
+    expect(store.settings().theme).toBe("system");
+  });
+
+  it("keeps a chosen theme, and refuses one it does not know", () => {
+    expect(store.setSettings({ theme: "light" }).theme).toBe("light");
+    expect(store.setSettings({ theme: "dark" }).theme).toBe("dark");
+    expect(() => store.setSettings({ theme: "sepia" as never })).toThrow(
+      /theme/,
+    );
+    expect(store.settings().theme).toBe("dark");
+    // A save about something else leaves it alone.
+    expect(store.setSettings({ hideCloudCard: true }).theme).toBe("dark");
+  });
+
+  it("reads a settings file from before the theme existed as system", () => {
+    writeFileSync(
+      join(dir, "state.json"),
+      JSON.stringify({
+        v: 1,
+        assistants: [],
+        sources: [],
+        settings: { onboarded: true },
+      }),
+    );
+    const old = store;
+    expect(old.settings()).toEqual({ onboarded: true, theme: "system" });
+    writeFileSync(
+      join(dir, "state.json"),
+      JSON.stringify({
+        v: 1,
+        assistants: [],
+        sources: [],
+        settings: { onboarded: true, theme: "neon" },
+      }),
+    );
+    expect(old.settings().theme).toBe("system");
+  });
+});

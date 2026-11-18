@@ -4,8 +4,13 @@ import type { PetColor, PetId } from "../../shared/types";
 
 /** Small shared pieces: the pets, the icons, and the two status lines. */
 
-export function colorHex(color: PetColor): string {
-  return COLORS.find((c) => c.id === color)?.hex ?? "currentColor";
+/**
+ * A pet's colour is a token, so each theme can draw it in a shade that holds
+ * its own on the page. The brand's own hex values live in the catalog.
+ */
+export function petColor(color: PetColor): string {
+  const known = COLORS.some((c) => c.id === color);
+  return known ? `var(--pet-${color})` : "currentColor";
 }
 
 export function Pet({
@@ -27,7 +32,7 @@ export function Pet({
       viewBox="0 0 48 48"
       aria-hidden="true"
     >
-      <path d={shape.d} fill={colorHex(color)} />
+      <path d={shape.d} fill={petColor(color)} />
       <circle className="eye" cx={shape.eyeLeft} cy={shape.eyeY} r="2.2" />
       <circle className="eye" cx={shape.eyeRight} cy={shape.eyeY} r="2.2" />
     </svg>
@@ -45,19 +50,19 @@ export function Nova({ size = 72 }: { size?: number }) {
       role="img"
       aria-label="Nova, the app's pet"
     >
-      <path d="M14 35a10 10 0 0 1 20 0v9H14z" fill="var(--ivory)" />
-      <circle cx="24" cy="19" r="14" fill="var(--ivory)" />
+      <path d="M14 35a10 10 0 0 1 20 0v9H14z" fill="var(--nova-body)" />
+      <circle cx="24" cy="19" r="14" fill="var(--nova-body)" />
       <rect
         x="12.5"
         y="12"
         width="23"
         height="13.5"
         rx="6.75"
-        fill="var(--lime-ink)"
+        fill="var(--nova-visor)"
       />
       <path
         d="M17 17h5.5"
-        stroke="var(--lime)"
+        stroke="var(--nova-glint)"
         strokeWidth="2.4"
         strokeLinecap="round"
       />
@@ -81,6 +86,12 @@ const ICONS = {
   ),
   folder: (
     <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+  ),
+  gear: (
+    <>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8" />
+    </>
   ),
   sliders: (
     <>

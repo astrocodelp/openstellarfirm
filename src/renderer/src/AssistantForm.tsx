@@ -196,7 +196,7 @@ export function AssistantForm(props: AssistantFormProps) {
                 >
                   <span
                     className="swatch"
-                    style={{ background: c.hex }}
+                    style={{ background: `var(--pet-${c.id})` }}
                     aria-hidden="true"
                   />
                   <span>{c.name}</span>

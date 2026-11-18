@@ -11,6 +11,7 @@ import { BackupScreen } from "./Backup";
 import { api } from "./bridge";
 import { ChatView } from "./ChatView";
 import { ModelsScreen } from "./Models";
+import { SettingsScreen } from "./Settings";
 import { Sidebar } from "./Sidebar";
 import { ErrorLine, message as errorText, Nova } from "./ui";
 import { Welcome } from "./Welcome";
@@ -19,7 +20,8 @@ type View =
   | { name: "chat" }
   | { name: "assistant"; id?: string }
   | { name: "models" }
-  | { name: "backup" };
+  | { name: "backup" }
+  | { name: "settings" };
 
 function without<T>(record: Record<string, T>, key: string): Record<string, T> {
   const { [key]: _gone, ...rest } = record;
@@ -209,6 +211,7 @@ export function App() {
         onImport={() => void importFile()}
         onBackup={() => setView({ name: "backup" })}
         onModels={() => setView({ name: "models" })}
+        onSettings={() => setView({ name: "settings" })}
         onCloud={() => void act(() => api.openCloud("home"))}
         onHideCloudCard={() =>
           void act(async () => {
@@ -223,7 +226,13 @@ export function App() {
             <ErrorLine>{error}</ErrorLine>
           </div>
         ) : null}
-        {view.name === "backup" ? (
+        {view.name === "settings" ? (
+          <SettingsScreen
+            state={state}
+            onChanged={refresh}
+            onBack={() => setView({ name: "chat" })}
+          />
+        ) : view.name === "backup" ? (
           <BackupScreen
             onChanged={() => void refresh()}
             onBack={() => setView({ name: "chat" })}

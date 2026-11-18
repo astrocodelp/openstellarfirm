@@ -14,6 +14,7 @@ interface SidebarProps {
   onImport(): void;
   onBackup(): void;
   onModels(): void;
+  onSettings(): void;
   onCloud(): void;
   onHideCloudCard(): void;
 }
@@ -130,6 +131,15 @@ export function Sidebar(props: SidebarProps) {
             onClick={props.onModels}
           >
             <Icon name="sliders" size={18} />
+          </button>
+          <button
+            type="button"
+            className="icon-btn"
+            aria-label="Settings"
+            title="Settings"
+            onClick={props.onSettings}
+          >
+            <Icon name="gear" size={18} />
           </button>
         </div>
       </div>
