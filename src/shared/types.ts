@@ -151,6 +151,16 @@ export interface ApprovalChange {
   card: ApprovalCard | null;
 }
 
+/** What a backup import did, so the screen can say it in numbers. */
+export interface BackupResult {
+  added: number;
+  skipped: number;
+  /** How many of the added assistants came with their chat. */
+  chats: number;
+  /** True when the app's limit on assistants stopped the rest. */
+  full: boolean;
+}
+
 /** What the page can ask the main process to do. */
 export interface OpenApi {
   getState(): Promise<AppState>;
@@ -158,6 +168,13 @@ export interface OpenApi {
   removeAssistant(id: string): Promise<void>;
   exportAssistant(id: string): Promise<boolean>;
   importAssistant(): Promise<Assistant | null>;
+  /**
+   * Saves every assistant to one file, through the system's save dialog.
+   * False when the person closed the dialog. The page never names a path.
+   */
+  exportBackup(includeChats: boolean): Promise<boolean>;
+  /** Adds the assistants of a backup as new ones; null when no file was picked. */
+  importBackup(): Promise<BackupResult | null>;
   /** Opens the system's folder picker. Null when the person closed it. */
   addFolder(assistantId: string): Promise<Assistant | null>;
   removeFolder(assistantId: string, folder: string): Promise<Assistant>;
@@ -202,6 +219,8 @@ export const IPC = {
   removeAssistant: "assistant:remove",
   exportAssistant: "assistant:export",
   importAssistant: "assistant:import",
+  exportBackup: "backup:export",
+  importBackup: "backup:import",
   addFolder: "assistant:folder:add",
   removeFolder: "assistant:folder:remove",
   removeSite: "assistant:site:remove",
