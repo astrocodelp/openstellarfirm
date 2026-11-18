@@ -13,7 +13,7 @@ import {
   shell,
 } from "electron";
 import { presetOf } from "../shared/catalog";
-import { cloudCopyUrl, cloudHomeUrl } from "../shared/cloud";
+import { cloudCopyUrl, cloudHomeUrl, MAX_LINK_WINDOWS } from "../shared/cloud";
 import { checkEndpoint, isLocalEndpoint } from "../shared/endpoint";
 import { systemPrompt } from "../shared/prompt";
 import {
@@ -323,7 +323,12 @@ async function addFolder(
 async function openCloud(target: unknown, assistantId: unknown): Promise<void> {
   if (target === "home") return shell.openExternal(cloudHomeUrl());
   if (target === "copy" && typeof assistantId === "string") {
-    return shell.openExternal(cloudCopyUrl(store.exportFile(assistantId)));
+    const file = store.exportFile(assistantId);
+    return shell.openExternal(
+      process.platform === "win32"
+        ? cloudCopyUrl(file, MAX_LINK_WINDOWS)
+        : cloudCopyUrl(file),
+    );
   }
   throw new Error("That is not allowed.");
 }

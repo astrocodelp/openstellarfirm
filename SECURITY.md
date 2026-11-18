@@ -68,6 +68,9 @@ Said plainly, so nobody relies on more than is there:
   files anyway. The app does not defend against that.
 - **Keys on Linux** depend on the desktop's secret store; the app is built for
   macOS and Windows.
+- **Copy to StellarFirm cloud has a length limit.** The assistant travels in
+  the address, and Windows cannot open an address longer than 2,081
+  characters, so a long brief is refused there with a plain message.
 - **No signed installers yet.** Build from source, or wait for signed releases.
 - **The file protocol keeps its extra privileges** in the packaged app, because
   the page is loaded from a file. Serving it from a protocol of the app's own

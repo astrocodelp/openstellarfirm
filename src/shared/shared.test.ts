@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { PRESETS } from "./catalog";
-import { cloudCopyUrl, cloudHomeUrl } from "./cloud";
+import { cloudCopyUrl, cloudHomeUrl, MAX_LINK_WINDOWS } from "./cloud";
 import { checkEndpoint, isLocalEndpoint } from "./endpoint";
 import { systemPrompt } from "./prompt";
 
@@ -119,6 +119,16 @@ describe("links to StellarFirm cloud", () => {
       (c) => c.charCodeAt(0),
     );
     expect(JSON.parse(new TextDecoder().decode(bytes))).toEqual(assistant);
+  });
+
+  it("keeps to the shorter limit Windows has", () => {
+    const long = { ...assistant, skills: [], brief: "x".repeat(2000) };
+    expect(cloudCopyUrl(long).length).toBeGreaterThan(MAX_LINK_WINDOWS);
+    expect(() => cloudCopyUrl(long, MAX_LINK_WINDOWS)).toThrow(/too long/);
+    const short = { ...assistant, skills: [], brief: "x".repeat(800) };
+    expect(cloudCopyUrl(short, MAX_LINK_WINDOWS).length).toBeLessThanOrEqual(
+      MAX_LINK_WINDOWS,
+    );
   });
 
   it("refuses a brief too long for a link", () => {

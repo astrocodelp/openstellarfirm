@@ -7,6 +7,8 @@
 const CLOUD = "https://stellarfirm.ai";
 /** A browser address longer than this is not reliable everywhere. */
 const MAX_LINK = 12_000;
+/** Windows cannot hand a longer address to the browser. */
+export const MAX_LINK_WINDOWS = 2081;
 
 /** What "Copy to StellarFirm cloud" carries: the same shape as an exported file. */
 export interface CloudAssistant {
@@ -40,9 +42,12 @@ function base64Url(text: string): string {
  * server. StellarFirm's page reads it in the browser and shows it to the
  * person, who decides there whether to hire it.
  */
-export function cloudCopyUrl(assistant: CloudAssistant): string {
+export function cloudCopyUrl(
+  assistant: CloudAssistant,
+  maxLength = MAX_LINK,
+): string {
   const url = `${CLOUD}/import-assistant#v=1&a=${base64Url(JSON.stringify(assistant))}`;
-  if (url.length > MAX_LINK) {
+  if (url.length > maxLength) {
     throw new Error(
       "This assistant's brief is too long to copy by link. Shorten it, or export it as a file.",
     );
