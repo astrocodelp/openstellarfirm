@@ -1,12 +1,14 @@
 import { checkEndpoint } from "../shared/endpoint";
 import type {
   Assistant,
+  ComposioInput,
   Connection,
   ConnectionInput,
+  ConnectionPreset,
   ConnectionTool,
 } from "../shared/types";
 import { FolderError } from "./folders";
-import { McpClient, McpError, plain } from "./mcp";
+import { COMPOSIO_MCP_URL, McpClient, McpError, plain } from "./mcp";
 import type { ToolSpec } from "./models";
 import type { Secrets } from "./secrets";
 import type { Store, StoredConnection, StoredTool } from "./store";
@@ -47,6 +49,23 @@ export function connectionInput(input: unknown): ConnectionInput {
       ? { apiKey: field(raw.apiKey, 4096) }
       : {}),
   };
+}
+
+/** What the page may send for a Composio connection: a name and a key. */
+export function composioInput(input: unknown): ComposioInput {
+  const raw = (input ?? {}) as Record<string, unknown>;
+  return {
+    ...(typeof raw.id === "string" ? { id: field(raw.id, 100) } : {}),
+    name: field(raw.name ?? "", 200),
+    ...(typeof raw.apiKey === "string"
+      ? { apiKey: field(raw.apiKey, 4096) }
+      : {}),
+  };
+}
+
+/** Only the exact word "composio" makes a preset; anything else is custom. */
+export function presetOf(connection: { preset?: unknown }): ConnectionPreset {
+  return connection.preset === "composio" ? "composio" : "custom";
 }
 
 /** Runs one call on a connection. The main process supplies the real one. */
@@ -215,6 +234,7 @@ export function showConnection(
   return {
     id: connection.id,
     name: connection.name,
+    preset: presetOf(connection),
     baseUrl: connection.baseUrl,
     hasKey,
     tools: connection.tools.map(showTool),
@@ -244,10 +264,14 @@ export class ConnectionService {
   private client(
     baseUrl: string,
     apiKey: string | undefined,
+    preset: ConnectionPreset,
     signal?: AbortSignal,
   ): McpClient {
+    const composio = preset === "composio";
     return new McpClient({
-      baseUrl,
+      // The Composio preset has one address and one header, whatever is saved.
+      baseUrl: composio ? COMPOSIO_MCP_URL : baseUrl,
+      keyStyle: composio ? "composio" : "bearer",
       ...(apiKey ? { apiKey } : {}),
       ...(signal ? { signal } : {}),
       ...(this.deps.appVersion ? { appVersion: this.deps.appVersion } : {}),
@@ -272,16 +296,40 @@ export class ConnectionService {
     return this.deps.secrets.get(before.id);
   }
 
-  private async look(input: ConnectionInput): Promise<{
+  /**
+   * A saved connection keeps the preset it was made with. The way in decides
+   * it only for a new one, and an edit can never switch it.
+   */
+  private presetFor(
+    input: { id?: string },
+    entry: ConnectionPreset,
+  ): ConnectionPreset {
+    const before = input.id
+      ? this.deps.store.connections().find((c) => c.id === input.id)
+      : undefined;
+    if (before && presetOf(before) !== entry)
+      throw new Error("That connection was added another way. Edit it there.");
+    return entry;
+  }
+
+  private async look(
+    input: ConnectionInput,
+    preset: ConnectionPreset,
+  ): Promise<{
     baseUrl: string;
     key: string | undefined;
     tools: StoredTool[];
   }> {
-    const baseUrl = checkEndpoint(
-      typeof input.baseUrl === "string" ? input.baseUrl : "",
-    );
+    const baseUrl =
+      preset === "composio"
+        ? COMPOSIO_MCP_URL
+        : checkEndpoint(typeof input.baseUrl === "string" ? input.baseUrl : "");
     const key = await this.keyFor(input, baseUrl);
-    const found = await this.client(baseUrl, key).listTools();
+    if (preset === "composio" && !key)
+      throw new Error(
+        "Composio needs your key. Copy it from your Composio account.",
+      );
+    const found = await this.client(baseUrl, key, preset).listTools();
     return {
       baseUrl,
       key,
@@ -295,11 +343,28 @@ export class ConnectionService {
   }
 
   /** Connects and lists the tools. Saves nothing. */
-  async check(input: ConnectionInput): Promise<ConnectionTool[]> {
-    return (await this.look(input)).tools.map(showTool);
+  async check(
+    input: ConnectionInput,
+    entry: ConnectionPreset = "custom",
+  ): Promise<ConnectionTool[]> {
+    const preset = this.presetFor(input, entry);
+    return (await this.look(input, preset)).tools.map(showTool);
   }
 
-  async save(input: ConnectionInput): Promise<Connection> {
+  /** The Composio way in: the address is fixed here, the page gives none. */
+  checkComposio(input: ComposioInput): Promise<ConnectionTool[]> {
+    return this.check({ ...input, baseUrl: COMPOSIO_MCP_URL }, "composio");
+  }
+
+  saveComposio(input: ComposioInput): Promise<Connection> {
+    return this.save({ ...input, baseUrl: COMPOSIO_MCP_URL }, "composio");
+  }
+
+  async save(
+    input: ConnectionInput,
+    entry: ConnectionPreset = "custom",
+  ): Promise<Connection> {
+    const preset = this.presetFor(input, entry);
     const name = plain(input.name, 40);
     if (!name) throw new Error("Give the connection a name.");
     const typed = typeof input.apiKey === "string" ? input.apiKey.trim() : "";
@@ -307,11 +372,12 @@ export class ConnectionService {
       ? this.deps.store.connections().find((c) => c.id === input.id)
       : undefined;
     // The tools are read from the server now: nothing the page sends is kept.
-    const { baseUrl, tools } = await this.look(input);
+    const { baseUrl, tools } = await this.look(input, preset);
     const saved = this.deps.store.saveConnection({
       ...(before ? { id: before.id } : {}),
       name,
       baseUrl,
+      preset,
       tools,
     });
     try {
@@ -350,6 +416,7 @@ export class ConnectionService {
         client = this.client(
           connection.baseUrl,
           await this.deps.secrets.get(connection.id),
+          presetOf(connection),
           signal,
         );
         clients.set(connection.id, client);

@@ -1,5 +1,10 @@
 import { type FormEvent, useId, useState } from "react";
-import type { AppState, Connection, ConnectionTool } from "../../shared/types";
+import type {
+  AppState,
+  CompanyOffer,
+  Connection,
+  ConnectionTool,
+} from "../../shared/types";
 import { api } from "./bridge";
 import { ErrorLine, message as errorText, OkLine } from "./ui";
 
@@ -37,15 +42,28 @@ function ToolList({ tools }: { tools: ConnectionTool[] }) {
 interface FormProps {
   keychain: boolean;
   editing?: Connection;
+  /** A name and address to start with, from a company look-up. */
+  prefill?: { name: string; baseUrl: string };
+  /** False while another form on the screen holds the one lime button. */
+  primary?: boolean;
   onSaved(): void;
   onCancel?: () => void;
 }
 
 /** Adds a connection, or changes one. The tools always come from the server. */
-function ConnectionForm({ keychain, editing, onSaved, onCancel }: FormProps) {
+function ConnectionForm({
+  keychain,
+  editing,
+  prefill,
+  primary = true,
+  onSaved,
+  onCancel,
+}: FormProps) {
   const ids = useId();
-  const [name, setName] = useState(editing?.name ?? "");
-  const [baseUrl, setBaseUrl] = useState(editing?.baseUrl ?? "");
+  const [name, setName] = useState(editing?.name ?? prefill?.name ?? "");
+  const [baseUrl, setBaseUrl] = useState(
+    editing?.baseUrl ?? prefill?.baseUrl ?? "",
+  );
   const [apiKey, setApiKey] = useState("");
   const [tools, setTools] = useState<ConnectionTool[] | null>(null);
   const [busy, setBusy] = useState<"" | "check" | "save">("");
@@ -164,7 +182,7 @@ function ConnectionForm({ keychain, editing, onSaved, onCancel }: FormProps) {
       <div className="wrap">
         <button
           type="submit"
-          className="btn btn-primary"
+          className={primary ? "btn btn-primary" : "btn"}
           disabled={busy !== "" || !name.trim() || !baseUrl.trim()}
         >
           {busy === "save" ? "Saving…" : editing ? "Save" : "Add"}
@@ -179,6 +197,259 @@ function ConnectionForm({ keychain, editing, onSaved, onCancel }: FormProps) {
   );
 }
 
+interface ComposioFormProps {
+  keychain: boolean;
+  editing?: Connection;
+  primary?: boolean;
+  onSaved(): void;
+  onCancel?: () => void;
+}
+
+/** Adds or changes a Composio connection: a name and the person's own key. */
+function ComposioForm({
+  keychain,
+  editing,
+  primary = true,
+  onSaved,
+  onCancel,
+}: ComposioFormProps) {
+  const ids = useId();
+  const [name, setName] = useState(editing?.name ?? "Composio");
+  const [apiKey, setApiKey] = useState("");
+  const [tools, setTools] = useState<ConnectionTool[] | null>(null);
+  const [busy, setBusy] = useState<"" | "check" | "save">("");
+  const [error, setError] = useState("");
+  const needsKey = !editing?.hasKey;
+  const input = () => ({
+    ...(editing ? { id: editing.id } : {}),
+    name,
+    apiKey,
+  });
+
+  async function check() {
+    setBusy("check");
+    setError("");
+    try {
+      setTools(await api.checkComposio(input()));
+    } catch (e) {
+      setTools(null);
+      setError(errorText(e));
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function save(event: FormEvent) {
+    event.preventDefault();
+    setBusy("save");
+    setError("");
+    try {
+      await api.saveComposio(input());
+      setApiKey("");
+      setTools(null);
+      onSaved();
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setBusy("");
+    }
+  }
+
+  return (
+    <form className="stack" onSubmit={save}>
+      <p className="dim">
+        This uses your own Composio account and key. Your usage and any cost are
+        between you and Composio. What you send through it leaves this computer.
+        Every tool call still asks you first.
+      </p>
+      <div>
+        <button
+          type="button"
+          className="btn"
+          onClick={() => void api.openLink("composio")}
+        >
+          Get a key at composio.dev
+        </button>
+      </div>
+      <label className="field">
+        <span className="field-label">Name</span>
+        <input
+          className="input"
+          value={name}
+          maxLength={40}
+          autoComplete="off"
+          onChange={(event) => setName(event.target.value)}
+        />
+      </label>
+      <label className="field">
+        <span className="field-label" id={`${ids}-key`}>
+          Your Composio key
+        </span>
+        <input
+          aria-labelledby={`${ids}-key`}
+          className="input mono"
+          type="password"
+          value={apiKey}
+          placeholder={editing?.hasKey ? "Saved. Leave empty to keep it." : ""}
+          spellCheck={false}
+          autoComplete="off"
+          onChange={(event) => setApiKey(event.target.value)}
+        />
+        <span className="faint">
+          {keychain
+            ? "Kept in this computer's keychain. It is sent only to Composio, and never shown again."
+            : "This computer has no keychain, so a key cannot be saved here."}
+        </span>
+      </label>
+      <div className="wrap">
+        <button
+          type="button"
+          className="btn"
+          disabled={busy !== "" || (needsKey && !apiKey.trim())}
+          onClick={() => void check()}
+        >
+          {busy === "check" ? "Checking…" : "Check"}
+        </button>
+      </div>
+      {tools ? (
+        <div className="stack-tight">
+          <OkLine>
+            It answered.{" "}
+            {tools.length === 1 ? "1 tool" : `${tools.length} tools`}
+          </OkLine>
+          <ToolList tools={tools} />
+        </div>
+      ) : null}
+      <ErrorLine>{error}</ErrorLine>
+      <div className="wrap">
+        <button
+          type="submit"
+          className={primary ? "btn btn-primary" : "btn"}
+          disabled={busy !== "" || !name.trim() || (needsKey && !apiKey.trim())}
+        >
+          {busy === "save" ? "Saving…" : editing ? "Save" : "Add Composio"}
+        </button>
+        {onCancel ? (
+          <button type="button" className="btn" onClick={onCancel}>
+            Cancel
+          </button>
+        ) : null}
+      </div>
+    </form>
+  );
+}
+
+/** Reads what a company publishes for personal agents. Saves nothing. */
+function CompanyLookup({
+  onFill,
+}: {
+  onFill(name: string, baseUrl: string): void;
+}) {
+  const ids = useId();
+  const [domain, setDomain] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [offer, setOffer] = useState<CompanyOffer | null>(null);
+
+  async function look(event: FormEvent) {
+    event.preventDefault();
+    setBusy(true);
+    setError("");
+    setOffer(null);
+    try {
+      setOffer(await api.lookupCompany(domain));
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="stack">
+      <form className="stack" onSubmit={look}>
+        <label className="field">
+          <span className="field-label" id={`${ids}-domain`}>
+            Site name
+          </span>
+          <input
+            aria-labelledby={`${ids}-domain`}
+            className="input mono"
+            value={domain}
+            placeholder="example.com"
+            spellCheck={false}
+            autoComplete="off"
+            onChange={(event) => setDomain(event.target.value)}
+          />
+          <span className="faint">
+            Pressing Look up makes this app contact that site, once, to read one
+            public file. No key or cookie is sent.
+          </span>
+        </label>
+        <div className="wrap">
+          <button
+            type="submit"
+            className="btn"
+            disabled={busy || !domain.trim()}
+          >
+            {busy ? "Looking…" : "Look up"}
+          </button>
+        </div>
+      </form>
+      <ErrorLine>{error}</ErrorLine>
+      {offer ? (
+        <div className="stack-tight" aria-live="polite">
+          <p>
+            <span className="row-name">{offer.name}</span>{" "}
+            <span className="faint mono">{offer.domain}</span>
+          </p>
+          <p className="dim">
+            {offer.signIn
+              ? "It offers sign-in to personal agents."
+              : "It does not offer sign-in to personal agents."}
+          </p>
+          {offer.apis.length === 0 ? (
+            <p className="dim">It lists no tools or interfaces.</p>
+          ) : (
+            <ul className="list card" aria-label="What it offers">
+              {offer.apis.map((item) => (
+                <li
+                  key={`${item.type}:${item.url}`}
+                  style={{ flexWrap: "wrap" }}
+                >
+                  <span className="grow stack-tight">
+                    <span className="mono">{item.url}</span>
+                    {item.description ? (
+                      <span className="faint">{item.description}</span>
+                    ) : null}
+                  </span>
+                  <span className="badge">
+                    {item.type === "mcp" ? "Tools" : "API description"}
+                  </span>
+                  {item.type === "mcp" ? (
+                    <button
+                      type="button"
+                      className="btn"
+                      aria-label={`Add ${offer.name} as a connection`}
+                      onClick={() => onFill(offer.name.slice(0, 40), item.url)}
+                    >
+                      Add as a connection
+                    </button>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="faint">
+            This only shows what the company publishes. StellarFirm Open cannot
+            sign in to a company for you yet.
+          </p>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 interface ScreenProps {
   state: AppState;
   onChanged(): Promise<void>;
@@ -189,6 +460,19 @@ export function ConnectionsScreen({ state, onChanged, onBack }: ScreenProps) {
   const [editing, setEditing] = useState<string | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [composio, setComposio] = useState(false);
+  const [prefill, setPrefill] = useState<{
+    n: number;
+    name: string;
+    baseUrl: string;
+  } | null>(null);
+
+  function fill(name: string, baseUrl: string) {
+    setPrefill({ n: (prefill?.n ?? 0) + 1, name, baseUrl });
+    document
+      .getElementById("add-connection-title")
+      ?.scrollIntoView({ block: "start" });
+  }
 
   async function remove(id: string) {
     setError("");
@@ -238,7 +522,12 @@ export function ConnectionsScreen({ state, onChanged, onBack }: ScreenProps) {
                 return (
                   <li key={connection.id} style={{ flexWrap: "wrap" }}>
                     <span className="grow stack-tight">
-                      <span className="row-name">{connection.name}</span>
+                      <span className="row-name">
+                        {connection.name}
+                        {connection.preset === "composio" ? (
+                          <span className="badge"> Composio</span>
+                        ) : null}
+                      </span>
                       <span className="faint mono">
                         {host(connection.baseUrl)}
                       </span>
@@ -308,15 +597,29 @@ export function ConnectionsScreen({ state, onChanged, onBack }: ScreenProps) {
                     ) : null}
                     {editing === connection.id ? (
                       <div style={{ flexBasis: "100%" }}>
-                        <ConnectionForm
-                          keychain={state.keychain}
-                          editing={connection}
-                          onSaved={() => {
-                            setEditing(null);
-                            void onChanged();
-                          }}
-                          onCancel={() => setEditing(null)}
-                        />
+                        {connection.preset === "composio" ? (
+                          <ComposioForm
+                            keychain={state.keychain}
+                            editing={connection}
+                            primary={!composio}
+                            onSaved={() => {
+                              setEditing(null);
+                              void onChanged();
+                            }}
+                            onCancel={() => setEditing(null)}
+                          />
+                        ) : (
+                          <ConnectionForm
+                            keychain={state.keychain}
+                            editing={connection}
+                            primary={!composio}
+                            onSaved={() => {
+                              setEditing(null);
+                              void onChanged();
+                            }}
+                            onCancel={() => setEditing(null)}
+                          />
+                        )}
                       </div>
                     ) : null}
                   </li>
@@ -327,15 +630,70 @@ export function ConnectionsScreen({ state, onChanged, onBack }: ScreenProps) {
           <ErrorLine>{error}</ErrorLine>
         </section>
 
+        <section className="stack" aria-labelledby="add-composio-title">
+          <h2 className="section-title" id="add-composio-title">
+            Add Composio
+          </h2>
+          <p className="dim">
+            One connection that reaches many apps, such as mail, calendars,
+            GitHub and Slack, through your own Composio account.
+          </p>
+          {composio ? (
+            <div className="card" style={{ padding: "1rem" }}>
+              <ComposioForm
+                keychain={state.keychain}
+                onSaved={() => {
+                  setComposio(false);
+                  void onChanged();
+                }}
+                onCancel={() => setComposio(false)}
+              />
+            </div>
+          ) : (
+            <div>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => setComposio(true)}
+              >
+                Add Composio
+              </button>
+            </div>
+          )}
+        </section>
+
         <section className="stack" aria-labelledby="add-connection-title">
           <h2 className="section-title" id="add-connection-title">
-            Add a connection
+            Add a connection by address
           </h2>
+          {prefill ? (
+            <p className="dim" role="status">
+              Filled in from the company look-up. Check it, then add it.
+            </p>
+          ) : null}
           <div className="card" style={{ padding: "1rem" }}>
             <ConnectionForm
+              key={prefill?.n ?? 0}
               keychain={state.keychain}
+              primary={!composio}
+              {...(prefill
+                ? { prefill: { name: prefill.name, baseUrl: prefill.baseUrl } }
+                : {})}
               onSaved={() => void onChanged()}
             />
+          </div>
+        </section>
+
+        <section className="stack" aria-labelledby="lookup-title">
+          <h2 className="section-title" id="lookup-title">
+            Look up a company
+          </h2>
+          <p className="dim">
+            Companies can publish what they offer to people's AI agents. Type a
+            site name to see it. Nothing is saved or connected by a look-up.
+          </p>
+          <div className="card" style={{ padding: "1rem" }}>
+            <CompanyLookup onFill={fill} />
           </div>
         </section>
       </div>

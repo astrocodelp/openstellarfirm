@@ -40,6 +40,9 @@ const api: OpenApi = {
   checkConnection: (input) => call(IPC.checkConnection, input),
   saveConnection: (input) => call(IPC.saveConnection, input),
   removeConnection: (id) => call(IPC.removeConnection, id),
+  checkComposio: (input) => call(IPC.checkComposio, input),
+  saveComposio: (input) => call(IPC.saveComposio, input),
+  lookupCompany: (domain) => call(IPC.lookupCompany, domain),
   removeConnectionTool: (assistantId, connectionId, tool) =>
     call(IPC.removeConnectionTool, assistantId, connectionId, tool),
   saveSource: (input) => call(IPC.saveSource, input),

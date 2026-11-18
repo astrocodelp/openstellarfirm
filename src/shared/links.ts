@@ -12,7 +12,12 @@ import { cleanVersion } from "./update";
 export const REPO = `astrocodelp/${["worker-b", "ot-open-source"].join("")}`;
 const REPO_URL = `https://github.com/${REPO}`;
 
-export const LINK_NAMES = ["source", "community", "release"] as const;
+export const LINK_NAMES = [
+  "source",
+  "community",
+  "release",
+  "composio",
+] as const;
 export type LinkName = (typeof LINK_NAMES)[number];
 
 /** Where the update check asks. Fixed: nothing from a page or an answer changes it. */
@@ -34,6 +39,8 @@ export function linkUrl(name: unknown, newest: string | null = null): string {
       return REPO_URL;
     case "community":
       return `${REPO_URL}/discussions`;
+    case "composio":
+      return "https://composio.dev";
     case "release":
       if (!newest) throw new Error("There is no newer version to show.");
       return releaseUrl(newest);

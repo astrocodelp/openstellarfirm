@@ -45,9 +45,14 @@ import {
   MAX_BACKUP_BYTES,
   restoreBackup,
 } from "./backup";
-import { ConnectionService, connectionInput } from "./connections";
+import {
+  ConnectionService,
+  composioInput,
+  connectionInput,
+} from "./connections";
 import { folderLabels } from "./folders";
 import { listModels, ModelError, streamTurn, type WireMessage } from "./models";
+import { lookupCompany } from "./poppy";
 import { electronScreen } from "./screen-capture";
 import { Secrets } from "./secrets";
 import { Store } from "./store";
@@ -494,6 +499,13 @@ function register(window: BrowserWindow): void {
   handle(IPC.saveConnection, (_e, input: ConnectionInput) =>
     connections.save(connectionInput(input)),
   );
+  handle(IPC.checkComposio, (_e, input: unknown) =>
+    connections.checkComposio(composioInput(input)),
+  );
+  handle(IPC.saveComposio, (_e, input: unknown) =>
+    connections.saveComposio(composioInput(input)),
+  );
+  handle(IPC.lookupCompany, (_e, domain: unknown) => lookupCompany(domain));
   handle(IPC.removeConnection, (_e, id: unknown) => {
     connections.remove(str(id));
   });

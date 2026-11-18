@@ -33,6 +33,7 @@ import {
   type ChatMessage,
   type ChatStep,
   type Connection,
+  type ConnectionPreset,
   type ConnectionTool,
   type ModelSource,
   type ModelSourceInput,
@@ -51,7 +52,10 @@ export interface StoredTool extends ConnectionTool {
   inputSchema: Record<string, unknown>;
 }
 
-export interface StoredConnection extends Omit<Connection, "hasKey" | "tools"> {
+export interface StoredConnection
+  extends Omit<Connection, "hasKey" | "tools" | "preset"> {
+  /** Missing in a file saved before presets: that reads as "custom". */
+  preset?: ConnectionPreset;
   tools: StoredTool[];
 }
 
@@ -334,6 +338,7 @@ export class Store {
     id?: string;
     name: string;
     baseUrl: string;
+    preset?: ConnectionPreset;
     tools: StoredTool[];
   }): StoredConnection {
     const state = this.read();
@@ -343,6 +348,7 @@ export class Store {
       id: existing?.id ?? randomUUID(),
       name: input.name,
       baseUrl: input.baseUrl,
+      ...(input.preset === "composio" ? { preset: "composio" as const } : {}),
       tools: input.tools,
       checkedAt: new Date().toISOString(),
     };
