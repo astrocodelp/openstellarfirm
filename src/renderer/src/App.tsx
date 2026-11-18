@@ -7,6 +7,7 @@ import type {
   Decision,
 } from "../../shared/types";
 import { AssistantForm } from "./AssistantForm";
+import { BackupScreen } from "./Backup";
 import { api } from "./bridge";
 import { ChatView } from "./ChatView";
 import { ModelsScreen } from "./Models";
@@ -17,7 +18,8 @@ import { Welcome } from "./Welcome";
 type View =
   | { name: "chat" }
   | { name: "assistant"; id?: string }
-  | { name: "models" };
+  | { name: "models" }
+  | { name: "backup" };
 
 function without<T>(record: Record<string, T>, key: string): Record<string, T> {
   const { [key]: _gone, ...rest } = record;
@@ -205,6 +207,7 @@ export function App() {
         }}
         onNew={() => setView({ name: "assistant" })}
         onImport={() => void importFile()}
+        onBackup={() => setView({ name: "backup" })}
         onModels={() => setView({ name: "models" })}
         onCloud={() => void act(() => api.openCloud("home"))}
         onHideCloudCard={() =>
@@ -220,7 +223,13 @@ export function App() {
             <ErrorLine>{error}</ErrorLine>
           </div>
         ) : null}
-        {view.name === "models" ? (
+        {view.name === "backup" ? (
+          <BackupScreen
+            onChanged={() => void refresh()}
+            onBack={() => setView({ name: "chat" })}
+            onCloud={() => void act(() => api.openCloud("home"))}
+          />
+        ) : view.name === "models" ? (
           <ModelsScreen
             state={state}
             onChanged={refresh}

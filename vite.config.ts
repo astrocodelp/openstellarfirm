@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 import react from "@vitejs/plugin-react";
 import { defineConfig, type Plugin } from "vite";
 
@@ -34,6 +35,12 @@ export default defineConfig({
   root: "src/renderer",
   base: "./",
   plugins: [react(), contentSecurityPolicy()],
-  server: { port: 5199, strictPort: true, host: "localhost" },
+  // The personas folder sits above the page's root, so the dev server may read it.
+  server: {
+    port: 5199,
+    strictPort: true,
+    host: "localhost",
+    fs: { allow: [fileURLToPath(new URL(".", import.meta.url))] },
+  },
   build: { outDir: "../../dist/renderer", emptyOutDir: true },
 });

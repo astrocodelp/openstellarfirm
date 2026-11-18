@@ -105,6 +105,8 @@ function preview(): OpenApi {
     },
     exportAssistant: async () => false,
     importAssistant: async () => null,
+    exportBackup: async () => false,
+    importBackup: async () => null,
     addFolder: async () => null,
     removeFolder: async (assistantId, folder) =>
       change(assistantId, (a) => ({

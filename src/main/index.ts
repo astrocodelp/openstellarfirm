@@ -21,6 +21,7 @@ import {
   type AppState,
   type Assistant,
   type AssistantInput,
+  type BackupResult,
   type ChatMessage,
   type ChatStep,
   type Decision,
@@ -33,6 +34,12 @@ import {
   type Settings,
 } from "../shared/types";
 import { runAgent } from "./agent";
+import {
+  backupName,
+  buildBackup,
+  MAX_BACKUP_BYTES,
+  restoreBackup,
+} from "./backup";
 import { folderLabels } from "./folders";
 import { listModels, ModelError, streamTurn, type WireMessage } from "./models";
 import { Secrets } from "./secrets";
@@ -305,6 +312,40 @@ async function importAssistant(
   return store.importFile(readFileSync(path, "utf8"));
 }
 
+/** Both backup dialogs are opened here: the page never names a file. */
+async function exportBackup(
+  window: BrowserWindow,
+  includeChats: unknown,
+): Promise<boolean> {
+  if (typeof includeChats !== "boolean")
+    throw new Error("That is not allowed.");
+  const picked = await dialog.showSaveDialog(window, {
+    defaultPath: backupName(),
+    filters: [{ name: "Backup file", extensions: ["json"] }],
+  });
+  if (picked.canceled || !picked.filePath) return false;
+  writeFileSync(
+    picked.filePath,
+    JSON.stringify(buildBackup(store, includeChats), null, 2),
+    { mode: 0o600 },
+  );
+  return true;
+}
+
+async function importBackup(
+  window: BrowserWindow,
+): Promise<BackupResult | null> {
+  const picked = await dialog.showOpenDialog(window, {
+    properties: ["openFile"],
+    filters: [{ name: "Backup file", extensions: ["json"] }],
+  });
+  const path = picked.filePaths[0];
+  if (picked.canceled || !path) return null;
+  if (statSync(path).size > MAX_BACKUP_BYTES)
+    throw new Error("That file is too large to be a backup.");
+  return restoreBackup(store, readFileSync(path, "utf8"));
+}
+
 /** Only the system's own picker, opened here, can give an assistant a folder. */
 async function addFolder(
   window: BrowserWindow,
@@ -347,6 +388,10 @@ function register(window: BrowserWindow): void {
     exportAssistant(window, str(id)),
   );
   handle(IPC.importAssistant, () => importAssistant(window));
+  handle(IPC.exportBackup, (_e, includeChats: unknown) =>
+    exportBackup(window, includeChats),
+  );
+  handle(IPC.importBackup, () => importBackup(window));
   handle(IPC.addFolder, (_e, id: unknown) => addFolder(window, str(id)));
   handle(IPC.removeFolder, (_e, id: unknown, folder: unknown) =>
     store.removeFolder(str(id), str(folder)),

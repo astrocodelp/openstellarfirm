@@ -8,6 +8,13 @@ import {
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
+import {
+  type AssistantFile,
+  cleanAssistant,
+  ID,
+  readAssistantFile,
+  text,
+} from "../shared/assistant-file";
 import { presetOf } from "../shared/catalog";
 import { checkEndpoint } from "../shared/endpoint";
 import {
@@ -17,8 +24,6 @@ import {
   type ChatStep,
   type ModelSource,
   type ModelSourceInput,
-  PET_COLORS,
-  PET_IDS,
   PRESET_IDS,
   type Settings,
 } from "../shared/types";
@@ -34,70 +39,11 @@ interface StoredState {
   settings: Settings;
 }
 
-/** The file an assistant is shared as. It never holds a key or a model source. */
-export interface AssistantFile {
-  format: "stellarfirm-open.assistant";
-  version: 1;
-  name: string;
-  group: string;
-  pet: string;
-  color: string;
-  brief: string;
-  skills: string[];
-}
-
 const MAX_ASSISTANTS = 50;
 const MAX_SOURCES = 20;
 const MAX_MESSAGES = 500;
 const MAX_FOLDERS = 10;
 const MAX_SITES = 100;
-const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-
-function text(value: unknown, max: number): string {
-  return typeof value === "string" ? value.trim().slice(0, max) : "";
-}
-
-/** Checks what the page or an imported file sent before any of it is kept. */
-export function cleanAssistant(
-  input: unknown,
-): Omit<Assistant, "id" | "createdAt" | "lastLine" | "folders" | "sites"> {
-  const raw = (input ?? {}) as Record<string, unknown>;
-  // A name is one line: control characters are taken out before it is cut.
-  const name = text(
-    typeof raw.name === "string" ? raw.name.replace(/\p{Cc}+/gu, " ") : "",
-    60,
-  );
-  if (!name) throw new Error("Give the assistant a name.");
-  const pet = PET_IDS.find((id) => id === raw.pet);
-  const color = PET_COLORS.find((id) => id === raw.color);
-  if (!pet || !color) throw new Error("Pick a look for the assistant.");
-  const skills = Array.isArray(raw.skills)
-    ? [
-        ...new Set(raw.skills.map((skill) => text(skill, 40)).filter(Boolean)),
-      ].slice(0, 20)
-    : [];
-  const sourceId = text(raw.sourceId, 40);
-  const model = text(raw.model, 200);
-  return {
-    name,
-    group: text(raw.group, 40) || "Personal",
-    pet,
-    color,
-    // Line breaks and tabs stay; other control characters are taken out, so
-    // the brief is the same text wherever it is shown or copied to.
-    brief: text(
-      typeof raw.brief === "string"
-        ? raw.brief.replace(/[^\P{Cc}\n\t]+/gu, "")
-        : "",
-      4000,
-    ),
-    skills,
-    web: raw.web === true,
-    ...(ID.test(sourceId) ? { sourceId } : {}),
-    ...(model ? { model } : {}),
-  };
-}
-
 export class Store {
   constructor(private readonly dir: string) {
     mkdirSync(join(dir, "chats"), { recursive: true });
@@ -391,18 +337,24 @@ export class Store {
     } catch {
       throw new Error("That file is not an assistant file.");
     }
-    const file = parsed as Partial<AssistantFile>;
-    if (file.format !== "stellarfirm-open.assistant" || file.version !== 1) {
-      throw new Error("That file is not an assistant file.");
+    return this.saveAssistant(readAssistantFile(parsed).assistant);
+  }
+
+  /** Adds an assistant as a new one, with an earlier chat if it has one. */
+  addImported(assistant: AssistantInput, chat: ChatMessage[]): Assistant {
+    // No id: this is always a new assistant, never a change to one that is here.
+    const { id: _id, ...fresh } = assistant;
+    const saved = this.saveAssistant(fresh);
+    if (chat.length > 0) {
+      this.writeFile(this.chatFile(saved.id), chat);
+      const last = chat[chat.length - 1];
+      this.change(saved.id, (a) => ({
+        ...a,
+        ...(last
+          ? { lastLine: last.text.replace(/\s+/g, " ").slice(0, 90) }
+          : {}),
+      }));
     }
-    // A shared file never brings a model source or any access with it: the
-    // person turns web pages on, and picks folders, for themselves.
-    const {
-      sourceId: _source,
-      model: _model,
-      web: _web,
-      ...clean
-    } = cleanAssistant(file);
-    return this.saveAssistant(clean);
+    return this.assistant(saved.id);
   }
 }

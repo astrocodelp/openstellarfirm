@@ -12,6 +12,7 @@ interface SidebarProps {
   onSelect(id: string): void;
   onNew(): void;
   onImport(): void;
+  onBackup(): void;
   onModels(): void;
   onCloud(): void;
   onHideCloudCard(): void;
@@ -37,6 +38,15 @@ export function Sidebar(props: SidebarProps) {
           onClick={props.onImport}
         >
           <Icon name="upload" size={18} />
+        </button>
+        <button
+          type="button"
+          className="icon-btn"
+          aria-label="Move or back up"
+          title="Move or back up"
+          onClick={props.onBackup}
+        >
+          <Icon name="download" size={18} />
         </button>
         <button
           type="button"

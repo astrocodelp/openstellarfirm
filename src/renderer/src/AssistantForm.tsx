@@ -7,6 +7,7 @@ import type {
   PetId,
 } from "../../shared/types";
 import { api } from "./bridge";
+import { PERSONAS } from "./personas";
 import { ErrorLine, message as errorText, Icon, OkLine, Pet } from "./ui";
 
 interface AssistantFormProps {
@@ -36,12 +37,27 @@ export function AssistantForm(props: AssistantFormProps) {
   const [removing, setRemoving] = useState(false);
   const [copying, setCopying] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [persona, setPersona] = useState("");
   const source = sources.find((s) => s.id === sourceId);
 
   function toggle(id: string) {
     setSkills((current) =>
       current.includes(id) ? current.filter((s) => s !== id) : [...current, id],
     );
+  }
+
+  /** Fills the look, brief and skills. Nothing is saved until the person saves. */
+  function startFrom(index: number) {
+    const picked = PERSONAS[index];
+    if (!picked) return;
+    const a = picked.assistant;
+    setPersona(a.name);
+    setName(a.name);
+    setGroup(a.group);
+    setPet(a.pet);
+    setColor(a.color);
+    setBrief(a.brief);
+    setSkills(a.skills);
   }
 
   async function save(event: FormEvent) {
@@ -105,6 +121,29 @@ export function AssistantForm(props: AssistantFormProps) {
             </h1>
             <p className="dim">Everything here is saved on this computer.</p>
           </div>
+
+          {!assistant && PERSONAS.length > 0 ? (
+            <fieldset className="stack plain">
+              <legend className="field-label">Start from a persona</legend>
+              <span className="faint">
+                A starting point only. Change anything below before you save.
+              </span>
+              <div className="persona-grid">
+                {PERSONAS.map((p, index) => (
+                  <button
+                    key={p.assistant.name}
+                    type="button"
+                    className="persona"
+                    aria-pressed={p.assistant.name === persona}
+                    onClick={() => startFrom(index)}
+                  >
+                    <span className="row-name">{p.assistant.name}</span>
+                    <span className="faint">{p.summary}</span>
+                  </button>
+                ))}
+              </div>
+            </fieldset>
+          ) : null}
 
           <div className="wrap" style={{ alignItems: "flex-start" }}>
             <label className="field grow">
