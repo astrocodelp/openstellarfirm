@@ -15,6 +15,7 @@ interface SidebarProps {
   onBackup(): void;
   onModels(): void;
   onSettings(): void;
+  onConnections(): void;
   onCloud(): void;
   onHideCloudCard(): void;
 }
@@ -123,6 +124,15 @@ export function Sidebar(props: SidebarProps) {
             <span className="row-name">Your keys, your models</span>
             <span className="row-line">Nothing is stored in a cloud</span>
           </span>
+          <button
+            type="button"
+            className="icon-btn"
+            aria-label="Connections"
+            title="Connections"
+            onClick={props.onConnections}
+          >
+            <Icon name="link" size={18} />
+          </button>
           <button
             type="button"
             className="icon-btn"

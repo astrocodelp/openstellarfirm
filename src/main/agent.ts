@@ -1,4 +1,5 @@
 import type { ChatStep, Decision } from "../shared/types";
+import type { McpGate } from "./connections";
 import {
   assistantTurn,
   type ImagePart,
@@ -57,6 +58,8 @@ export interface AgentDeps {
   web?: WebDeps;
   /** How to look at the screen. Without it the screen tool says it cannot. */
   screen?: ScreenDeps;
+  /** The tools of the assistant's connections, behind the same gate. */
+  mcp?: McpGate;
   /**
    * Names the model source and model, so that once a model has refused tools
    * the next answers go straight to asking for them in writing.
@@ -98,7 +101,7 @@ async function run(
   deps: AgentDeps,
 ): Promise<AgentResult> {
   const steps: ChatStep[] = [];
-  const specs = toolsFor(assistant);
+  const specs = [...toolsFor(assistant), ...(deps.mcp?.specs ?? [])];
   // A model that asks for tools in writing is never offered the screen: a
   // picture needs a real tool result to travel in.
   const textSpecs = specs.filter((spec) => spec.name !== SCREEN_TOOL_NAME);
@@ -271,13 +274,17 @@ async function runCall(
   }
   let planned: ReturnType<typeof planCall>;
   try {
-    planned = planCall(
-      assistant,
-      name,
-      rawArguments,
-      deps.web,
-      seen.screen ? "screen" : seen.files,
-    );
+    // A look at the screen counts like reading files: it can hold private text
+    // that a web address or a connection's arguments could carry out.
+    planned = deps.mcp?.owns(name)
+      ? deps.mcp.plan(name, rawArguments, seen.files || seen.screen)
+      : planCall(
+          assistant,
+          name,
+          rawArguments,
+          deps.web,
+          seen.screen ? "screen" : seen.files,
+        );
   } catch (error) {
     steps.push({ label: "Turned down a step that is not allowed", ok: false });
     return toolFailure(error);
@@ -292,6 +299,12 @@ async function runCall(
     if (decision === "always" && planned.ask.site) {
       assistant.sites.push(planned.ask.site);
       deps.allowSite(planned.ask.site);
+    } else if (decision === "always" && planned.ask.remember) {
+      // Only a read the gate offered to remember is ever remembered.
+      deps.mcp?.remember(
+        planned.ask.remember.connectionId,
+        planned.ask.remember.tool,
+      );
     }
   }
   deps.onActivity(planned.doing);

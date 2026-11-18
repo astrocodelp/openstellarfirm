@@ -4,6 +4,7 @@ import type {
   Assistant,
   ChatDone,
   ChatMessage,
+  Connection,
   ModelSource,
   OpenApi,
 } from "../../shared/types";
@@ -39,6 +40,8 @@ function preview(): OpenApi {
         folders: ["/Users/you/Documents/Notes"],
         web: true,
         sites: ["example.com"],
+        connections: [],
+        connectionTools: [],
         lastLine: "This is the browser preview.",
         createdAt: now(),
       },
@@ -53,10 +56,13 @@ function preview(): OpenApi {
         folders: [],
         web: false,
         sites: [],
+        connections: [],
+        connectionTools: [],
         createdAt: now(),
       },
     ],
     sources: [source],
+    connections: [],
     settings: { onboarded: true, theme: "system", defaultSourceId: source.id },
     keychain: true,
     platform: "browser",
@@ -94,6 +100,8 @@ function preview(): OpenApi {
         id: existing?.id ?? id(),
         folders: existing?.folders ?? [],
         sites: existing?.sites ?? [],
+        connections: input.connections ?? existing?.connections ?? [],
+        connectionTools: existing?.connectionTools ?? [],
         web: input.web ?? existing?.web ?? false,
         createdAt: existing?.createdAt ?? now(),
       };
@@ -137,6 +145,48 @@ function preview(): OpenApi {
     stop: async () => {},
     pending: async () => null,
     decide: async () => {},
+    checkConnection: async () => [
+      { name: "search_notes", description: "Search notes.", readOnly: true },
+      { name: "create_note", description: "Add a note.", readOnly: false },
+    ],
+    saveConnection: async (input) => {
+      const next: Connection = {
+        id: input.id ?? id(),
+        name: input.name,
+        baseUrl: input.baseUrl,
+        hasKey: Boolean(input.apiKey),
+        tools: [
+          {
+            name: "search_notes",
+            description: "Search notes.",
+            readOnly: true,
+          },
+          { name: "create_note", description: "Add a note.", readOnly: false },
+        ],
+        checkedAt: now(),
+      };
+      state.connections = [
+        ...state.connections.filter((c) => c.id !== next.id),
+        next,
+      ];
+      return next;
+    },
+    removeConnection: async (connectionId) => {
+      state.connections = state.connections.filter(
+        (c) => c.id !== connectionId,
+      );
+      state.assistants = state.assistants.map((a) => ({
+        ...a,
+        connections: a.connections.filter((c) => c !== connectionId),
+      }));
+    },
+    removeConnectionTool: async (assistantId, connectionId, tool) =>
+      change(assistantId, (a) => ({
+        ...a,
+        connectionTools: a.connectionTools.filter(
+          (t) => t !== `${connectionId}:${tool}`,
+        ),
+      })),
     saveSource: async (input) => {
       const next: ModelSource = {
         id: input.id ?? id(),

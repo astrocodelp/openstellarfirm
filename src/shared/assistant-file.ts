@@ -31,7 +31,16 @@ export function text(value: unknown, max: number): string {
 /** Checks what the page or an imported file sent before any of it is kept. */
 export function cleanAssistant(
   input: unknown,
-): Omit<Assistant, "id" | "createdAt" | "lastLine" | "folders" | "sites"> {
+): Omit<
+  Assistant,
+  | "id"
+  | "createdAt"
+  | "lastLine"
+  | "folders"
+  | "sites"
+  | "connections"
+  | "connectionTools"
+> {
   const raw = (input ?? {}) as Record<string, unknown>;
   // A name is one line: control characters are taken out before it is cut.
   const name = text(
@@ -79,8 +88,9 @@ export function isAssistantFile(file: unknown): boolean {
 
 /**
  * Reads one assistant file field by field. A shared file never brings a model
- * source, a model, web access or screen access with it, and never a folder or a site (it has
- * no field for them): the person picks those for themselves.
+ * source, a model, web access or screen access with it, and never a folder, a
+ * site or a connection (it has no field for them): the person picks those for
+ * themselves.
  */
 export function readAssistantFile(file: unknown): {
   assistant: AssistantInput;

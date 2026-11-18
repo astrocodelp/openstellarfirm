@@ -32,6 +32,8 @@ export interface Ask {
   why: string;
   /** The site an "always allow" would remember. */
   site?: string;
+  /** The one read of one connection an "always allow" would remember. */
+  remember?: { connectionId: string; tool: string };
 }
 
 export interface PlannedCall {

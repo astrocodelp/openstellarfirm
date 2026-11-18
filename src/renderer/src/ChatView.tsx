@@ -96,14 +96,14 @@ function Approval({
         >
           Approve
         </button>
-        {card.site ? (
+        {card.site || card.canAlways ? (
           <button
             type="button"
             className="btn"
             disabled={busy}
             onClick={() => void decide("always")}
           >
-            Always allow {card.site}
+            {card.site ? `Always allow ${card.site}` : "Always allow this read"}
           </button>
         ) : null}
         <button

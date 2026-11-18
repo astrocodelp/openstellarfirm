@@ -26,6 +26,7 @@ import {
   type BackupResult,
   type ChatMessage,
   type ChatStep,
+  type ConnectionInput,
   type Decision,
   IPC,
   type IpcResult,
@@ -42,6 +43,7 @@ import {
   MAX_BACKUP_BYTES,
   restoreBackup,
 } from "./backup";
+import { ConnectionService, connectionInput } from "./connections";
 import { folderLabels } from "./folders";
 import { listModels, ModelError, streamTurn, type WireMessage } from "./models";
 import { electronScreen } from "./screen-capture";
@@ -68,6 +70,7 @@ function str(value: unknown, max = 4096): string {
 
 let store: Store;
 let secrets: Secrets;
+let connections: ConnectionService;
 const running = new Map<string, AbortController>();
 /** The step that waits for the person, by assistant. One at a time each. */
 const waiting = new Map<
@@ -106,6 +109,7 @@ async function state(): Promise<AppState> {
   return {
     assistants: store.assistants(),
     sources: store.sources().map(withKey),
+    connections: connections.list(),
     settings: store.settings(),
     keychain: await secrets.available(),
     platform: process.platform,
@@ -180,11 +184,20 @@ function send(
 function askPerson(
   window: BrowserWindow,
   assistantId: string,
-  ask: Omit<ApprovalCard, "id" | "assistantId">,
+  ask: Omit<ApprovalCard, "id" | "assistantId"> & {
+    /** What an "always allow" would remember; the page is never told which. */
+    remember?: unknown;
+  },
   signal: AbortSignal,
 ): Promise<Decision> {
   return new Promise((resolve, reject) => {
-    const card: ApprovalCard = { ...ask, id: randomUUID(), assistantId };
+    const { remember, ...shown } = ask;
+    const card: ApprovalCard = {
+      ...shown,
+      ...(remember ? { canAlways: true } : {}),
+      id: randomUUID(),
+      assistantId,
+    };
     const done = () => {
       waiting.delete(assistantId);
       signal.removeEventListener("abort", stopped);
@@ -228,9 +241,17 @@ async function answer(
       .slice(-40)
       .map((m) => ({ role: m.role, content: m.text }));
     const apiKey = await secrets.get(source.id);
+    const mcp = connections.gateFor(assistant, controller.signal);
     const prompt = systemPrompt({
       ...assistant,
       folderLabels: folderLabels(assistant.folders).map((f) => f.label),
+      connectionNames: mcp
+        ? store
+            .connections()
+            .filter((c) => assistant.connections.includes(c.id))
+            .filter((c) => c.tools.length > 0)
+            .map((c) => c.name)
+        : [],
     });
     const result = await runAgent(
       assistant,
@@ -247,6 +268,7 @@ async function answer(
             signal: controller.signal,
           }),
         modeKey: `${source.id}\n${assistant.model ?? source.model}`,
+        ...(mcp ? { mcp } : {}),
         ask: (ask) => askPerson(window, assistant.id, ask, controller.signal),
         allowSite: (site) => {
           store.addSite(assistant.id, site);
@@ -438,6 +460,20 @@ function register(window: BrowserWindow): void {
       entry.settle(decision);
     },
   );
+  handle(IPC.checkConnection, (_e, input: ConnectionInput) =>
+    connections.check(connectionInput(input)),
+  );
+  handle(IPC.saveConnection, (_e, input: ConnectionInput) =>
+    connections.save(connectionInput(input)),
+  );
+  handle(IPC.removeConnection, (_e, id: unknown) => {
+    connections.remove(str(id));
+  });
+  handle(
+    IPC.removeConnectionTool,
+    (_e, id: unknown, connectionId: unknown, tool: unknown) =>
+      store.removeAllowedTool(str(id), str(connectionId), str(tool, 200)),
+  );
   handle(IPC.saveSource, (_e, input: ModelSourceInput) => saveSource(input));
   handle(IPC.removeSource, (_e, id: string) => {
     store.removeSource(id);
@@ -548,6 +584,11 @@ app.whenReady().then(() => {
       const opened = await safeStorage.decryptStringAsync(sealed);
       return { plain: opened.result, stale: opened.shouldReEncrypt };
     },
+  });
+  connections = new ConnectionService({
+    store,
+    secrets,
+    appVersion: app.getVersion(),
   });
   // The page asks for no camera, microphone or location, so every ask is refused.
   applyTheme(store.settings().theme);

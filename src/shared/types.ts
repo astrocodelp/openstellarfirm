@@ -64,6 +64,13 @@ export interface Assistant {
   screen?: boolean;
   /** Sites the person chose to always allow for this assistant. */
   sites: string[];
+  /** Ids of the connections it may use. Only the assistant form sets them. */
+  connections: string[];
+  /**
+   * Reads the person chose to always allow, as "<connection id>:<tool>".
+   * Only a tool marked as a read can ever be listed here.
+   */
+  connectionTools: string[];
   /** The start of its newest message, for the sidebar. */
   lastLine?: string;
   createdAt: string;
@@ -73,7 +80,7 @@ export interface Assistant {
 export type AssistantInput = Pick<
   Assistant,
   "name" | "group" | "pet" | "color" | "brief" | "skills" | "sourceId" | "model"
-> & { id?: string; web?: boolean; screen?: boolean };
+> & { id?: string; web?: boolean; screen?: boolean; connections?: string[] };
 
 /** One thing the assistant did while answering, as a short plain line. */
 export interface ChatStep {
@@ -101,6 +108,8 @@ export interface ApprovalCard {
   why: string;
   /** The site an "always allow" would remember; none when it cannot be remembered. */
   site?: string;
+  /** True when "Always allow" would remember this one read for this assistant. */
+  canAlways?: boolean;
 }
 
 export type Decision = "approve" | "always" | "reject";
@@ -127,6 +136,33 @@ export interface ModelSourceInput {
   apiKey?: string;
 }
 
+/** One tool a connection offers. Only the main process ever sets these. */
+export interface ConnectionTool {
+  name: string;
+  /** Cut and cleaned. It is the server's own text, so it is only shown. */
+  description: string;
+  /** True only when the server says it reads and the name does not read like a change. */
+  readOnly: boolean;
+}
+
+/** A remote server the assistants may use tools from. The key never leaves the main process. */
+export interface Connection {
+  id: string;
+  name: string;
+  baseUrl: string;
+  hasKey: boolean;
+  tools: ConnectionTool[];
+  checkedAt: string;
+}
+
+export interface ConnectionInput {
+  id?: string;
+  name: string;
+  baseUrl: string;
+  /** Sent once, on check or save. Never returned. Empty keeps the saved key. */
+  apiKey?: string;
+}
+
 export interface Settings {
   onboarded: boolean;
   /** How the app looks: follow the computer, or always dark or light. */
@@ -139,6 +175,7 @@ export interface Settings {
 export interface AppState {
   assistants: Assistant[];
   sources: ModelSource[];
+  connections: Connection[];
   settings: Settings;
   /** False when this computer has no keychain to keep a key in. */
   keychain: boolean;
@@ -210,6 +247,17 @@ export interface OpenApi {
     approvalId: string,
     decision: Decision,
   ): Promise<void>;
+  /** Connects to the address and lists its tools. Saves nothing. */
+  checkConnection(input: ConnectionInput): Promise<ConnectionTool[]>;
+  /** Connects, lists the tools the server offers, and saves the connection. */
+  saveConnection(input: ConnectionInput): Promise<Connection>;
+  removeConnection(id: string): Promise<void>;
+  /** Takes back an "Always allow" for one read of one connection. */
+  removeConnectionTool(
+    assistantId: string,
+    connectionId: string,
+    tool: string,
+  ): Promise<Assistant>;
   saveSource(input: ModelSourceInput): Promise<ModelSource>;
   removeSource(id: string): Promise<void>;
   /** Lists the models of a source that is not saved yet. */
@@ -250,6 +298,10 @@ export const IPC = {
   stop: "chat:stop",
   pending: "chat:pending",
   decide: "chat:decide",
+  checkConnection: "connection:check",
+  saveConnection: "connection:save",
+  removeConnection: "connection:remove",
+  removeConnectionTool: "assistant:connection-tool:remove",
   saveSource: "source:save",
   removeSource: "source:remove",
   probeModels: "source:probe",

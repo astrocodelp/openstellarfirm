@@ -10,6 +10,7 @@ import { AssistantForm } from "./AssistantForm";
 import { BackupScreen } from "./Backup";
 import { api } from "./bridge";
 import { ChatView } from "./ChatView";
+import { ConnectionsScreen } from "./Connections";
 import { ModelsScreen } from "./Models";
 import { SettingsScreen } from "./Settings";
 import { Sidebar } from "./Sidebar";
@@ -20,6 +21,7 @@ type View =
   | { name: "chat" }
   | { name: "assistant"; id?: string }
   | { name: "models" }
+  | { name: "connections" }
   | { name: "backup" }
   | { name: "settings" };
 
@@ -212,6 +214,7 @@ export function App() {
         onBackup={() => setView({ name: "backup" })}
         onModels={() => setView({ name: "models" })}
         onSettings={() => setView({ name: "settings" })}
+        onConnections={() => setView({ name: "connections" })}
         onCloud={() => void act(() => api.openCloud("home"))}
         onHideCloudCard={() =>
           void act(async () => {
@@ -238,6 +241,12 @@ export function App() {
             onBack={() => setView({ name: "chat" })}
             onCloud={() => void act(() => api.openCloud("home"))}
           />
+        ) : view.name === "connections" ? (
+          <ConnectionsScreen
+            state={state}
+            onChanged={refresh}
+            onBack={() => setView({ name: "chat" })}
+          />
         ) : view.name === "models" ? (
           <ModelsScreen
             state={state}
@@ -249,6 +258,7 @@ export function App() {
             key={view.id ?? "new"}
             assistant={editing}
             sources={state.sources}
+            connections={state.connections}
             onSaved={(saved) => {
               void refresh().then(() => {
                 setSelected(saved.id);

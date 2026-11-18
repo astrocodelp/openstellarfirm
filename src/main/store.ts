@@ -23,6 +23,8 @@ import {
   type AssistantInput,
   type ChatMessage,
   type ChatStep,
+  type Connection,
+  type ConnectionTool,
   type ModelSource,
   type ModelSourceInput,
   PRESET_IDS,
@@ -34,10 +36,21 @@ import {
 
 type StoredSource = Omit<ModelSource, "hasKey">;
 
+/** A tool as the server described it. The schema stays here, never in the page. */
+export interface StoredTool extends ConnectionTool {
+  inputSchema: Record<string, unknown>;
+}
+
+export interface StoredConnection extends Omit<Connection, "hasKey" | "tools"> {
+  tools: StoredTool[];
+}
+
 interface StoredState {
   v: 1;
   assistants: Assistant[];
   sources: StoredSource[];
+  /** Missing in a file saved before connections existed. */
+  connections?: StoredConnection[];
   settings: Settings;
 }
 
@@ -46,6 +59,8 @@ const MAX_SOURCES = 20;
 const MAX_MESSAGES = 500;
 const MAX_FOLDERS = 10;
 const MAX_SITES = 100;
+const MAX_CONNECTIONS = 10;
+const MAX_ALLOWED_TOOLS = 200;
 export class Store {
   constructor(private readonly dir: string) {
     mkdirSync(join(dir, "chats"), { recursive: true });
@@ -80,7 +95,10 @@ export class Store {
       web: a.web ?? false,
       screen: a.screen ?? false,
       sites: a.sites ?? [],
+      connections: a.connections ?? [],
+      connectionTools: a.connectionTools ?? [],
     }));
+    parsed.connections ??= [];
     return parsed;
   }
 
@@ -115,12 +133,22 @@ export class Store {
     if (existing) {
       const { lastLine, id, createdAt } = existing;
       // Folders and sites are never set from the page: they are kept as they are.
+      const connections =
+        input.connections === undefined
+          ? existing.connections
+          : cleanConnectionIds(input.connections, state.connections ?? []);
       const next: Assistant = {
         ...clean,
         web: input.web === undefined ? existing.web : clean.web,
         screen: input.screen === undefined ? existing.screen : clean.screen,
         folders: existing.folders,
         sites: existing.sites,
+        connections,
+        connectionTools: keptTools(
+          existing.connectionTools,
+          connections,
+          state.connections ?? [],
+        ),
         id,
         createdAt,
         ...(lastLine ? { lastLine } : {}),
@@ -136,6 +164,11 @@ export class Store {
       ...clean,
       folders: [],
       sites: [],
+      connections: cleanConnectionIds(
+        input.connections ?? [],
+        state.connections ?? [],
+      ),
+      connectionTools: [],
       id: randomUUID(),
       createdAt: new Date().toISOString(),
     };
@@ -233,6 +266,91 @@ export class Store {
     return this.change(id, (a) => ({
       ...a,
       sites: a.sites.filter((s) => s !== site),
+    }));
+  }
+
+  connections(): StoredConnection[] {
+    return this.read().connections ?? [];
+  }
+
+  /**
+   * Saves a connection with the tools the server just listed. The tools come
+   * from the main process after it connected, never from the page. A read the
+   * person allowed for good is dropped here when the tool is no longer a read.
+   */
+  saveConnection(input: {
+    id?: string;
+    name: string;
+    baseUrl: string;
+    tools: StoredTool[];
+  }): StoredConnection {
+    const state = this.read();
+    const list = state.connections ?? [];
+    const existing = list.find((c) => c.id === input.id);
+    const next: StoredConnection = {
+      id: existing?.id ?? randomUUID(),
+      name: input.name,
+      baseUrl: input.baseUrl,
+      tools: input.tools,
+      checkedAt: new Date().toISOString(),
+    };
+    if (existing) {
+      state.connections = list.map((c) => (c.id === existing.id ? next : c));
+    } else {
+      if (list.length >= MAX_CONNECTIONS)
+        throw new Error(`You can have up to ${MAX_CONNECTIONS} connections.`);
+      state.connections = [...list, next];
+    }
+    state.assistants = state.assistants.map((a) => ({
+      ...a,
+      connectionTools: keptTools(
+        a.connectionTools,
+        a.connections,
+        state.connections ?? [],
+      ),
+    }));
+    this.write(state);
+    return next;
+  }
+
+  /** Takes a connection away from every assistant that had it. */
+  removeConnection(id: string): void {
+    const state = this.read();
+    state.connections = (state.connections ?? []).filter((c) => c.id !== id);
+    state.assistants = state.assistants.map((a) => ({
+      ...a,
+      connections: a.connections.filter((c) => c !== id),
+      connectionTools: a.connectionTools.filter((t) => !t.startsWith(`${id}:`)),
+    }));
+    this.write(state);
+  }
+
+  /**
+   * Remembers one read of one connection for one assistant. Only a tool that
+   * is marked as a read can be remembered, whatever was asked for.
+   */
+  allowTool(id: string, connectionId: string, tool: string): Assistant {
+    const connection = this.connections().find((c) => c.id === connectionId);
+    const found = connection?.tools.find((t) => t.name === tool);
+    return this.change(id, (a) => {
+      if (!found?.readOnly || !a.connections.includes(connectionId)) return a;
+      const key = `${connectionId}:${tool}`;
+      return a.connectionTools.includes(key)
+        ? a
+        : {
+            ...a,
+            connectionTools: [...a.connectionTools, key].slice(
+              -MAX_ALLOWED_TOOLS,
+            ),
+          };
+    });
+  }
+
+  removeAllowedTool(id: string, connectionId: string, tool: string): Assistant {
+    const key = `${connectionId}:${tool}`;
+    return this.change(id, (a) => ({
+      ...a,
+      connectionTools: a.connectionTools.filter((t) => t !== key),
     }));
   }
 
@@ -374,4 +492,39 @@ export class Store {
     }
     return this.assistant(saved.id);
   }
+}
+
+/** The ids the page sent, kept only when they name a saved connection. */
+function cleanConnectionIds(ids: unknown, saved: StoredConnection[]): string[] {
+  if (!Array.isArray(ids)) return [];
+  return [
+    ...new Set(
+      ids.filter(
+        (id): id is string =>
+          typeof id === "string" && saved.some((c) => c.id === id),
+      ),
+    ),
+  ].slice(0, MAX_CONNECTIONS);
+}
+
+/**
+ * The reads an assistant may always use: only for a connection it still has,
+ * and only for a tool that is still there and still marked as a read.
+ */
+function keptTools(
+  allowed: string[],
+  connections: string[],
+  saved: StoredConnection[],
+): string[] {
+  return allowed.filter((key) => {
+    const at = key.indexOf(":");
+    const id = key.slice(0, at);
+    const tool = key.slice(at + 1);
+    if (!connections.includes(id)) return false;
+    return (
+      saved
+        .find((c) => c.id === id)
+        ?.tools.some((t) => t.name === tool && t.readOnly) ?? false
+    );
+  });
 }
