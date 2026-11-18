@@ -150,6 +150,14 @@ function themeChecks(name: string, all: Record<string, string>) {
           ).toBeGreaterThanOrEqual(4.5);
       const wash = over(parse("var(--ok-wash)", all), surface("--bg"));
       expect(ratio(rgb("--ok"), wash)).toBeGreaterThanOrEqual(4.5);
+      // A calm destructive button fills with this wash when it is pointed at.
+      for (const s of ["--bg", "--raised", "--sunken"]) {
+        const danger = over(parse("var(--danger-wash)", all), surface(s));
+        expect(
+          ratio(rgb("--danger"), danger),
+          `--danger on its wash over ${s}`,
+        ).toBeGreaterThanOrEqual(4.5);
+      }
     });
 
     it("every pet colour passes 3:1 on the surfaces, and its eyes on it", () => {
@@ -184,6 +192,12 @@ function themeChecks(name: string, all: Record<string, string>) {
 }
 
 describe("the stylesheet", () => {
+  it("draws every shape from the radius scale", () => {
+    const outside = css.replace(block(":root {"), "");
+    const typed = outside.match(/border-radius: (?!var\(|0;|inherit)[^;]+;/g);
+    expect(typed ?? []).toEqual([]);
+  });
+
   it("defines the light theme as a media query over the same tokens", () => {
     expect(css).toContain("@media (prefers-color-scheme: light)");
     expect(Object.keys(light).length).toBeGreaterThanOrEqual(

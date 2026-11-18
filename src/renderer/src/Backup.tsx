@@ -1,7 +1,13 @@
 import { useState } from "react";
 import type { BackupResult } from "../../shared/types";
 import { api } from "./bridge";
-import { ErrorLine, message as errorText, Icon, OkLine } from "./ui";
+import {
+  ErrorLine,
+  message as errorText,
+  Icon,
+  OkLine,
+  ScreenHead,
+} from "./ui";
 
 interface BackupProps {
   /** Assistants were added, so the app should read its state again. */
@@ -46,21 +52,16 @@ export function BackupScreen({ onChanged, onBack, onCloud }: BackupProps) {
   return (
     <div className="screen">
       <div className="screen-body">
-        <div className="stack-tight">
-          <div>
-            <button type="button" className="btn" onClick={onBack}>
-              Back to chats
-            </button>
-          </div>
-          <h1 className="screen-title">Move or back up</h1>
-          <p className="dim">
-            Everything stays on this computer. To use your assistants on another
-            computer, save them to a file here and open that file in the app
-            there.
-          </p>
-        </div>
+        <ScreenHead title="Move or back up" onBack={onBack}>
+          Everything stays on this computer. To use your assistants on another
+          computer, save them to a file here and open that file in the app
+          there.
+        </ScreenHead>
 
-        <section className="stack" aria-labelledby="export-title">
+        <section
+          className="stack settings-section"
+          aria-labelledby="export-title"
+        >
           <h2 className="section-title" id="export-title">
             Export everything
           </h2>
@@ -98,7 +99,10 @@ export function BackupScreen({ onChanged, onBack, onCloud }: BackupProps) {
           </div>
         </section>
 
-        <section className="stack" aria-labelledby="import-title">
+        <section
+          className="stack settings-section"
+          aria-labelledby="import-title"
+        >
           <h2 className="section-title" id="import-title">
             Import a backup
           </h2>

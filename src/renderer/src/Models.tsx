@@ -2,7 +2,7 @@ import { type FormEvent, useId, useState } from "react";
 import { PRESETS, presetOf } from "../../shared/catalog";
 import type { AppState, ModelSource, PresetId } from "../../shared/types";
 import { api } from "./bridge";
-import { ErrorLine, message as errorText, OkLine } from "./ui";
+import { ErrorLine, message as errorText, OkLine, ScreenHead } from "./ui";
 
 interface SourceFormProps {
   initialPreset?: PresetId;
@@ -233,19 +233,11 @@ export function ModelsScreen({ state, onChanged, onBack }: ModelsScreenProps) {
   return (
     <div className="screen">
       <div className="screen-body">
-        <div className="stack-tight">
-          <div>
-            <button type="button" className="btn" onClick={onBack}>
-              Back to chats
-            </button>
-          </div>
-          <h1 className="screen-title">Your models</h1>
-          <p className="dim">
-            Your assistants think only with what you set up here. Calls go from
-            this computer straight to the model. StellarFirm Open adds no fee
-            and sees nothing.
-          </p>
-        </div>
+        <ScreenHead title="Your models" onBack={onBack}>
+          Your assistants think only with what you set up here. Calls go from
+          this computer straight to the model. StellarFirm Open adds no fee and
+          sees nothing.
+        </ScreenHead>
 
         <section className="stack" aria-labelledby="sources-title">
           <h2 className="section-title" id="sources-title">
@@ -302,7 +294,7 @@ export function ModelsScreen({ state, onChanged, onBack }: ModelsScreenProps) {
                     </button>
                     <button
                       type="button"
-                      className="btn"
+                      className="btn btn-danger"
                       onClick={() =>
                         void run(() => api.removeSource(source.id))
                       }
@@ -321,7 +313,7 @@ export function ModelsScreen({ state, onChanged, onBack }: ModelsScreenProps) {
           <h2 className="section-title" id="add-title">
             Add a model
           </h2>
-          <div className="card" style={{ padding: "1rem" }}>
+          <div className="card pad">
             <SourceForm
               submitLabel="Add"
               keychain={state.keychain}

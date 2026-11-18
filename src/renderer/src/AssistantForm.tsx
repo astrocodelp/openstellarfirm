@@ -9,7 +9,14 @@ import type {
 } from "../../shared/types";
 import { api } from "./bridge";
 import { PERSONAS } from "./personas";
-import { ErrorLine, message as errorText, Icon, OkLine, Pet } from "./ui";
+import {
+  ErrorLine,
+  message as errorText,
+  Icon,
+  OkLine,
+  Pet,
+  ScreenHead,
+} from "./ui";
 
 interface AssistantFormProps {
   /** The assistant to change; none makes a new one. */
@@ -123,33 +130,33 @@ export function AssistantForm(props: AssistantFormProps) {
     <div className="form-layout">
       <form className="screen" onSubmit={save}>
         <div className="screen-body">
-          <div className="stack-tight">
-            <h1 className="screen-title">
-              {assistant ? "Make it yours" : "New assistant"}
-            </h1>
-            <p className="dim">Everything here is saved on this computer.</p>
-          </div>
+          <ScreenHead
+            title={assistant ? "Make it yours" : "New assistant"}
+            onBack={props.onCancel}
+          >
+            Everything here is saved on this computer.
+          </ScreenHead>
 
           {!assistant && PERSONAS.length > 0 ? (
             <fieldset className="stack plain">
               <legend className="field-label">Start from a persona</legend>
-              <span className="faint">
-                A starting point only. Change anything below before you save.
-              </span>
-              <div className="persona-grid">
+              <div className="wrap">
                 {PERSONAS.map((p, index) => (
                   <button
                     key={p.assistant.name}
                     type="button"
-                    className="persona"
+                    className="choice persona"
                     aria-pressed={p.assistant.name === persona}
                     onClick={() => startFrom(index)}
                   >
-                    <span className="row-name">{p.assistant.name}</span>
-                    <span className="faint">{p.summary}</span>
+                    {p.assistant.name}
                   </button>
                 ))}
               </div>
+              <p className="persona-note" aria-live="polite">
+                {PERSONAS.find((p) => p.assistant.name === persona)?.summary ||
+                  "A starting point only. Change anything below before you save."}
+              </p>
             </fieldset>
           ) : null}
 

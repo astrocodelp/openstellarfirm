@@ -4,6 +4,7 @@ import type { AppState, SendKey, TextSize } from "../../shared/types";
 import { ApprovalsSection, DataSection } from "./SettingsData";
 import { Choices, ErrorLine, Section, useSettingsSave } from "./SettingsParts";
 import { AboutSection, UpdatesSection } from "./SettingsUpdates";
+import { ScreenHead } from "./ui";
 
 interface SettingsScreenProps {
   state: AppState;
@@ -47,14 +48,7 @@ export function SettingsScreen({
   return (
     <div className="screen">
       <div className="screen-body">
-        <div className="stack-tight">
-          <div>
-            <button type="button" className="btn" onClick={onBack}>
-              Back to chats
-            </button>
-          </div>
-          <h1 className="screen-title">Settings</h1>
-        </div>
+        <ScreenHead title="Settings" onBack={onBack} />
 
         <Section title="Appearance">
           <Choices
