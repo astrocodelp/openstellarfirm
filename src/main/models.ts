@@ -23,6 +23,7 @@ import { listGemini, streamGemini } from "./wires/gemini";
 import { listOpenAi, streamOpenAi } from "./wires/openai";
 
 export {
+  type ImagePart,
   type ModelCall,
   ModelError,
   SseParser,

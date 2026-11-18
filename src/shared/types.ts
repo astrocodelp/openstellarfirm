@@ -56,6 +56,12 @@ export interface Assistant {
   folders: string[];
   /** Whether it may read web pages (it asks before a site's first read). */
   web: boolean;
+  /**
+   * Whether it may ask to look at the screen. Off unless the person turns it
+   * on here; never in a shared file, a backup or a persona. Every look still
+   * asks first.
+   */
+  screen?: boolean;
   /** Sites the person chose to always allow for this assistant. */
   sites: string[];
   /** The start of its newest message, for the sidebar. */
@@ -67,7 +73,7 @@ export interface Assistant {
 export type AssistantInput = Pick<
   Assistant,
   "name" | "group" | "pet" | "color" | "brief" | "skills" | "sourceId" | "model"
-> & { id?: string; web?: boolean };
+> & { id?: string; web?: boolean; screen?: boolean };
 
 /** One thing the assistant did while answering, as a short plain line. */
 export interface ChatStep {

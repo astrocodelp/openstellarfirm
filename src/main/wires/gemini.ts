@@ -51,7 +51,8 @@ type Part =
     }
   | {
       functionResponse: { name: string; response: Record<string, unknown> };
-    };
+    }
+  | { inlineData: { mimeType: string; data: string } };
 
 interface Content {
   role: "user" | "model";
@@ -84,7 +85,13 @@ export function toGemini(messages: WireMessage[]): {
     if (last && last.role === role) last.parts.push(...parts);
     else contents.push({ role, parts });
   };
+  /** Pictures wait until every result of the round is in, then follow them. */
+  const pictures: Part[] = [];
+  const flush = () => {
+    if (pictures.length > 0) push("user", pictures.splice(0));
+  };
   for (const message of messages) {
+    if (message.role !== "tool") flush();
     if (message.role === "tool") {
       push("user", [
         {
@@ -94,6 +101,14 @@ export function toGemini(messages: WireMessage[]): {
           },
         },
       ]);
+      if (message.image) {
+        pictures.push({
+          inlineData: {
+            mimeType: message.image.mediaType,
+            data: message.image.data,
+          },
+        });
+      }
     } else if (message.role === "assistant") {
       const parts: Part[] = [];
       if (message.content.trim()) parts.push({ text: message.content });
@@ -114,6 +129,7 @@ export function toGemini(messages: WireMessage[]): {
       push("user", [{ text: message.content }]);
     }
   }
+  flush();
   // The conversation has to open with the person.
   while (contents[0]?.role === "model") contents.shift();
   return { system: system.join("\n\n"), contents };

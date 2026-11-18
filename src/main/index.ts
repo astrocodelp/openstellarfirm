@@ -44,6 +44,7 @@ import {
 } from "./backup";
 import { folderLabels } from "./folders";
 import { listModels, ModelError, streamTurn, type WireMessage } from "./models";
+import { electronScreen } from "./screen-capture";
 import { Secrets } from "./secrets";
 import { Store } from "./store";
 
@@ -257,6 +258,15 @@ async function answer(
         onActivity: (label) =>
           tell(window, IPC.activity, { assistantId: assistant.id, label }),
         signal: controller.signal,
+        ...(assistant.screen
+          ? {
+              screen: electronScreen(
+                isLocalEndpoint(source.baseUrl)
+                  ? "on this computer"
+                  : source.name,
+              ),
+            }
+          : {}),
       },
     );
     steps = result.steps;

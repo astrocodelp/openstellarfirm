@@ -30,6 +30,7 @@ export function AssistantForm(props: AssistantFormProps) {
   const [brief, setBrief] = useState(assistant?.brief ?? "");
   const [skills, setSkills] = useState<string[]>(assistant?.skills ?? []);
   const [web, setWeb] = useState(assistant?.web ?? false);
+  const [screen, setScreen] = useState(assistant?.screen ?? false);
   const [sourceId, setSourceId] = useState(assistant?.sourceId ?? "");
   const [model, setModel] = useState(assistant?.model ?? "");
   const [error, setError] = useState("");
@@ -75,6 +76,7 @@ export function AssistantForm(props: AssistantFormProps) {
           brief,
           skills,
           web,
+          screen,
           ...(sourceId ? { sourceId } : {}),
           ...(sourceId && model.trim() ? { model: model.trim() } : {}),
         }),
@@ -258,6 +260,20 @@ export function AssistantForm(props: AssistantFormProps) {
             <p className="faint">
               It asks you before it reaches a site for the first time, and every
               time an address carries extra text.
+            </p>
+
+            <label className="choice" style={{ alignSelf: "flex-start" }}>
+              <input
+                type="checkbox"
+                checked={screen}
+                onChange={(event) => setScreen(event.target.checked)}
+              />
+              <span>Can look at my screen</span>
+            </label>
+            <p className="faint">
+              Each time, it asks first, and takes one picture of your screen
+              only after you approve. Everything visible goes to the model you
+              chose, so close anything private first.
             </p>
 
             {assistant ? (
