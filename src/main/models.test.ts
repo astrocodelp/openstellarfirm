@@ -1,0 +1,131 @@
+import { describe, expect, it } from "vitest";
+import { listModels, ModelError, SseParser, streamChat } from "./models";
+
+/** A fake model service. No test here touches the network. */
+function sse(chunks: string[], status = 200): typeof fetch {
+  return async () =>
+    new Response(
+      new ReadableStream({
+        start(controller) {
+          for (const chunk of chunks)
+            controller.enqueue(new TextEncoder().encode(chunk));
+          controller.close();
+        },
+      }),
+      { status },
+    );
+}
+
+const delta = (text: string) =>
+  `data: ${JSON.stringify({ choices: [{ delta: { content: text } }] })}\n\n`;
+
+async function collect(stream: AsyncGenerator<string>): Promise<string> {
+  let out = "";
+  for await (const piece of stream) out += piece;
+  return out;
+}
+
+const call = {
+  baseUrl: "stub://model/v1",
+  model: "m",
+  messages: [{ role: "user" as const, content: "hi" }],
+};
+
+describe("SseParser", () => {
+  it("joins an event that arrives in pieces", () => {
+    const parser = new SseParser();
+    expect(parser.push('data: {"a"')).toEqual([]);
+    expect(parser.push(":1}\r\n\r\ndata: [DONE]\n")).toEqual([
+      '{"a":1}',
+      "[DONE]",
+    ]);
+  });
+
+  it("ignores comments and other fields", () => {
+    expect(new SseParser().push(": ping\nevent: x\ndata: y\n")).toEqual(["y"]);
+  });
+});
+
+describe("streamChat", () => {
+  it("yields the text and stops at [DONE]", async () => {
+    const half = delta("Hel");
+    const fetchImpl = sse([
+      half.slice(0, 9),
+      half.slice(9),
+      delta("lo"),
+      "data: [DONE]\n\n",
+      delta("never"),
+    ]);
+    expect(await collect(streamChat({ ...call, fetchImpl }))).toBe("Hello");
+  });
+
+  it("sends the key only as a bearer header, and refuses a redirect", async () => {
+    let seen: { url: string; init: RequestInit } | undefined;
+    const fetchImpl: typeof fetch = async (url, init) => {
+      seen = { url: String(url), init: init ?? {} };
+      return new Response(delta("ok"));
+    };
+    await collect(streamChat({ ...call, apiKey: "sk-test", fetchImpl }));
+    expect(seen?.url).toBe("stub://model/v1/chat/completions");
+    expect(seen?.url).not.toContain("sk-test");
+    expect(String(seen?.init.body)).not.toContain("sk-test");
+    const sent = seen?.init.headers as Record<string, string> | undefined;
+    expect(sent?.authorization).toBe("Bearer sk-test");
+    expect(seen?.init.redirect).toBe("error");
+  });
+
+  it("turns a refusal into a plain sentence that holds nothing the server wrote", async () => {
+    const fetchImpl: typeof fetch = async () =>
+      new Response("secret server text sk-test", { status: 401 });
+    const error = await collect(
+      streamChat({ ...call, apiKey: "sk-test", fetchImpl }),
+    ).catch((e) => e);
+    expect(error).toBeInstanceOf(ModelError);
+    expect(error.message).toBe(
+      "The model refused the key. Check it in Models.",
+    );
+  });
+
+  it("shows a bad request's own reason, on one line, without the key", async () => {
+    const fetchImpl: typeof fetch = async () =>
+      Response.json(
+        { error: { message: "bad sampler\nsettings for sk-test" } },
+        { status: 400 },
+      );
+    const error = await collect(
+      streamChat({ ...call, apiKey: "sk-test", fetchImpl }),
+    ).catch((e) => e);
+    expect(error.message).toBe(
+      "The model turned the request down: bad sampler settings for [key]",
+    );
+  });
+
+  it("says so when the model cannot be reached", async () => {
+    const fetchImpl: typeof fetch = async () => {
+      throw new TypeError("fetch failed: connect ECONNREFUSED 127.0.0.1:11434");
+    };
+    const error = await collect(streamChat({ ...call, fetchImpl })).catch(
+      (e) => e,
+    );
+    expect(error.message).toMatch(/could not be reached/);
+    expect(error.message).not.toContain("ECONNREFUSED");
+  });
+});
+
+describe("listModels", () => {
+  it("returns the model names, sorted", async () => {
+    const fetchImpl: typeof fetch = async () =>
+      Response.json({ data: [{ id: "b" }, { id: "a" }, { nope: 1 }] });
+    expect(await listModels({ baseUrl: "stub://model/v1", fetchImpl })).toEqual(
+      ["a", "b"],
+    );
+  });
+
+  it("refuses an answer that is not a model list", async () => {
+    const fetchImpl: typeof fetch = async () =>
+      new Response("<html>", { status: 200 });
+    await expect(
+      listModels({ baseUrl: "stub://model/v1", fetchImpl }),
+    ).rejects.toThrow(/did not answer like a model service/);
+  });
+});

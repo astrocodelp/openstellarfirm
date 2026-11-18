@@ -1,0 +1,133 @@
+import type { ReactNode } from "react";
+import { COLORS, PETS } from "../../shared/catalog";
+import type { PetColor, PetId } from "../../shared/types";
+
+/** Small shared pieces: the pets, the icons, and the two status lines. */
+
+export function colorHex(color: PetColor): string {
+  return COLORS.find((c) => c.id === color)?.hex ?? "currentColor";
+}
+
+export function Pet({
+  pet,
+  color,
+  size = 36,
+}: {
+  pet: PetId;
+  color: PetColor;
+  size?: number;
+}) {
+  const shape = PETS.find((p) => p.id === pet) ?? PETS[0];
+  if (!shape) return null;
+  return (
+    <svg
+      className="pet"
+      width={size}
+      height={size}
+      viewBox="0 0 48 48"
+      aria-hidden="true"
+    >
+      <path d={shape.d} fill={colorHex(color)} />
+      <circle className="eye" cx={shape.eyeLeft} cy={shape.eyeY} r="2.2" />
+      <circle className="eye" cx={shape.eyeRight} cy={shape.eyeY} r="2.2" />
+    </svg>
+  );
+}
+
+/** Nova, the app's own pet: an astronaut with a lime glint on the visor. */
+export function Nova({ size = 72 }: { size?: number }) {
+  return (
+    <svg
+      className="pet"
+      width={size}
+      height={size}
+      viewBox="0 0 48 48"
+      role="img"
+      aria-label="Nova, the app's pet"
+    >
+      <path d="M14 35a10 10 0 0 1 20 0v9H14z" fill="var(--ivory)" />
+      <circle cx="24" cy="19" r="14" fill="var(--ivory)" />
+      <rect
+        x="12.5"
+        y="12"
+        width="23"
+        height="13.5"
+        rx="6.75"
+        fill="var(--lime-ink)"
+      />
+      <path
+        d="M17 17h5.5"
+        stroke="var(--lime)"
+        strokeWidth="2.4"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+const ICONS = {
+  plus: <path d="M12 5v14M5 12h14" />,
+  check: <path d="m5 12 5 5 9-10" />,
+  back: <path d="M19 12H5M11 6l-6 6 6 6" />,
+  send: <path d="M12 19V5M5 12l7-7 7 7" />,
+  stop: <rect x="7" y="7" width="10" height="10" rx="1.5" />,
+  download: <path d="M12 4v11M7 10l5 5 5-5M5 20h14" />,
+  upload: <path d="M12 20V9M7 14l5-5 5 5M5 4h14" />,
+  alert: <path d="M12 4 3 20h18zM12 10v5M12 17.5h.01" />,
+  sliders: (
+    <>
+      <path d="M4 7h9M19 7h1M4 17h1M11 17h9" />
+      <circle cx="16" cy="7" r="2.5" />
+      <circle cx="8" cy="17" r="2.5" />
+    </>
+  ),
+} as const;
+
+export function Icon({
+  name,
+  size = 16,
+}: {
+  name: keyof typeof ICONS;
+  size?: number;
+}) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {ICONS[name]}
+    </svg>
+  );
+}
+
+/** An error, always as an icon and a sentence, announced to a screen reader. */
+export function ErrorLine({ children }: { children: ReactNode }) {
+  if (!children) return null;
+  return (
+    <p className="error" role="alert">
+      <Icon name="alert" />
+      <span>{children}</span>
+    </p>
+  );
+}
+
+/** Success is teal, with a check and a word. Lime never means "it worked". */
+export function OkLine({ children }: { children: ReactNode }) {
+  return (
+    <span className="ok-line" role="status">
+      <Icon name="check" size={14} />
+      {children}
+    </span>
+  );
+}
+
+export function message(error: unknown): string {
+  return error instanceof Error ? error.message : "Something went wrong.";
+}

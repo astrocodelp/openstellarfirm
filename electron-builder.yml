@@ -1,0 +1,30 @@
+appId: ai.stellarfirm.open
+productName: StellarFirm Open
+artifactName: StellarFirm-Open-${version}-${os}-${arch}.${ext}
+copyright: Copyright © 2026 Vasileios Drosatos and Astro Code L.P. MIT licence.
+directories:
+  output: release
+# Everything the app needs is bundled into dist/, so no node_modules ship.
+files:
+  - dist/**
+  - package.json
+asar: true
+npmRebuild: false
+# Local builds stay unsigned. Releases are attached by hand or by a workflow.
+forceCodeSigning: false
+publish: null
+mac:
+  category: public.app-category.productivity
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  target:
+    - target: dmg
+      arch: [x64, arm64]
+    - target: zip
+      arch: [x64, arm64]
+win:
+  target:
+    - target: nsis
+      arch: [x64]
