@@ -20,9 +20,16 @@ team of AI Agent Assistants works for your company in the cloud.
 
 - **Assistants you make your own.** Name, group, one of six pets in five
   colours, a brief in your own words, and skills (lines of guidance).
-- **Starter personas.** Coder, Legal, Writer, Researcher, Planner, Tutor,
-  Accountant and Marketing, each a starting point you can change. They live in
+- **Ready-made assistants.** 21 personas, from Coder, Product owner and
+  Designer to Sales, Support, Accountant, Legal, Scientist, Journalist and DJ,
+  each a starting point you can change. "New assistant" opens a gallery: browse
+  by category, search by name, role or skill, read the brief and the skills,
+  and fill the form in one click. Nothing is saved until you save. They live in
   [`personas/`](personas), one file each, and anyone can add one.
+- **A library of skills.** Over a hundred short lines of guidance, grouped by
+  the kind of work (a contract checklist, a fact check, a lesson plan, a
+  measured survey), with a searchable picker. A skill is guidance, never
+  access: only the ones an assistant has ticked go into its instructions.
 - **Your own model.** On this computer with Ollama or LM Studio, or your own
   key for OpenAI, Anthropic (Claude), Google (Gemini), Mistral, xAI, DeepSeek,
   Groq, Cerebras, NVIDIA, Together AI, Hugging Face, OpenRouter, Requesty,

@@ -25,5 +25,9 @@ What this licence does not cover
     characters. The licence gives no right to use them as your own. If you
     share a changed version, give it its own name and look.
 
+The persona texts in the personas folder and the skill texts in
+src/shared/catalog.ts and src/shared/skill-library.ts are contributed by
+Astro Code L.P. under this licence.
+
 Other people's work that ships inside a built app is listed in
 THIRD-PARTY-NOTICES.md.

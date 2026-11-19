@@ -1,3 +1,4 @@
+import { MAX_SKILLS } from "./skill-library";
 import {
   type Assistant,
   type AssistantInput,
@@ -55,7 +56,7 @@ export function cleanAssistant(
   const skills = Array.isArray(raw.skills)
     ? [
         ...new Set(raw.skills.map((skill) => text(skill, 40)).filter(Boolean)),
-      ].slice(0, 20)
+      ].slice(0, MAX_SKILLS)
     : [];
   const sourceId = text(raw.sourceId, 40);
   const model = text(raw.model, 200);

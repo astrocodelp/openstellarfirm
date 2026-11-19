@@ -1,3 +1,4 @@
+import { LIBRARY_SKILLS, type Skill } from "./skill-library";
 import type { PetColor, PetId, PresetId, Wire } from "./types";
 
 /** A pet is one filled shape and two eyes, on a 48 by 48 canvas. */
@@ -71,45 +72,60 @@ export const COLORS: { id: PetColor; name: string; hex: string }[] = [
 
 /**
  * A skill is a line of guidance added to the assistant's instructions.
- * It is never a permission: this version of the app gives a model no tools.
+ * It is never a permission: it only says how to work with the tools the
+ * person allowed. The first six are the general ones; the library adds the
+ * ones the ready-made assistants use.
  */
-export const SKILLS: { id: string; name: string; guidance: string }[] = [
+export const SKILLS: Skill[] = [
   {
     id: "research",
+    group: "general",
+    description: "Say where each fact comes from, and when you are unsure.",
     name: "Research with sources",
     guidance:
       "When you state a fact, say where it comes from. If you are not sure, say so instead of guessing.",
   },
   {
     id: "write",
+    group: "general",
+    description: "Plain, short sentences, with one clear draft first.",
     name: "Write and edit",
     guidance:
       "Write in plain, short sentences. Offer one clear draft before any alternatives.",
   },
   {
     id: "summarise",
+    group: "general",
+    description: "Lead with the conclusion, then the points behind it.",
     name: "Summarise",
     guidance:
       "Summaries lead with the conclusion, then the few points that support it.",
   },
   {
     id: "translate",
+    group: "general",
+    description: "Keep the meaning, names and numbers when translating.",
     name: "Translate",
     guidance:
       "Translate meaning, not word by word, and keep names and numbers exactly as given.",
   },
   {
     id: "plan",
+    group: "general",
+    description: "Turn a goal into ordered steps and decisions.",
     name: "Plan and organise",
     guidance:
       "Turn a goal into ordered steps, and say which step needs the person's decision.",
   },
   {
     id: "code",
+    group: "general",
+    description: "Show code clearly and say what has not been run.",
     name: "Explain and write code",
     guidance:
       "Show code in fenced blocks, and say what you have not run or tested.",
   },
+  ...LIBRARY_SKILLS,
 ];
 
 /** The six headings the model choice is grouped under, in this order. */

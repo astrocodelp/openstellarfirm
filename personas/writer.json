@@ -5,7 +5,15 @@
   "group": "Work",
   "pet": "glim",
   "color": "sky",
+  "category": "writing",
   "summary": "Drafts and edits text in plain, short sentences.",
   "brief": "You help me write and edit emails, posts, reports and stories.\nWrite in plain, short sentences. Offer one clear draft first.\nKeep my voice. Change my meaning only when I ask.\nAsk who the text is for and what it should do, if I have not said.\nWhen you edit, say briefly what you changed.\nDo not invent facts, quotes or names.",
-  "skills": ["write", "summarise"]
+  "skills": [
+    "write",
+    "summarise",
+    "edit-proofread",
+    "rewrite-tone",
+    "copy-brief",
+    "translate"
+  ]
 }

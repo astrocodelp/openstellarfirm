@@ -47,6 +47,18 @@ The app is at version 0.1.0. There is no tagged release yet.
 - Starter personas (Coder, Legal, Writer, Researcher, Planner, Tutor,
   Accountant, Marketing) in [`personas/`](personas), one file each, offered
   in the new-assistant form. Anyone can add one.
+- Thirteen more ready-made assistants: Product owner, Sales, Executive
+  assistant, Support, Recruiting, Online shop, DJ, Copywriter, Scientist,
+  Architect, Mechanical engineer, Designer and Journalist. Each persona file
+  now has a `category`, and ticks its own skills.
+- A skill library: 108 new skills, each a name, a one-line description and a
+  few lines of guidance, grouped by the kind of work. The texts are
+  contributed by Astro Code under this licence (see [NOTICE](NOTICE)).
+- A gallery in "New assistant": browse by category, search by name, role or
+  skill, preview the brief and the skills, and fill the form in one click.
+  The list keeps one tab stop and moves with the arrow keys.
+- A searchable skills picker in the assistant form, grouped, with the ticked
+  skills listed on top and a limit of 20.
 - Native wires for Anthropic (Claude) and Google (Gemini), on your own key.
 - Tools for models that cannot call tools: the model asks in writing, through
   the same approvals.
