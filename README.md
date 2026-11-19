@@ -51,6 +51,16 @@ team of AI Agent Assistants works for your company in the cloud.
   a connection yourself.
 - **Settings.** Theme, text size, the send key, what is remembered, your data
   folder, and an update check you can turn on.
+- **Your mail, read only.** Add a mailbox with an app password and tick it for
+  an assistant. It can list and read messages, and never sends, deletes,
+  moves or marks anything. Every look asks first.
+- **Assistants that ask each other.** Let one assistant ask the others you
+  tick a question. The one asked answers with its own brief, tools and model,
+  and any step it needs still asks you.
+- **A main assistant that checks on its own.** Pick one assistant and say what
+  to look for (new mail that needs an answer, a note marked urgent). While the
+  app is open it checks on the schedule you choose and writes an update. A
+  check only reads: anything that would need your Approve is left for you.
 - **A look at your screen.** Off until you turn it on for an assistant. Every
   look asks first, and the picture is never saved. It can only look.
 - **Tools on small models too.** A model that cannot call tools asks for them
