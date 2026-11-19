@@ -1,4 +1,5 @@
 import type { Assistant } from "../shared/types";
+import { fitsCard } from "../shared/visible-text";
 import {
   FolderError,
   findFiles,
@@ -9,16 +10,21 @@ import {
 } from "./folders";
 import type { ToolSpec } from "./models";
 import { SCREEN_TOOL } from "./screen";
+import { type SeenKind, whyAfter } from "./seen";
 import { checkWebAddress, readWebPage, type WebDeps, WebError } from "./web";
 
 /**
  * The tools an assistant has, and the one rule about which of them ask.
  *
- * Reading a picked folder and saving a new file there run on their own: the
- * person picked the folder, and nothing there is ever replaced. Reaching a
- * website asks first, because an address can carry text out of this computer.
- * A site the person chose to always allow is read without asking, unless the
- * address carries extra text after a "?", which asks every time.
+ * Reading a picked folder runs on its own: the person picked the folder.
+ * Saving a new file there runs on its own too, since nothing is ever
+ * replaced, except a file that runs or builds on its own (a script, a
+ * Makefile, a project file) and any save once the answer has read outside
+ * text, which ask. Reaching a website asks first, because an address can
+ * carry text out of this computer. A site the person chose to always allow is
+ * read without asking, unless the address carries extra text after a "?",
+ * the answer has read something private, or, after a web page or its own
+ * computer, the address is more than the site's bare address.
  */
 
 export type ToolAssistant = Pick<Assistant, "folders" | "web" | "sites"> & {
@@ -150,12 +156,13 @@ export function planCall(
   rawArguments: string,
   web?: WebDeps,
   /**
-   * True once this answer has read from the person's folders, "screen" once it
-   * has looked at the screen, or "mail" once it has read mail: any of them can
-   * hold text that an address carries out.
+   * What this answer has read from outside so far (`seenKind`), or false for
+   * nothing. True stands for "files". Private text can be carried out by an
+   * address; a web page or its own computer may be telling it what to do.
    */
-  afterFiles: boolean | "screen" | "mail" | "computer" = false,
+  seenSoFar: SeenKind | boolean = false,
 ): PlannedCall {
+  const after: SeenKind | false = seenSoFar === true ? "files" : seenSoFar;
   const offered = toolsFor(assistant).some((tool) => tool.name === name);
   // The screen tool has its own path in the agent, which asks before it looks.
   if (!offered || name === SCREEN_TOOL.name)
@@ -189,10 +196,27 @@ export function planCall(
   }
   if (name === "save_new_file") {
     const file = shortName(args.path);
-    return {
+    const planned: PlannedCall = {
       label: `Saved ${file}`,
       doing: `Saving ${file}`,
       run: () => saveNewFile(folders, args.path, args.content),
+    };
+    const runs = typeof args.path === "string" && runsOnItsOwn(args.path);
+    if (!runs && !after) return planned;
+    const detail = saveDetail(args.path, args.content);
+    if (!fitsCard(detail))
+      throw new FolderError(
+        "That file is too long to show in full for the person's Approve, so it was not saved. Save it in smaller files.",
+      );
+    return {
+      ...planned,
+      ask: {
+        title: `Save ${file} in your folder`,
+        detail,
+        why: runs
+          ? "A file with this name can run or build on its own, from a program or a tool that opens the folder. Check it is one you want. Nothing in your folder is replaced."
+          : `${whyAfter(after as SeenKind)}, and what it read could be telling it what to write. Check the file is one you want. Nothing in your folder is replaced.`,
+      },
     };
   }
 
@@ -200,28 +224,30 @@ export function planCall(
   const site = siteOf(url.hostname);
   const allowed = assistant.sites.includes(site);
   const carriesText = url.search.length > 0;
+  // The site itself, with nothing after it that could carry text.
+  const bare = !carriesText && (url.pathname === "/" || url.pathname === "");
   const planned: PlannedCall = {
     label: `Read ${site}`,
     doing: `Reading ${site}`,
     run: () => readWebPage(url.href, web),
   };
-  if (allowed && !carriesText && !afterFiles) return planned;
-  if (afterFiles) {
-    // An allowed site is still asked for here: the answer now holds text from
-    // the person's files, and any part of an address can carry text out.
+  const steered = after === "web";
+  if (allowed && !carriesText && !after) return planned;
+  if (allowed && bare && steered) return planned;
+  if (after && (!steered || allowed)) {
+    // An allowed site is still asked for here: the answer now holds outside
+    // text, and any part of an address can carry text out.
     return {
       ...planned,
       ask: {
         title: `Read a page on ${site}`,
         detail: url.href,
         why:
-          afterFiles === "screen"
-            ? "It looked at your screen in this answer, and an address can carry text out. Check the address holds nothing private."
-            : afterFiles === "computer"
-              ? "It used its own computer in this answer, and what it read there may be telling it what to do. Check the address is one you expect."
-              : afterFiles === "mail"
-                ? "It has read your mail in this answer, and an address can carry text out. Check the address holds nothing private."
-                : "It has read from your folders in this answer, and an address can carry text out. Check the address holds nothing private.",
+          after === "computer"
+            ? `${whyAfter(after)}. Check the address is one you expect.`
+            : steered
+              ? `${whyAfter(after)}. Anything after the site's name can carry text out, so check the address is one you expect.`
+              : `${whyAfter(after)}, and an address can carry text out. Check the address holds nothing private.`,
       },
     };
   }
@@ -240,6 +266,169 @@ export function planCall(
           site,
         },
   };
+}
+
+/**
+ * File names and endings that a program or a tool runs or builds from on its
+ * own, once they sit in a folder: scripts, build and project files, test
+ * set-ups, container files. A save of one asks, so a page or a file cannot
+ * plant something that runs the next time the person opens the folder.
+ */
+const RUNS_ON_ITS_OWN_NAMES = new Set([
+  "makefile",
+  "gnumakefile",
+  "justfile",
+  "rakefile",
+  "gemfile",
+  "podfile",
+  "vagrantfile",
+  "procfile",
+  "dockerfile",
+  "containerfile",
+  "jenkinsfile",
+  "brewfile",
+  "build",
+  "workspace",
+  "package.json",
+  "package-lock.json",
+  "pnpm-workspace.yaml",
+  "yarn.lock",
+  "deno.json",
+  "deno.jsonc",
+  "bunfig.toml",
+  "tsconfig.json",
+  "jsconfig.json",
+  "vite.config.js",
+  "pyproject.toml",
+  "setup.py",
+  "setup.cfg",
+  "requirements.txt",
+  "pipfile",
+  "tox.ini",
+  "noxfile.py",
+  "conftest.py",
+  "sitecustomize.py",
+  "usercustomize.py",
+  "__init__.py",
+  "__main__.py",
+  "manage.py",
+  "cargo.toml",
+  "build.rs",
+  "go.mod",
+  "pom.xml",
+  "build.gradle",
+  "build.gradle.kts",
+  "settings.gradle",
+  "settings.gradle.kts",
+  "gradlew",
+  "mvnw",
+  "build.xml",
+  "cmakelists.txt",
+  "meson.build",
+  "configure",
+  "directory.build.props",
+  "directory.build.targets",
+  "directory.packages.props",
+  "nuget.config",
+  "global.json",
+  "docker-compose.yml",
+  "docker-compose.yaml",
+  "compose.yml",
+  "compose.yaml",
+  "autorun.inf",
+  "desktop.ini",
+]);
+
+const RUNS_ON_ITS_OWN_ENDINGS = [
+  // Scripts and programs.
+  ".sh",
+  ".bash",
+  ".zsh",
+  ".fish",
+  ".command",
+  ".tool",
+  ".bat",
+  ".cmd",
+  ".ps1",
+  ".psm1",
+  ".psd1",
+  ".vbs",
+  ".vbe",
+  ".js",
+  ".mjs",
+  ".cjs",
+  ".jse",
+  ".wsf",
+  ".wsh",
+  ".hta",
+  ".msc",
+  ".scr",
+  ".pif",
+  ".exe",
+  ".com",
+  ".msi",
+  ".dll",
+  ".lnk",
+  ".url",
+  ".desktop",
+  ".app",
+  ".appimage",
+  ".jar",
+  ".py",
+  ".pyw",
+  ".pth",
+  ".rb",
+  ".pl",
+  ".php",
+  ".applescript",
+  ".scpt",
+  ".workflow",
+  ".reg",
+  ".inf",
+  ".service",
+  ".plist",
+  // Build and project files.
+  ".csproj",
+  ".vbproj",
+  ".fsproj",
+  ".vcxproj",
+  ".sln",
+  ".props",
+  ".targets",
+  ".mk",
+  ".cmake",
+  ".gradle",
+  ".kts",
+  ".code-workspace",
+  ".sublime-project",
+  ".xcodeproj",
+  ".pbxproj",
+];
+
+/** True when a file with this name runs or builds on its own in a folder. */
+export function runsOnItsOwn(path: string): boolean {
+  const name = (
+    path
+      .split(/[\\/]+/)
+      .filter(Boolean)
+      .at(-1) ?? ""
+  )
+    .replace(/[. ]+$/, "")
+    .toLowerCase();
+  if (!name) return false;
+  if (RUNS_ON_ITS_OWN_NAMES.has(name)) return true;
+  // vite.config.ts, jest.config.mjs, webpack.config.cjs and the like.
+  if (/\.config\.[a-z]+$/.test(name)) return true;
+  if (/^docker-compose\..+\.ya?ml$/.test(name)) return true;
+  if (/^(dockerfile|containerfile)\./.test(name)) return true;
+  return RUNS_ON_ITS_OWN_ENDINGS.some((ending) => name.endsWith(ending));
+}
+
+/** What a save would write, in full, for its card. */
+function saveDetail(path: unknown, content: unknown): string {
+  const where = typeof path === "string" ? path.trim() : "";
+  const text = typeof content === "string" ? content : "";
+  return `${where}\n\n${text}`;
 }
 
 /** Turns anything a tool threw into a sentence the model can act on. */

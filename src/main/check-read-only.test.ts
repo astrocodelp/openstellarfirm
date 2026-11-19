@@ -258,19 +258,36 @@ describe("a check", () => {
   });
 
   it("runs the reads that need no Approve", async () => {
+    for (const first of ["c1_allowed_read", "read_web_page"]) {
+      const w = world();
+      const model = everyTool(() => [], [first, "list_folder"]);
+      const result = await runAgent(assistant(["example.org"]), [], {
+        ...deps(w, model),
+        readOnly: true,
+      });
+      expect(w.effects.mcp).toEqual(
+        first === "c1_allowed_read" ? ["allowed_read"] : [],
+      );
+      expect(w.effects.web).toEqual(
+        first === "read_web_page" ? ["https://example.org/x"] : [],
+      );
+      expect(w.effects.asked).toEqual([]);
+      expect(result.steps.every((s) => s.ok)).toBe(true);
+    }
+  });
+
+  it("leaves an allowed site once a connection's answer is in it", async () => {
     const w = world();
-    const model = everyTool(
-      () => [],
-      ["c1_allowed_read", "read_web_page", "list_folder"],
-    );
+    const model = everyTool(() => [], ["c1_allowed_read", "read_web_page"]);
     const result = await runAgent(assistant(["example.org"]), [], {
       ...deps(w, model),
       readOnly: true,
     });
+    // The read's answer could be carried out in the address: left for you.
     expect(w.effects.mcp).toEqual(["allowed_read"]);
-    expect(w.effects.web).toEqual(["https://example.org/x"]);
+    expect(w.effects.web).toEqual([]);
     expect(w.effects.asked).toEqual([]);
-    expect(result.steps.every((s) => s.ok)).toBe(true);
+    expect(result.steps.map((s) => s.ok)).toEqual([true, false]);
   });
 
   it("leaves even an allowed site and an allowed read once it has read files", async () => {

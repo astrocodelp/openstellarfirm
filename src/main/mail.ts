@@ -19,6 +19,7 @@ import {
 import { cleanLine, parseMessage, readHeaders } from "./mime";
 import type { ToolSpec } from "./models";
 import type { Secrets } from "./secrets";
+import { type SeenKind, whyAfter } from "./seen";
 import type { Store, StoredMail } from "./store";
 import type { PlannedCall } from "./tools";
 
@@ -95,8 +96,16 @@ export type MailGateAssistant = Pick<Assistant, "mail" | "mailReads">;
 export interface MailGate {
   specs: ToolSpec[];
   owns(name: string): boolean;
-  /** Throws a plain sentence when the call cannot be made at all. */
-  plan(name: string, rawArguments: string, afterFiles: boolean): PlannedCall;
+  /**
+   * Throws a plain sentence when the call cannot be made at all. `seenSoFar`
+   * is what the answer has read from outside, mail left out (true stands for
+   * "files").
+   */
+  plan(
+    name: string,
+    rawArguments: string,
+    seenSoFar: SeenKind | boolean,
+  ): PlannedCall;
   /** Remembers reading one account for good. */
   remember(accountId: string): void;
 }
@@ -243,13 +252,13 @@ export function buildMailGate(
   function gateAsk(
     account: StoredMail,
     card: { title: string; detail: string },
-    afterFiles: boolean,
+    afterFiles: SeenKind | false,
   ): PlannedCall["ask"] {
     if (allowed.has(account.id) && !afterFiles) return undefined;
-    if (allowed.has(account.id) || afterFiles) {
+    if (afterFiles) {
       return {
         ...card,
-        why: "It has read from your folders or looked at your screen in this answer, and what it sends to your mail server can carry text out. Check it holds nothing private.",
+        why: `${whyAfter(afterFiles)}, and what it sends to your mail server can carry text out. Check it holds nothing private.`,
       };
     }
     return {
@@ -259,7 +268,10 @@ export function buildMailGate(
     };
   }
 
-  function planList(args: Record<string, unknown>, afterFiles: boolean) {
+  function planList(
+    args: Record<string, unknown>,
+    afterFiles: SeenKind | false,
+  ) {
     const account = accountFor(args.account);
     const folder = checkFolderForModel(args.folder);
     const days = asDays(args.since_days);
@@ -326,7 +338,10 @@ export function buildMailGate(
     return ask ? { ...planned, ask } : planned;
   }
 
-  function planRead(args: Record<string, unknown>, afterFiles: boolean) {
+  function planRead(
+    args: Record<string, unknown>,
+    afterFiles: SeenKind | false,
+  ) {
     const id = asText(args.id, 20);
     const message = known.get(id);
     if (!message)
@@ -389,7 +404,9 @@ export function buildMailGate(
   return {
     specs,
     owns: (name) => name === MAIL_LIST || name === MAIL_READ,
-    plan(name, rawArguments, afterFiles) {
+    plan(name, rawArguments, seenSoFar) {
+      const afterFiles: SeenKind | false =
+        seenSoFar === true ? "files" : seenSoFar;
       const args = parseArguments(rawArguments);
       if (name === MAIL_LIST) return planList(args, afterFiles);
       if (name === MAIL_READ) return planRead(args, afterFiles);

@@ -387,13 +387,6 @@ describe("one answer", () => {
       () => {},
     );
     const model = script([
-      [{ type: "calls", calls: [callOf("c1_search", {})] }],
-      [
-        {
-          type: "calls",
-          calls: [callOf("read_web_page", { url: "https://example.com/a" })],
-        },
-      ],
       [{ type: "calls", calls: [callOf("mail_list", {})] }],
       [{ type: "calls", calls: [callOf("mail_list", {})] }],
       [{ type: "calls", calls: [callOf("c1_search", {})] }],
@@ -417,9 +410,10 @@ describe("one answer", () => {
         return "always";
       },
     });
-    // Before any mail: the allowed site and the allowed read run unasked. The
-    // mail asks once, is allowed for good, and does not ask again for itself.
-    // After the mail was read, the same site and read ask again.
+    // The mail asks once, is allowed for good, and does not ask again for
+    // itself. After the mail was read, an allowed read and an allowed site
+    // ask again (each runs unasked before any outside text: see their own
+    // tests).
     expect(asked).toEqual([
       "Look through mail on Work mail",
       "Use search on Notes",
@@ -427,7 +421,7 @@ describe("one answer", () => {
     ]);
     expect(persisted).toEqual([work.id]);
     expect(calls).toHaveLength(2);
-    expect(ran).toEqual(["search", "search"]);
+    expect(ran).toEqual(["search"]);
   });
 
   it("asks again about mail itself after a file was read, even when allowed for good", async () => {

@@ -105,6 +105,56 @@ function check(value: unknown, max: number, what: string): number {
 }
 
 /** A path inside the computer, as a model wrote it. */
+/**
+ * The text `type` would type, checked: control characters other than new
+ * lines and tabs are not typed. Exported so a card can show exactly it.
+ */
+export function typedText(text: unknown): string {
+  if (typeof text !== "string" || !text)
+    throw new ComputerError("Give the text to type.");
+  if (text.length > MAX_TYPE_CHARS)
+    throw new ComputerError(
+      `That is too much text to type at once. Type at most ${MAX_TYPE_CHARS} characters.`,
+    );
+  const clean = text.replace(/[^\P{Cc}\n\t]+/gu, "");
+  if (!clean) throw new ComputerError("Give the text to type.");
+  return clean;
+}
+
+/** The key or combination `key` would press, checked against the list. */
+export function checkedKey(raw: unknown): string {
+  const key = normalizeKey(raw);
+  if (!key)
+    throw new ComputerError(
+      "That key is not on the list. Use a name such as Enter, Tab, Escape, Backspace, Up, F5, or a combination such as ctrl+c.",
+    );
+  return key;
+}
+
+/** The command `run` would run and its time limit, checked. */
+export function checkedCommand(
+  command: unknown,
+  seconds: unknown,
+): { command: string; seconds: number } {
+  if (typeof command !== "string" || !command.trim())
+    throw new ComputerError("Give the command to run.");
+  if (command.length > MAX_COMMAND_CHARS)
+    throw new ComputerError("That command is too long.");
+  if (command.includes("\0"))
+    throw new ComputerError("That command holds a character it cannot.");
+  const limit =
+    seconds === undefined
+      ? DEFAULT_RUN_SECONDS
+      : typeof seconds === "number" && Number.isInteger(seconds)
+        ? seconds
+        : NaN;
+  if (!(limit >= 1 && limit <= MAX_RUN_SECONDS))
+    throw new ComputerError(
+      `The time limit is a whole number of seconds from 1 to ${MAX_RUN_SECONDS}.`,
+    );
+  return { command, seconds: limit };
+}
+
 export function insidePath(raw: unknown): string {
   if (typeof raw !== "string" || !raw.trim())
     throw new ComputerError("Name the file's path on the computer.");
@@ -418,15 +468,7 @@ export class ComputerService {
   }
 
   async type(assistantId: string, text: unknown): Promise<void> {
-    if (typeof text !== "string" || !text)
-      throw new ComputerError("Give the text to type.");
-    if (text.length > MAX_TYPE_CHARS)
-      throw new ComputerError(
-        `That is too much text to type at once. Type at most ${MAX_TYPE_CHARS} characters.`,
-      );
-    // Control characters other than new lines and tabs are not typed.
-    const clean = text.replace(/[^\P{Cc}\n\t]+/gu, "");
-    if (!clean) throw new ComputerError("Give the text to type.");
+    const clean = typedText(text);
     await this.exec(
       assistantId,
       ["xdotool", "type", "--delay", "12", "--", clean],
@@ -436,11 +478,7 @@ export class ComputerService {
   }
 
   async key(assistantId: string, raw: unknown): Promise<string> {
-    const key = normalizeKey(raw);
-    if (!key)
-      throw new ComputerError(
-        "That key is not on the list. Use a name such as Enter, Tab, Escape, Backspace, Up, F5, or a combination such as ctrl+c.",
-      );
+    const key = checkedKey(raw);
     await this.exec(
       assistantId,
       ["xdotool", "key", "--clearmodifiers", "--", key],
@@ -493,22 +531,7 @@ export class ComputerService {
     seconds: unknown,
     signal?: AbortSignal,
   ): Promise<RunOutput> {
-    if (typeof command !== "string" || !command.trim())
-      throw new ComputerError("Give the command to run.");
-    if (command.length > MAX_COMMAND_CHARS)
-      throw new ComputerError("That command is too long.");
-    if (command.includes("\0"))
-      throw new ComputerError("That command holds a character it cannot.");
-    const limit =
-      seconds === undefined
-        ? DEFAULT_RUN_SECONDS
-        : typeof seconds === "number" && Number.isInteger(seconds)
-          ? seconds
-          : NaN;
-    if (!(limit >= 1 && limit <= MAX_RUN_SECONDS))
-      throw new ComputerError(
-        `The time limit is a whole number of seconds from 1 to ${MAX_RUN_SECONDS}.`,
-      );
+    const { command: line, seconds: limit } = checkedCommand(command, seconds);
     const result = await this.runner()(
       execArgs(assistantId, [
         "timeout",
@@ -516,7 +539,7 @@ export class ComputerService {
         String(limit),
         "bash",
         "-lc",
-        command,
+        line,
       ]),
       {
         timeoutMs: (limit + 15) * 1000,

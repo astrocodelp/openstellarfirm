@@ -17,10 +17,12 @@ import type {
   ConnectionPreset,
   ConnectionTool,
 } from "../shared/types";
+import { fitsCard } from "../shared/visible-text";
 import { FolderError } from "./folders";
 import { COMPOSIO_MCP_URL, McpClient, McpError, plain } from "./mcp";
 import type { ToolSpec } from "./models";
 import type { Secrets } from "./secrets";
+import { type SeenKind, whyAfter } from "./seen";
 import {
   DUPLICATE_NAME,
   nameTaken,
@@ -35,15 +37,20 @@ import type { PlannedCall } from "./tools";
  * calls ask the person, and the service that checks and saves a connection.
  *
  * The rule, in one place. Every call asks, with the connection, the tool and
- * the arguments on the card. Only a tool marked as a read can be allowed for
- * good, and even then it asks again once the answer has read from the
- * person's folders, because arguments can carry text out. Every other tool
- * asks every time, with no way to remember it.
+ * all of the arguments on the card. Only a tool marked as a read can be
+ * allowed for good, and even then it asks again once the answer has read
+ * anything from outside (the person's folders, the screen, mail, a
+ * connection's answer, another assistant, a web page or its own computer),
+ * because arguments can carry text out. Every other tool asks every time,
+ * with no way to remember it.
  */
 
 const MAX_ARGUMENT_CHARS = 100_000;
 const MAX_NAME = 64;
-const MAX_SHOWN_ARGUMENTS = 20;
+
+/** Said when the arguments are too long to show whole on a card. */
+export const TOO_LONG_FOR_CARD =
+  "These arguments are too long to show in full for the person's Approve, so the call was not made. Send less in one call.";
 
 function field(value: unknown, max: number): string {
   if (typeof value !== "string" || value.length > max)
@@ -120,8 +127,15 @@ export type CallTool = (
 export interface McpGate {
   specs: ToolSpec[];
   owns(name: string): boolean;
-  /** Throws a plain sentence when the call cannot be made at all. */
-  plan(name: string, rawArguments: string, afterFiles: boolean): PlannedCall;
+  /**
+   * Throws a plain sentence when the call cannot be made at all. `seenSoFar`
+   * is what the answer has read from outside (true stands for "files").
+   */
+  plan(
+    name: string,
+    rawArguments: string,
+    seenSoFar: SeenKind | boolean,
+  ): PlannedCall;
   /** Remembers a read for good, when it is one. */
   remember(connectionId: string, tool: string): void;
 }
@@ -146,18 +160,18 @@ function parseArguments(raw: string): Record<string, unknown> {
   throw new FolderError("The tool call was not written correctly. Try again.");
 }
 
-/** The arguments as readable lines, each value cut so a card stays short. */
-export function argumentLines(args: Record<string, unknown>): string[] {
-  const entries = Object.entries(args);
-  if (entries.length === 0) return ["(no arguments)"];
-  const lines = entries.slice(0, MAX_SHOWN_ARGUMENTS).map(([key, value]) => {
-    const shown =
-      typeof value === "string" ? value : (JSON.stringify(value) ?? "");
-    return `${plain(key, 60)}: ${plain(shown, 300)}`;
-  });
-  if (entries.length > MAX_SHOWN_ARGUMENTS)
-    lines.push(`…and ${entries.length - MAX_SHOWN_ARGUMENTS} more`);
-  return lines;
+/**
+ * All of the arguments, pretty-printed as JSON, for the card: nothing is cut
+ * and nothing nested is folded away, so a long body or a later action in a
+ * list is shown as plainly as the first. Strings stay in quotes, so a value
+ * cannot pass itself off as another line of the card. Arguments too long to
+ * show whole throw `TOO_LONG_FOR_CARD` instead of being shown cut.
+ */
+export function argumentText(args: Record<string, unknown>): string {
+  if (Object.keys(args).length === 0) return "(no arguments)";
+  const text = JSON.stringify(args, null, 2);
+  if (!fitsCard(text)) throw new FolderError(TOO_LONG_FOR_CARD);
+  return text;
 }
 
 /**
@@ -208,7 +222,8 @@ export function buildGate(
   return {
     specs,
     owns: (name) => byName.has(name),
-    plan(name, rawArguments, afterFiles) {
+    plan(name, rawArguments, seenSoFar) {
+      const after: SeenKind | false = seenSoFar === true ? "files" : seenSoFar;
       const entry = byName.get(name);
       if (!entry) throw new FolderError("That tool is not available here.");
       const { connection, tool } = entry;
@@ -232,37 +247,43 @@ export function buildGate(
           }
         },
       };
-      const card = {
+      // Built only for a call that asks, so a read that runs on its own is
+      // never turned down for being long.
+      const card = () => ({
         title: `Use ${tool.name} on ${connection.name}`,
         detail: [
           `Connection: ${connection.name}`,
           `Tool: ${tool.name}`,
-          ...argumentLines(args),
+          "Arguments:",
+          argumentText(args),
         ].join("\n"),
-      };
+      });
       if (!tool.readOnly) {
         return {
           ...planned,
           ask: {
-            ...card,
+            ...card(),
             why: "This tool may change things on the connection, or the connection does not say it only reads. It asks every time.",
           },
         };
       }
       if (allowed.has(key)) {
-        if (!afterFiles) return planned;
+        if (!after) return planned;
         return {
           ...planned,
           ask: {
-            ...card,
-            why: "It has read from your folders, looked at your screen or read your mail in this answer, and these arguments can carry text out. Check they hold nothing private.",
+            ...card(),
+            why:
+              after === "computer" || after === "web"
+                ? `${whyAfter(after)}. These arguments can carry text out, so check they hold nothing private.`
+                : `${whyAfter(after)}, and these arguments can carry text out. Check they hold nothing private.`,
           },
         };
       }
       return {
         ...planned,
         ask: {
-          ...card,
+          ...card(),
           why: "This assistant has not used this read before.",
           remember: { connectionId: connection.id, tool: tool.name },
         },
