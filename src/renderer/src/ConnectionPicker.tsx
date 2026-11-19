@@ -45,7 +45,8 @@ export function ConnectionPicker({
           <SearchInput
             id={`${ids}-search`}
             aria-labelledby={`${ids}-label`}
-            aria-controls={`${ids}-list`}
+            // Only while the list is there: an id that names nothing is an error.
+            aria-controls={shown.length > 0 ? `${ids}-list` : undefined}
             className="input"
             value={query}
             placeholder="Name or service"

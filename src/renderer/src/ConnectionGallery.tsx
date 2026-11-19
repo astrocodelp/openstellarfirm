@@ -161,7 +161,8 @@ export function ConnectionGallery({
             id={`${ids}-search`}
             aria-labelledby={`${ids}-label`}
             aria-describedby={`${ids}-hint`}
-            aria-controls={`${ids}-list`}
+            // Only while the list is there: an id that names nothing is an error.
+            aria-controls={shown.length > 0 ? `${ids}-list` : undefined}
             className="input"
             value={query}
             placeholder="GitHub, search, email…"
