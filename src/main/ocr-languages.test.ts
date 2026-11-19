@@ -10,12 +10,14 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { OcrDownloadProgress } from "../shared/download-progress";
 import {
   BUILT_IN,
   DOWNLOADABLE,
   isMirrorHost,
   languageUrl,
   OcrLanguages,
+  STOPPED,
 } from "./ocr-languages";
 
 let dir: string;
@@ -42,8 +44,37 @@ function withBytes(bytes: Uint8Array) {
   );
 }
 
-function languagesWith(fetch: typeof globalThis.fetch) {
-  return new OcrLanguages({ dataDir: dir, builtInDir: builtIn, fetch });
+function languagesWith(fetch: typeof globalThis.fetch, now?: () => number) {
+  return new OcrLanguages({ dataDir: dir, builtInDir: builtIn, fetch, now });
+}
+
+function filesLeft(): string[] {
+  const folder = join(dir, "ocr-languages");
+  return existsSync(folder) ? readdirSync(folder) : [];
+}
+
+/**
+ * A body that sends the first chunk at once, then waits until the fetch's
+ * signal ends it, as a slow connection would.
+ */
+function stalledBody(first: Uint8Array): typeof fetch {
+  return async (_url, init) => {
+    const signal = init?.signal;
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(first);
+      },
+      pull(controller) {
+        return new Promise<void>((resolve) => {
+          signal?.addEventListener("abort", () => {
+            controller.error(new DOMException("Aborted", "AbortError"));
+            resolve();
+          });
+        });
+      },
+    });
+    return new Response(body);
+  };
 }
 
 describe("the languages list", () => {
@@ -150,5 +181,94 @@ describe("downloading a language", () => {
       "tampered!!!!",
     );
     expect(languagesWith(fetch).bytesOf("deu")).toBeUndefined();
+  });
+});
+
+describe("progress and Stop", () => {
+  it("reports the start and the whole file, and drops what comes too soon", async () => {
+    const bytes = new Uint8Array(1000).fill(7);
+    withBytes(bytes);
+    // Ten chunks, all within one throttle interval of a frozen clock.
+    const fake: typeof fetch = async () =>
+      new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            for (let i = 0; i < 10; i += 1)
+              controller.enqueue(bytes.slice(i * 100, (i + 1) * 100));
+            controller.close();
+          },
+        }),
+      );
+    const seen: OcrDownloadProgress[] = [];
+    const languages = languagesWith(fake, () => 0);
+    await languages.download("deu", (p) => seen.push(p));
+    // The start and the end: every chunk came inside one interval of the start.
+    expect(seen.map((p) => p.received)).toEqual([0, 1000]);
+    expect(seen.every((p) => p.code === "deu" && p.total === 1000)).toBe(true);
+  });
+
+  it("Stop ends the download and deletes the partial file", async () => {
+    const first = new TextEncoder().encode("part");
+    withBytes(new TextEncoder().encode("part of a longer file"));
+    // A clock a second further on at every read, so every chunk is reported.
+    let at = 0;
+    const languages = languagesWith(stalledBody(first), () => {
+      at += 1000;
+      return at;
+    });
+    let arrived: () => void = () => {};
+    const firstChunk = new Promise<void>((resolve) => {
+      arrived = resolve;
+    });
+    const pending = languages.download("deu", (p) => {
+      if (p.received > 0) arrived();
+    });
+    await firstChunk;
+    // The partial file is on disk while it downloads.
+    expect(filesLeft()).toHaveLength(1);
+    expect(languages.cancel("deu")).toBe(true);
+    await expect(pending).rejects.toThrow(STOPPED);
+    expect(filesLeft()).toEqual([]);
+    expect(languages.installed()).toEqual(["eng"]);
+    // Nothing is under way any more, so a second Stop finds nothing.
+    expect(languages.cancel("deu")).toBe(false);
+  });
+
+  it("deletes the partial file when the connection drops", async () => {
+    withBytes(new TextEncoder().encode("a longer file than this"));
+    const fake: typeof fetch = async () =>
+      new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode("a longer"));
+          },
+          pull(controller) {
+            controller.error(new Error("socket hang up"));
+          },
+        }),
+      );
+    await expect(languagesWith(fake).download("deu")).rejects.toThrow(
+      /Check your connection/,
+    );
+    expect(filesLeft()).toEqual([]);
+  });
+
+  it("downloads one language once at a time", async () => {
+    withBytes(new TextEncoder().encode("part of a longer file"));
+    const languages = languagesWith(
+      stalledBody(new TextEncoder().encode("part")),
+    );
+    const pending = languages.download("deu");
+    await expect(languages.download("deu")).rejects.toThrow(/already/);
+    languages.cancel("deu");
+    await expect(pending).rejects.toThrow(STOPPED);
+  });
+
+  it("checks what Stop is given", () => {
+    const languages = languagesWith(async () => new Response("x"));
+    expect(() => languages.cancel("xyz")).toThrow(/not in the list/);
+    expect(() => languages.cancel(5)).toThrow(/not in the list/);
+    expect(() => languages.cancel({ code: "deu" })).toThrow();
+    expect(languages.cancel("deu")).toBe(false);
   });
 });

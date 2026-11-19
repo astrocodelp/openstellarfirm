@@ -187,7 +187,7 @@ function MailForm({
         </button>
       </div>
       {found ? (
-        <div className="stack-tight" aria-live="polite">
+        <div className="stack-tight">
           <OkLine>
             Signed in.{" "}
             {found.folders.length === 1

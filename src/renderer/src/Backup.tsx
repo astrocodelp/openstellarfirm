@@ -137,10 +137,10 @@ export function BackupScreen({ onChanged, onBack, onCloud }: BackupProps) {
         </section>
 
         <div className="stack" aria-live="polite">
-          {note ? <OkLine>{note}</OkLine> : null}
+          {note ? <OkLine parentAnnounces>{note}</OkLine> : null}
           {result ? (
             <>
-              <OkLine>{resultLine(result)}</OkLine>
+              <OkLine parentAnnounces>{resultLine(result)}</OkLine>
               {result.full ? (
                 <p className="faint">
                   The app holds a limited number of assistants, so the rest did

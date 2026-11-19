@@ -156,7 +156,7 @@ export function MainAssistantSection({
             </button>
           </div>
           <div aria-live="polite">
-            {started ? <OkLine>{started}</OkLine> : null}
+            {started ? <OkLine parentAnnounces>{started}</OkLine> : null}
           </div>
         </>
       ) : null}

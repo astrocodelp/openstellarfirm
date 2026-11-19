@@ -11,6 +11,7 @@ import type {
   ComputerStatus,
   ComputerView,
 } from "./computer";
+import type { OcrDownloadProgress } from "./download-progress";
 import type { LinkName } from "./links";
 import type { AssistantMemory, MemoryNote } from "./memory";
 import type { OwnSkill, OwnSkillDraft, OwnSkillInput } from "./own-skills";
@@ -522,9 +523,15 @@ export interface OpenApi {
   openAttachment(assistantId: string, attachmentId: string): Promise<void>;
   /** The languages the reader on this computer knows or can learn. */
   ocrLanguages(): Promise<OcrLanguage[]>;
-  /** Downloads one language, on the person's click, and checks it. */
+  /**
+   * Downloads one language, on the person's click, and checks it. Progress
+   * arrives as events, about ten a second at most.
+   */
   downloadOcrLanguage(code: string): Promise<OcrLanguage[]>;
+  /** Stops that download, on the person's click; the partial file is deleted. */
+  cancelOcrLanguage(code: string): Promise<boolean>;
   removeOcrLanguage(code: string): Promise<OcrLanguage[]>;
+  onOcrProgress(listener: (progress: OcrDownloadProgress) => void): () => void;
   stop(assistantId: string): Promise<void>;
   /** The step that waits for the person in this chat, if any. */
   pending(assistantId: string): Promise<ApprovalCard | null>;
@@ -707,7 +714,9 @@ export const IPC = {
   openAttachment: "attachment:open",
   ocrLanguages: "ocr:languages",
   downloadOcrLanguage: "ocr:download",
+  cancelOcrLanguage: "ocr:cancel",
   removeOcrLanguage: "ocr:remove",
+  ocrProgress: "ocr:progress",
   stop: "chat:stop",
   pending: "chat:pending",
   decide: "chat:decide",

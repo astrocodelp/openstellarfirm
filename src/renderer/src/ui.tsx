@@ -194,10 +194,22 @@ export function ErrorLine({
   );
 }
 
-/** Success is teal, with a check and a word. Lime never means "it worked". */
-export function OkLine({ children }: { children: ReactNode }) {
+/**
+ * Success is teal, with a check and a word. Lime never means "it worked".
+ *
+ * It is a status of its own, so a screen reader says it. Inside a region that
+ * already does (`aria-live`), pass `parentAnnounces`: two live regions, one in
+ * the other, read the same sentence twice.
+ */
+export function OkLine({
+  children,
+  parentAnnounces = false,
+}: {
+  children: ReactNode;
+  parentAnnounces?: boolean;
+}) {
   return (
-    <span className="ok-line" role="status">
+    <span className="ok-line" role={parentAnnounces ? undefined : "status"}>
       <Icon name="check" size={14} />
       {children}
     </span>

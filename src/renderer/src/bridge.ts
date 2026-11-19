@@ -5,6 +5,7 @@ import type {
   ComputerView,
 } from "../../shared/computer";
 import { catalogEntry, catalogPreset } from "../../shared/connection-catalog";
+import type { OcrDownloadProgress } from "../../shared/download-progress";
 import { cleanNoteText } from "../../shared/memory";
 import { searchChats } from "../../shared/search";
 import type {
@@ -16,6 +17,7 @@ import type {
   Connection,
   MailAccount,
   ModelSource,
+  OcrLanguage,
   OpenApi,
 } from "../../shared/types";
 import { recordPreview } from "./record-preview";
@@ -34,6 +36,91 @@ type MemoryApi = Pick<
   | "keepSummary"
   | "undoSummary"
 >;
+
+type LanguagesApi = Pick<
+  OpenApi,
+  | "ocrLanguages"
+  | "downloadOcrLanguage"
+  | "cancelOcrLanguage"
+  | "removeOcrLanguage"
+  | "onOcrProgress"
+>;
+
+/**
+ * Reading languages for the browser preview: nothing is fetched. A download
+ * takes about three seconds of made-up progress, so the bar and Stop can be
+ * seen; French fails halfway, so the failure line can be seen too.
+ */
+function previewLanguages(): LanguagesApi {
+  const all: OcrLanguage[] = [
+    {
+      code: "eng",
+      name: "English",
+      size: 4_113_088,
+      builtIn: true,
+      installed: true,
+    },
+    {
+      code: "fra",
+      name: "French",
+      size: 1_130_365,
+      builtIn: false,
+      installed: false,
+    },
+    {
+      code: "deu",
+      name: "German",
+      size: 1_525_436,
+      builtIn: false,
+      installed: false,
+    },
+  ];
+  const listeners = new Set<(progress: OcrDownloadProgress) => void>();
+  const stops = new Map<string, () => void>();
+  const list = () => all.map((l) => ({ ...l }));
+  return {
+    ocrLanguages: async () => list(),
+    downloadOcrLanguage: async (code) => {
+      const language = all.find((l) => l.code === code && !l.builtIn);
+      if (!language) throw new Error("That language is not in the list.");
+      let stopped = false;
+      stops.set(code, () => {
+        stopped = true;
+      });
+      try {
+        for (let step = 0; step <= 30; step += 1) {
+          if (stopped) throw new Error("Stopped. Nothing was kept.");
+          if (code === "fra" && step === 15)
+            throw new Error(
+              "The language could not be downloaded. Check your connection and try again.",
+            );
+          const received = Math.round((language.size * step) / 30);
+          for (const listener of listeners)
+            listener({ code, received, total: language.size });
+          await new Promise((r) => setTimeout(r, 100));
+        }
+      } finally {
+        stops.delete(code);
+      }
+      language.installed = true;
+      return list();
+    },
+    cancelOcrLanguage: async (code) => {
+      const stop = stops.get(code);
+      stop?.();
+      return stop !== undefined;
+    },
+    removeOcrLanguage: async (code) => {
+      const language = all.find((l) => l.code === code && !l.builtIn);
+      if (language) language.installed = false;
+      return list();
+    },
+    onOcrProgress: (listener) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+  };
+}
 
 /** Memory and chat context for the browser preview: kept in memory, no model. */
 function previewMemory(chats: Map<string, ChatMessage[]>): MemoryApi {
@@ -301,26 +388,7 @@ function preview(): OpenApi {
     removeAttachment: async () => {},
     pendingAttachments: async () => [],
     openAttachment: async () => {},
-    ocrLanguages: async () => [
-      {
-        code: "eng",
-        name: "English",
-        size: 4_113_088,
-        builtIn: true,
-        installed: true,
-      },
-      {
-        code: "deu",
-        name: "German",
-        size: 1_525_436,
-        builtIn: false,
-        installed: false,
-      },
-    ],
-    downloadOcrLanguage: async () => {
-      throw new Error("Open the desktop app to download a language.");
-    },
-    removeOcrLanguage: async () => [],
+    ...previewLanguages(),
     stop: async () => {},
     pending: async () => null,
     decide: async () => {},

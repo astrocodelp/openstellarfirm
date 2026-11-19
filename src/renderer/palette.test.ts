@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Assistant, Connection, MailAccount } from "../shared/types";
 import {
+  arrangePaletteRows,
   filterPalette,
   GROUP_LIMIT,
   type PaletteItem,
@@ -155,5 +156,43 @@ describe("the palette's list", () => {
     expect(resultCount(0)).toBe("No results");
     expect(resultCount(1)).toBe("1 result");
     expect(resultCount(12)).toBe("12 results");
+  });
+});
+
+describe("chat results while a new search runs", () => {
+  const listed = ["assistant", "setting"];
+  const chats = ["chat 1", "chat 2"];
+
+  it("joins the list once they answer the words typed now", () => {
+    expect(arrangePaletteRows(listed, chats, "plan", "plan")).toEqual({
+      choosable: ["assistant", "setting", "chat 1", "chat 2"],
+      stale: [],
+    });
+    // Spaces around the words do not make an answer stale.
+    expect(arrangePaletteRows(listed, chats, " plan ", "plan")).toEqual({
+      choosable: ["assistant", "setting", "chat 1", "chat 2"],
+      stale: [],
+    });
+  });
+
+  it("stay on screen but cannot be chosen while the next search runs", () => {
+    const rows = arrangePaletteRows(listed, chats, "plans", "plan");
+    // The arrows and Enter only ever reach the live groups.
+    expect(rows.choosable).toEqual(["assistant", "setting"]);
+    expect(rows.stale).toEqual(["chat 1", "chat 2"]);
+  });
+
+  it("go when the box is emptied", () => {
+    expect(arrangePaletteRows(listed, chats, "  ", "plan")).toEqual({
+      choosable: ["assistant", "setting"],
+      stale: [],
+    });
+  });
+
+  it("an answer with nothing found replaces the old results", () => {
+    expect(arrangePaletteRows(listed, [], "plans", "plans")).toEqual({
+      choosable: ["assistant", "setting"],
+      stale: [],
+    });
   });
 });
