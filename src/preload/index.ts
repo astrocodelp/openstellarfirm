@@ -43,7 +43,9 @@ const api: OpenApi = {
     call(IPC.openAttachment, id, attachmentId),
   ocrLanguages: () => call(IPC.ocrLanguages),
   downloadOcrLanguage: (code) => call(IPC.downloadOcrLanguage, code),
+  cancelOcrLanguage: (code) => call(IPC.cancelOcrLanguage, code),
   removeOcrLanguage: (code) => call(IPC.removeOcrLanguage, code),
+  onOcrProgress: (listener) => listen(IPC.ocrProgress, listener),
   stop: (id) => call(IPC.stop, id),
   pending: (id) => call(IPC.pending, id),
   decide: (id, approvalId, decision) =>

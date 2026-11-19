@@ -1,14 +1,21 @@
 import { createHash } from "node:crypto";
 import {
+  closeSync,
   existsSync,
   mkdirSync,
+  openSync,
   readFileSync,
   renameSync,
   rmSync,
   statSync,
-  writeFileSync,
+  writeSync,
 } from "node:fs";
 import { join } from "node:path";
+import {
+  type OcrDownloadProgress,
+  PROGRESS_INTERVAL_MS,
+  progressThrottle,
+} from "../shared/download-progress";
 import type { OcrLanguage } from "../shared/types";
 
 /**
@@ -289,7 +296,15 @@ export interface LanguageDeps {
   /** The folder the built-in English file is in. */
   builtInDir: string;
   fetch: typeof fetch;
+  /** The clock the progress throttle reads; tests pass their own. */
+  now?: () => number;
 }
+
+/** What a download that the person stopped ends with. */
+export const STOPPED = "Stopped. Nothing was kept.";
+
+const CONNECTION =
+  "The language could not be downloaded. Check your connection and try again.";
 
 /** The languages the reader knows, downloaded ones checked against their hash. */
 export class OcrLanguages {
@@ -359,26 +374,90 @@ export class OcrLanguages {
     return expected && sha256(bytes) === expected.sha256 ? bytes : undefined;
   }
 
-  /** Fetches one language on the person's click. A wrong file is deleted and refused. */
-  async download(code: unknown): Promise<OcrLanguage[]> {
+  /** The downloads under way, by code, so Stop can end one. */
+  private readonly running = new Map<string, AbortController>();
+
+  /**
+   * Fetches one language on the person's click. The bytes go to a temporary
+   * file as they arrive; it is renamed into place only when every byte is in
+   * and its SHA-256 matches. A wrong file, a failure or a Stop deletes it.
+   * Progress is reported at most about ten times a second, the first and the
+   * last update always.
+   */
+  async download(
+    code: unknown,
+    onProgress?: (progress: OcrDownloadProgress) => void,
+  ): Promise<OcrLanguage[]> {
     if (typeof code !== "string")
       throw new Error("That language is not in the list.");
     const expected = DOWNLOADABLE.find((l) => l.code === code);
     if (!expected) throw new Error("That language is not in the list.");
+    if (this.running.has(code))
+      throw new Error(`${expected.name} is already downloading.`);
     const file = this.fileOf(code);
-    const bytes = await this.fetchPinned(languageUrl(code), expected.size);
-    mkdirSync(this.folder, { recursive: true, mode: 0o700 });
     const temp = `${file}.${process.pid}.tmp`;
-    writeFileSync(temp, bytes, { mode: 0o600 });
-    if (sha256(new Uint8Array(readFileSync(temp))) !== expected.sha256) {
-      rmSync(temp, { force: true });
-      rmSync(file, { force: true });
-      throw new Error(
-        "The downloaded file did not match the one the app expects, so it was deleted. Nothing was kept.",
+    const stop = new AbortController();
+    this.running.set(code, stop);
+    const throttle = progressThrottle(
+      (progress: OcrDownloadProgress) => onProgress?.(progress),
+      PROGRESS_INTERVAL_MS,
+      this.deps.now,
+    );
+    const total = expected.size;
+    let fd: number | undefined;
+    let kept = false;
+    try {
+      mkdirSync(this.folder, { recursive: true, mode: 0o700 });
+      fd = openSync(temp, "w", 0o600);
+      const out = fd;
+      const hash = createHash("sha256");
+      let received = 0;
+      throttle.flush({ code, received, total });
+      await this.fetchPinned(
+        languageUrl(code),
+        total,
+        AbortSignal.any([stop.signal, AbortSignal.timeout(TIMEOUT_MS)]),
+        (chunk) => {
+          writeSync(out, chunk);
+          hash.update(chunk);
+          received += chunk.length;
+          throttle.push({ code, received, total });
+        },
       );
+      closeSync(out);
+      fd = undefined;
+      if (stop.signal.aborted) throw new Error(STOPPED);
+      throttle.flush({ code, received, total });
+      if (hash.digest("hex") !== expected.sha256) {
+        rmSync(file, { force: true });
+        throw new Error(
+          "The downloaded file did not match the one the app expects, so it was deleted. Nothing was kept.",
+        );
+      }
+      renameSync(temp, file);
+      kept = true;
+    } catch (error) {
+      if (stop.signal.aborted) throw new Error(STOPPED);
+      throw error;
+    } finally {
+      if (fd !== undefined) closeSync(fd);
+      if (!kept) rmSync(temp, { force: true });
+      this.running.delete(code);
     }
-    renameSync(temp, file);
     return this.list();
+  }
+
+  /**
+   * Stops a download on the person's click. The code is checked against the
+   * list; true when a download was under way.
+   */
+  cancel(code: unknown): boolean {
+    if (typeof code !== "string" || !DOWNLOADABLE.some((l) => l.code === code))
+      throw new Error("That language is not in the list.");
+    const download = this.running.get(code);
+    if (!download) return false;
+    download.abort();
+    return true;
   }
 
   remove(code: unknown): OcrLanguage[] {
@@ -388,9 +467,13 @@ export class OcrLanguages {
     return this.list();
   }
 
-  private async fetchPinned(start: string, size: number): Promise<Uint8Array> {
+  private async fetchPinned(
+    start: string,
+    size: number,
+    signal: AbortSignal,
+    onChunk: (chunk: Uint8Array) => void,
+  ): Promise<void> {
     let url = new URL(start);
-    const signal = AbortSignal.timeout(TIMEOUT_MS);
     for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
       if (!isMirrorHost(url))
         throw new Error(
@@ -404,9 +487,7 @@ export class OcrLanguages {
           credentials: "omit",
         });
       } catch {
-        throw new Error(
-          "The language could not be downloaded. Check your connection and try again.",
-        );
+        throw new Error(CONNECTION);
       }
       if (response.status >= 300 && response.status < 400) {
         const location = response.headers.get("location");
@@ -418,27 +499,34 @@ export class OcrLanguages {
       const declared = Number(response.headers.get("content-length") ?? "0");
       if (declared > size) break;
       const reader = response.body.getReader();
-      const chunks: Uint8Array[] = [];
-      let total = 0;
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        total += value.length;
-        if (total > size) {
-          await reader.cancel();
-          throw new Error(
-            "The downloaded file was larger than expected, so it was deleted. Nothing was kept.",
-          );
+      // A body that does not watch the signal itself still ends on a Stop.
+      const onAbort = () => {
+        reader.cancel().catch(() => {});
+      };
+      signal.addEventListener("abort", onAbort, { once: true });
+      try {
+        let total = 0;
+        for (;;) {
+          let next: ReadableStreamReadResult<Uint8Array>;
+          try {
+            next = await reader.read();
+          } catch {
+            throw new Error(CONNECTION);
+          }
+          if (signal.aborted) throw new Error(CONNECTION);
+          if (next.done) return;
+          total += next.value.length;
+          if (total > size) {
+            await reader.cancel();
+            throw new Error(
+              "The downloaded file was larger than expected, so it was deleted. Nothing was kept.",
+            );
+          }
+          onChunk(next.value);
         }
-        chunks.push(value);
+      } finally {
+        signal.removeEventListener("abort", onAbort);
       }
-      const out = new Uint8Array(total);
-      let at = 0;
-      for (const chunk of chunks) {
-        out.set(chunk, at);
-        at += chunk.length;
-      }
-      return out;
     }
     throw new Error("The language could not be downloaded. Try again later.");
   }

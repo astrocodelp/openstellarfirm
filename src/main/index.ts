@@ -1131,9 +1131,14 @@ function register(window: BrowserWindow): void {
     openAttachment(str(id), str(attachmentId)),
   );
   handle(IPC.ocrLanguages, () => languages.list());
+  // The code is checked against the pinned list in both; progress goes back
+  // only as numbers the main process counted itself.
   handle(IPC.downloadOcrLanguage, (_e, code: unknown) =>
-    languages.download(code),
+    languages.download(code, (progress) =>
+      tell(window, IPC.ocrProgress, progress),
+    ),
   );
+  handle(IPC.cancelOcrLanguage, (_e, code: unknown) => languages.cancel(code));
   handle(IPC.removeOcrLanguage, (_e, code: unknown) => languages.remove(code));
   handle(IPC.stop, (_e, id: unknown) => {
     running.get(str(id))?.abort();
