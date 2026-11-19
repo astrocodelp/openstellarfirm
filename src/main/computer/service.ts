@@ -145,6 +145,12 @@ export interface RunOutput {
   cut: boolean;
 }
 
+/** How many times the person has turned a computer off or removed it. */
+export interface ComputerEnded {
+  count: number;
+  removed: boolean;
+}
+
 export class ComputerService {
   private building = false;
   private imageReady: string | undefined;
@@ -153,6 +159,8 @@ export class ComputerService {
     { mode: ComputerHold; waiters: Set<() => void> }
   >();
   private readonly starting = new Map<string, Promise<void>>();
+  /** Each computer the person turned off or removed, how often and how last. */
+  private readonly ended = new Map<string, ComputerEnded>();
   /** True once a computer was started in this run of the app. */
   private touched = false;
 
@@ -637,21 +645,42 @@ export class ComputerService {
     });
   }
 
+  /**
+   * How many times, in this run of the app, the person has turned this
+   * computer off or removed it, and whether the last time was a removal. An
+   * answer that began before the newest one stops using the computer instead
+   * of starting it again.
+   */
+  endedOf(assistantId: string): ComputerEnded {
+    return this.ended.get(assistantId) ?? { count: 0, removed: false };
+  }
+
+  private markEnded(assistantId: string, removed: boolean): void {
+    this.ended.set(assistantId, {
+      count: this.endedOf(assistantId).count + 1,
+      removed,
+    });
+  }
+
+  /** The person's Turn off. Counted before Docker is asked, so a step it cuts short knows why. */
   async stop(assistantId: string): Promise<void> {
-    const result = await this.runner()(
-      ["stop", "--time", "3", containerName(assistantId)],
-      { timeoutMs: 30_000 },
-    );
+    const name = containerName(assistantId);
+    this.markEnded(assistantId, false);
+    const result = await this.runner()(["stop", "--time", "3", name], {
+      timeoutMs: 30_000,
+    });
     if (result.code !== 0 && !/No such container/i.test(result.stderr))
       throw new ComputerError(said(result, "The computer did not stop."));
   }
 
   /** Removes the container. The exchange folder and its files stay. */
   async remove(assistantId: string): Promise<void> {
+    const name = containerName(assistantId);
+    this.markEnded(assistantId, true);
     this.setHold(assistantId, "none");
     const run = this.deps.docker();
     if (!run) return;
-    const result = await run(["rm", "--force", containerName(assistantId)], {
+    const result = await run(["rm", "--force", name], {
       timeoutMs: 30_000,
     });
     if (result.code !== 0 && !/No such container/i.test(result.stderr))

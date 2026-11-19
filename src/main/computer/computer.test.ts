@@ -48,7 +48,9 @@ import {
   inExchange,
   MAX_COMPUTER_TURNS,
   onItsComputer,
+  REMOVED_TEXT,
   SCREENSHOT_TEXT,
+  TURNED_OFF_TEXT,
 } from "./tools";
 
 /**
@@ -844,6 +846,108 @@ describe("the computer tools in an answer", () => {
     expect(steps).toEqual([
       { label: "A step on its computer was not written correctly", ok: false },
     ]);
+  });
+
+  it("takes no step while paused or taken, from the very first one, and goes on when given back", async () => {
+    for (const hold of ["paused", "taken"] as const) {
+      const { svc, calls: log } = computerService();
+      // Held before the answer begins, as when Take over is pressed first.
+      svc.setHold(ID, hold);
+      const gate = computerGate(
+        { id: ID, folders: [], computer: settings },
+        svc,
+      );
+      const activity: string[] = [];
+      const call = gate?.call(
+        "computer_click",
+        JSON.stringify({ x: 5, y: 5 }),
+        [],
+        {
+          ask: async () => "approve",
+          onActivity: (label) => activity.push(label),
+          signal: new AbortController().signal,
+        },
+      );
+      await new Promise((r) => setTimeout(r, 5));
+      expect(log).toEqual([]);
+      expect(activity).toEqual([
+        hold === "paused"
+          ? "Waiting until you resume its computer"
+          : "Waiting while you have its computer",
+      ]);
+      svc.setHold(ID, "none");
+      expect((await call)?.text).toMatch(/^Clicked/);
+      expect(log.some((c) => c.includes("xdotool"))).toBe(true);
+    }
+  });
+
+  it("ends as a plain stop when stopped while paused, with nothing run", async () => {
+    const { svc, calls: log } = computerService();
+    svc.setHold(ID, "paused");
+    const gate = computerGate({ id: ID, folders: [], computer: settings }, svc);
+    const stop = new AbortController();
+    const model = script([
+      calls(callOf("computer_run", { command: "ls /" })),
+      say("never"),
+    ]);
+    const running = runAgent(
+      plain,
+      [],
+      agentDeps(model, { computer: gate, signal: stop.signal }),
+    );
+    await new Promise((r) => setTimeout(r, 5));
+    stop.abort();
+    await expect(running).rejects.toThrow(/^Stopped\.$/);
+    expect(log).toEqual([]);
+    expect(model.seen).toHaveLength(1);
+  });
+
+  it("ends the answer plainly when the person turns its computer off, and never starts it again", async () => {
+    let release: () => void = () => {};
+    const { svc, calls: log } = service((args) => {
+      if (args[0] === "image") return ok("sha256:1");
+      if (args[1] === "inspect") return failed("No such container");
+      return ok();
+    });
+    // A command that runs until the person turns the computer off.
+    const slow = svc.run.bind(svc);
+    svc.run = async (...args) => {
+      await new Promise<void>((r) => {
+        release = r;
+      });
+      return slow(...args);
+    };
+    const gate = computerGate({ id: ID, folders: [], computer: settings }, svc);
+    const host = {
+      ask: async () => "approve" as const,
+      onActivity: () => {},
+      signal: new AbortController().signal,
+    };
+    const running = gate?.call(
+      "computer_run",
+      JSON.stringify({ command: "sleep 40" }),
+      [],
+      host,
+    );
+    await new Promise((r) => setTimeout(r, 5));
+    await svc.stop(ID);
+    release();
+    await expect(running).rejects.toThrow(TURNED_OFF_TEXT);
+    const before = log.length;
+    await expect(
+      gate?.call(COMPUTER_SCREENSHOT, "{}", [], host),
+    ).rejects.toThrow(TURNED_OFF_TEXT);
+    // Nothing was started again, nor asked of Docker at all.
+    expect(log.length).toBe(before);
+
+    // Removing it says so; a later answer may start a fresh one.
+    await svc.remove(ID);
+    await expect(
+      gate?.call(COMPUTER_SCREENSHOT, "{}", [], host),
+    ).rejects.toThrow(REMOVED_TEXT);
+    const next = computerGate({ id: ID, folders: [], computer: settings }, svc);
+    const shot = await next?.call("computer_key", '{"key":"Enter"}', [], host);
+    expect(shot?.text).toBe("Pressed Return.");
   });
 
   it("has room for work on a screen, one small step a round", () => {

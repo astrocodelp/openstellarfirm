@@ -167,14 +167,20 @@ open or close it yourself.
   hidden. The picture's text alternative says how old it is and who has the
   computer.
 - **Pause.** The assistant's next step on its computer waits until you
-  resume.
+  resume, and the chat says it is waiting. A step already running finishes
+  first. You can pause before you send a message, and then not even its first
+  step runs.
 - **Take over.** Your clicks, right clicks, scrolls and keys go to the
-  computer, and the assistant waits. Tab leaves the view, so the keyboard is
-  never trapped; **Press Tab** sends one. Cmd on a Mac stands for Ctrl. Only
-  while you hold it does the app take input from the page at all. Closing the
-  panel gives it back.
-- **Stop the answer**, **Turn off**, **Remove the computer** (behind a
-  confirmation; files in the exchange folder stay).
+  computer, and the assistant waits, from its first step if you took over
+  before sending. Tab leaves the view, so the keyboard is never trapped;
+  **Press Tab** sends one. Cmd on a Mac stands for Ctrl. Only while you hold it
+  does the app take input from the page at all. Closing the panel gives it
+  back.
+- **Stop the answer** ends it, waiting or not, and keeps what it had written.
+- **Turn off** and **Remove the computer** (behind a confirmation; files in
+  the exchange folder stay) also end an answer that is using the computer, at
+  its next step or the one they cut short, with one plain line. That answer
+  never starts the computer again; the next message does.
 
 ## Threat model
 
