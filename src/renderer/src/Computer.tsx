@@ -113,10 +113,8 @@ export function ComputerChoice({
         <span>A computer of its own (Docker)</span>
       </label>
       <p className="faint">
-        A small Linux desktop in Docker on this computer, never in a cloud. It
-        can click, type and run commands there without asking you, because it is
-        kept apart from your files and apps. You can watch it, pause it or take
-        over beside the chat.
+        A Linux desktop in Docker, kept apart from your files, where it works
+        without asking.
       </p>
       {on && value ? (
         <div className="stack computer-options">
@@ -129,12 +127,8 @@ export function ComputerChoice({
             <span>Let its computer reach the internet</span>
           </label>
           <p className="faint">
-            Off: nothing on its computer can reach a website or anything else.
-            On: its browser and commands can reach the internet, and pages it
-            reads there may try to tell it what to do. Once it has read your
-            files, mail, screen or a connection in an answer, each command,
-            typing or key press there asks you first. Changing this starts a
-            fresh computer next time; files in its exchange folder stay.
+            Pages it reads may try to steer it, so once it has read your files,
+            mail, screen or a connection, each command asks first.
           </p>
           <div className="wrap">
             <label className="field">

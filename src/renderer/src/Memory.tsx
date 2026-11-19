@@ -73,7 +73,7 @@ export function MemorySection({ assistant }: { assistant?: Assistant }) {
         <h2 className="section-title" id="memory-title">
           Memory
         </h2>
-        <p className="faint">Save it first. Then you can give it notes.</p>
+        <p className="faint">Save it first to add notes.</p>
       </section>
     );
   }
@@ -193,12 +193,19 @@ function Notes({ assistant }: { assistant: Assistant }) {
           Memory
         </h2>
         <p className="faint">
-          Short notes {assistant.name} keeps in mind in every chat, such as
-          “Prefers short answers”. They go to the model you chose with each
-          message, so keep keys and passwords out. It can save a note itself
-          when you tell it something worth keeping, and each one shows in the
-          chat with Undo. Changes here are saved at once.
+          Notes it keeps in mind in every chat; they go to the model, so keep
+          passwords out.
         </p>
+        <details className="how">
+          <summary>How memory works</summary>
+          <p className="faint">
+            Short notes {assistant.name} keeps in mind in every chat, such as
+            “Prefers short answers”. They go to the model you chose with each
+            message. It can save a note itself when you tell it something worth
+            keeping, and each one shows in the chat with Undo. Changes here are
+            saved at once.
+          </p>
+        </details>
       </div>
 
       <label className="choice" style={{ alignSelf: "flex-start" }}>
@@ -218,8 +225,7 @@ function Notes({ assistant }: { assistant: Assistant }) {
       </label>
       {!on ? (
         <p className="faint">
-          Off: no note goes to the model and it cannot save one. Your notes stay
-          here for when you turn it back on.
+          Off: it neither reads nor saves notes, and yours wait here.
         </p>
       ) : null}
 
