@@ -252,17 +252,11 @@ constexpr int kConfirmCodeRounds = 3;
 void sayLines(const Actions& actions) {
   const PlayTag tag = tagForSpeech();
   if (std::strcmp(actions.playLine, PET_LINE_SETUP_JOIN) == 0) {
-    // "Hi! To set me up, plug me into your computer and open OpenStellarFirm, or join my
-    // Wi-Fi network on your phone." and then the network's password, one clip a
-    // character. The setup network is not open: its password is told only here, by the
-    // pet's own voice, to whoever is in the room (core/setup_access.h). The cable
-    // needs no password (the person who holds it is in the room). A tap or a hold of
-    // the light says it again.
-    const char* ids[ClipPlayer::kMaxClips];
-    size_t n = 0;
-    ids[n++] = PET_LINE_SETUP_JOIN;
-    n += spellSetupPassphrase(secrets.setupPassphrase(), ids + n, ClipPlayer::kMaxClips - n);
-    player.play(tag, ids, n);
+    // "Hi! To set me up, plug me into your computer. Then open OpenStellarFirm, Settings,
+    // Desk pets." Said alone. Phone setup is off (the setup page answers 403 and says
+    // to use the cable), so the setup network's password is no longer spelled: the
+    // cable needs none, and a password nobody can use is not worth saying.
+    player.play(tag, PET_LINE_SETUP_JOIN);
     return;
   }
   if (std::strcmp(actions.playLine, PET_LINE_SETUP_CODE) == 0) {

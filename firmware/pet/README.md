@@ -57,7 +57,8 @@ pack compiled into the firmware (`include/generated/boot_pack.h`, see
 Without that file the image builds, but every character is the same short tone, so
 nobody can learn the password, the phone cannot join, nobody can hear the confirm
 code and **the unit can never be paired**. The `setup-join` line was reworded for USB
-setup (23 October 2026), so a pack rendered before then needs rendering again. Make
+setup (23 October 2026) and again for the cable-only greeting (20 November 2026), so a pack
+rendered before then needs rendering again. Make
 the boot pack (made on your own ElevenLabs key, a later phase; see
 [tools/voice-pack/README.md](tools/voice-pack/README.md)) before flashing a unit
 that will be paired. The build prints a warning when the file is missing.
@@ -639,11 +640,11 @@ page on another site cannot read or drive it. A USB try switches the network off
 length and the pet brings it back if the try fails. A `Forgotten` answer wipes the pet and
 makes it say it was disconnected, but does not open the network; a tap or a hold does.
 
-**Still to do** (a founder decision, since the lines are in `src/shared/pets/lines.ts`): the
-greeting `setup-join` still says "...or join my Wi-Fi network on your phone", and the
-pet still spells the network's password after it. Neither is true to what the network
-now does. The page tells the person where to go, so nothing is lost, but the words and the
-spelled password should go with the first rendering of the boot pack.
+The greeting `setup-join` now says "Hi! To set me up, plug me into your computer. Then
+open OpenStellarFirm, Settings, Desk pets." and the pet no longer spells the network's
+password after it (20 November 2026). The setup network itself is unchanged and still opens
+on a tap or hold; its page only answers 403 and points to the cable. A boot pack rendered
+before that date still plays the old greeting and needs rendering again.
 
 ### Setup over USB
 

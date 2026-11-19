@@ -21,7 +21,7 @@ describe("PET_LINES", () => {
   it("has the lines of the contract with their exact words", () => {
     const expected: Record<string, string> = {
       "setup-join":
-        "Hi! To set me up, plug me into your computer and open OpenStellarFirm, or join my Wi-Fi network on your phone.",
+        "Hi! To set me up, plug me into your computer. Then open OpenStellarFirm, Settings, Desk pets.",
       "setup-code":
         "Here is my confirm code. I will say it three times, slowly. Type it in OpenStellarFirm.",
       "setup-code-again": "Listen, here is the code again.",
