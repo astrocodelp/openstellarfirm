@@ -11,8 +11,9 @@
  */
 
 import { randomUUID } from "node:crypto";
+import type { ModelInfo } from "../../shared/types";
 import {
-  cleanIds,
+  cleanModels,
   fileLabel,
   getList,
   type ListInput,
@@ -23,6 +24,7 @@ import {
   sseData,
   type ToolCall,
   type TurnEvent,
+  tokens,
   type WireMessage,
 } from "./common";
 
@@ -281,7 +283,7 @@ export async function* streamGemini(
 }
 
 /** Lists the models this key may use to answer, by their plain ids. */
-export async function listGemini(input: ListInput): Promise<string[]> {
+export async function listGemini(input: ListInput): Promise<ModelInfo[]> {
   // The list is paged at 50 unless asked for more. The query is fixed text.
   const body = await getList(
     input,
@@ -290,12 +292,17 @@ export async function listGemini(input: ListInput): Promise<string[]> {
   );
   const rows = (body as { models?: unknown }).models;
   if (!Array.isArray(rows)) throw notAService();
-  return cleanIds(
+  // Each row has "name" (models/<id>), "displayName", "inputTokenLimit" and
+  // "supportedGenerationMethods"; only the ones that chat are kept.
+  return cleanModels(
     rows.map((row) => {
-      const { name, supportedGenerationMethods } = row as {
-        name?: unknown;
-        supportedGenerationMethods?: unknown;
-      };
+      const { name, displayName, inputTokenLimit, supportedGenerationMethods } =
+        row as {
+          name?: unknown;
+          displayName?: unknown;
+          inputTokenLimit?: unknown;
+          supportedGenerationMethods?: unknown;
+        };
       if (
         typeof name !== "string" ||
         !Array.isArray(supportedGenerationMethods) ||
@@ -304,7 +311,12 @@ export async function listGemini(input: ListInput): Promise<string[]> {
         return undefined;
       }
       const id = name.replace(/^models\//, "");
-      return MODEL_ID.test(id) ? id : undefined;
+      if (!MODEL_ID.test(id)) return undefined;
+      return {
+        id,
+        name: typeof displayName === "string" ? displayName : undefined,
+        context: tokens(inputTokenLimit),
+      };
     }),
   );
 }

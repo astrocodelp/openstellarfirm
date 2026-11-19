@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type {
   LocalModels,
+  ModelInfo,
   ModelPick,
   ModelSource,
   PresetId,
@@ -52,20 +53,21 @@ export function Welcome({ keychain, onDone, onCloud }: WelcomeProps) {
   const found: {
     preset: PresetId;
     name: string;
-    models: string[];
+    models: ModelInfo[];
     pick: ModelPick | undefined;
   } | null = local?.ollama?.length
     ? {
         preset: "ollama",
         name: "Ollama",
-        models: local.ollama,
+        models: local.details?.ollama ?? local.ollama.map((id) => ({ id })),
         pick: local.picks?.ollama,
       }
     : local?.lmstudio?.length
       ? {
           preset: "lmstudio",
           name: "LM Studio",
-          models: local.lmstudio,
+          models:
+            local.details?.lmstudio ?? local.lmstudio.map((id) => ({ id })),
           pick: local.picks?.lmstudio,
         }
       : null;

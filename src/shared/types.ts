@@ -435,6 +435,33 @@ export interface LocalModels {
   lmstudio: string[] | null;
   /** The model a first run starts with for each, and why it was picked. */
   picks?: { ollama?: ModelPick; lmstudio?: ModelPick };
+  /** What each program said about its models, for the picker. */
+  details?: { ollama?: ModelInfo[]; lmstudio?: ModelInfo[] };
+}
+
+/** One model a service lists, with what its list says about it. */
+export interface ModelInfo {
+  /** The name a call uses. */
+  id: string;
+  /** A display name, when the list gives one that differs from the id. */
+  name?: string;
+  /** How many tokens it can take in, when the list says. */
+  context?: number;
+  /** True when the list says it reads pictures. */
+  pictures?: boolean;
+  /** True when the list says it can use tools. */
+  tools?: boolean;
+  /** When it was published or added, in milliseconds, when the list says. */
+  created?: number;
+}
+
+/**
+ * The models to pick from. "listed" came from the service itself; "suggested"
+ * is a short list written in this app for a service with no list to ask.
+ */
+export interface ModelList {
+  models: ModelInfo[];
+  from: "listed" | "suggested";
 }
 
 /** A model picked to start with, and the end of a sentence saying why. */
@@ -598,9 +625,11 @@ export interface OpenApi {
     baseUrl?: string;
     part?: string;
     apiKey?: string;
-  }): Promise<string[]>;
+  }): Promise<ModelList>;
   /** Lists the models of a saved source, which also proves it works. */
-  checkSource(id: string): Promise<string[]>;
+  checkSource(id: string): Promise<ModelList>;
+  /** Changes only the model a saved source uses. */
+  setSourceModel(id: string, model: string): Promise<ModelSource>;
   detectLocal(): Promise<LocalModels>;
   setSettings(patch: Partial<Settings>): Promise<Settings>;
   /**
@@ -785,6 +814,7 @@ export const IPC = {
   removeSource: "source:remove",
   probeModels: "source:probe",
   checkSource: "source:check",
+  setSourceModel: "source:model",
   detectLocal: "source:detect",
   setSettings: "settings:set",
   openCloud: "cloud:open",

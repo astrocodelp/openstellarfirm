@@ -689,6 +689,19 @@ export class Store {
     return created;
   }
 
+  /** Changes only the model a saved source uses; its address and key stay. */
+  setSourceModel(id: string, model: string): StoredSource {
+    const state = this.read();
+    const existing = state.sources.find((s) => s.id === id);
+    if (!existing) throw new Error("That model source is no longer here.");
+    const name = text(model, 200);
+    if (!name) throw new Error("Name the model to use.");
+    const next: StoredSource = { ...existing, model: name };
+    state.sources = state.sources.map((s) => (s.id === id ? next : s));
+    this.write(state);
+    return next;
+  }
+
   removeSource(id: string): void {
     const state = this.read();
     state.sources = state.sources.filter((s) => s.id !== id);

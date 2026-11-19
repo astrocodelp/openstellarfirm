@@ -5,8 +5,9 @@
  * its result goes back as a `tool_result` block in the next `user` message.
  */
 
+import type { ModelInfo } from "../../shared/types";
 import {
-  cleanIds,
+  cleanModels,
   type FilePart,
   fileLabel,
   getList,
@@ -19,6 +20,7 @@ import {
   type ToolCall,
   type TurnEvent,
   type WireMessage,
+  when,
 } from "./common";
 
 const VERSION = "2023-06-01";
@@ -296,7 +298,7 @@ export async function* streamAnthropic(
 }
 
 /** Lists the models Anthropic serves to this key. */
-export async function listAnthropic(input: ListInput): Promise<string[]> {
+export async function listAnthropic(input: ListInput): Promise<ModelInfo[]> {
   // The list is paged at 20 unless asked for more. The query is fixed text.
   const body = await getList(
     input,
@@ -305,5 +307,19 @@ export async function listAnthropic(input: ListInput): Promise<string[]> {
   );
   const rows = (body as { data?: unknown }).data;
   if (!Array.isArray(rows)) throw notAService();
-  return cleanIds(rows.map((row) => (row as { id?: unknown }).id));
+  // Each row has "id", "display_name" and "created_at" (RFC 3339).
+  return cleanModels(
+    rows.map((row) => {
+      const r = row as {
+        id?: unknown;
+        display_name?: unknown;
+        created_at?: unknown;
+      };
+      return {
+        id: r.id as string,
+        name: typeof r.display_name === "string" ? r.display_name : undefined,
+        created: when(r.created_at),
+      };
+    }),
+  );
 }

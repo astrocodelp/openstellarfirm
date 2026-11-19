@@ -1,4 +1,5 @@
-import type { ModelPick } from "../shared/types";
+import type { ModelInfo, ModelPick } from "../shared/types";
+import { tokens } from "./wires/common";
 
 /**
  * Picks the model a first run starts with, from what a program on this
@@ -17,6 +18,8 @@ interface Facts {
   can: Set<string>;
   /** When it was put on this computer, in milliseconds; 0 when not known. */
   at: number;
+  /** How many tokens it takes in, when the program says. */
+  context?: number;
 }
 
 /** How many models are asked about, at most, so a long list stays quick. */
@@ -46,6 +49,18 @@ async function json(
   return response.json();
 }
 
+/**
+ * The window Ollama's /api/show gives in model_info, under the model's family
+ * (such as "llama.context_length"), as its API documentation shows.
+ */
+function contextOf(info: unknown): number | undefined {
+  if (typeof info !== "object" || info === null) return undefined;
+  for (const [key, value] of Object.entries(info)) {
+    if (key.endsWith(".context_length")) return tokens(value);
+  }
+  return undefined;
+}
+
 async function ollamaFacts(
   root: string,
   names: string[],
@@ -70,6 +85,7 @@ async function ollamaFacts(
   return Promise.all(
     names.slice(0, MAX_ASKED).map(async (name) => {
       let can = new Set<string>();
+      let context: number | undefined;
       try {
         const shown = (await json(
           fetchImpl,
@@ -80,17 +96,23 @@ async function ollamaFacts(
             body: JSON.stringify({ model: name }),
           },
           timeoutMs,
-        )) as { capabilities?: unknown };
+        )) as { capabilities?: unknown; model_info?: unknown };
         if (Array.isArray(shown.capabilities))
           can = new Set(
             shown.capabilities.filter(
               (c): c is string => typeof c === "string",
             ),
           );
+        context = contextOf(shown.model_info);
       } catch {
         // An older Ollama says nothing about what a model can do.
       }
-      return { name, can, at: when.get(name) ?? 0 };
+      return {
+        name,
+        can,
+        at: when.get(name) ?? 0,
+        ...(context ? { context } : {}),
+      };
     }),
   );
 }
@@ -169,6 +191,44 @@ export function bestModel(list: Facts[]): ModelPick | undefined {
   };
 }
 
+interface LocalOptions {
+  fetchImpl?: typeof fetch;
+  timeoutMs?: number;
+}
+
+/**
+ * What the program at `baseUrl` says about each of `names`. Asking it can
+ * fail; then nothing is known but the names.
+ */
+async function localFacts(
+  preset: "ollama" | "lmstudio",
+  baseUrl: string,
+  names: string[],
+  options: LocalOptions = {},
+): Promise<Facts[]> {
+  const fetchImpl = options.fetchImpl ?? fetch;
+  const timeoutMs = options.timeoutMs ?? 1500;
+  const root = rootOf(baseUrl);
+  try {
+    return preset === "ollama"
+      ? await ollamaFacts(root, names, fetchImpl, timeoutMs)
+      : await lmStudioFacts(root, names, fetchImpl, timeoutMs);
+  } catch {
+    return names.map((name) => ({ name, can: new Set(), at: 0 }));
+  }
+}
+
+/** The pick among facts already asked for, falling back to the first name. */
+function pickFrom(facts: Facts[], names: string[]): ModelPick | undefined {
+  if (names.length === 0) return undefined;
+  return (
+    bestModel(facts) ?? {
+      model: names[0] as string,
+      reason: "it is the first model listed.",
+    }
+  );
+}
+
 /**
  * The model to start with among `names`, which the program at `baseUrl`
  * listed. Asking it more can fail; the pick then falls back to the names.
@@ -177,25 +237,38 @@ export async function pickLocalModel(
   preset: "ollama" | "lmstudio",
   baseUrl: string,
   names: string[],
-  options: { fetchImpl?: typeof fetch; timeoutMs?: number } = {},
+  options: LocalOptions = {},
 ): Promise<ModelPick | undefined> {
   if (names.length === 0) return undefined;
-  const fetchImpl = options.fetchImpl ?? fetch;
-  const timeoutMs = options.timeoutMs ?? 1500;
-  const root = rootOf(baseUrl);
-  let facts: Facts[];
-  try {
-    facts =
-      preset === "ollama"
-        ? await ollamaFacts(root, names, fetchImpl, timeoutMs)
-        : await lmStudioFacts(root, names, fetchImpl, timeoutMs);
-  } catch {
-    facts = names.map((name) => ({ name, can: new Set(), at: 0 }));
+  return pickFrom(await localFacts(preset, baseUrl, names, options), names);
+}
+
+/**
+ * Adds what the program says (tools, pictures, when it was put here) to the
+ * models it listed, and leaves out the ones that only make embeddings. Also
+ * gives the pick, from the same answers.
+ */
+export async function describeLocalModels(
+  preset: "ollama" | "lmstudio",
+  baseUrl: string,
+  models: ModelInfo[],
+  options: LocalOptions = {},
+): Promise<{ models: ModelInfo[]; pick?: ModelPick }> {
+  const names = models.map((m) => m.id);
+  const facts = await localFacts(preset, baseUrl, names, options);
+  const byName = new Map(facts.map((f) => [f.name, f]));
+  const out: ModelInfo[] = [];
+  for (const model of models) {
+    const f = byName.get(model.id);
+    if (f && f.can.size > 0 && !f.can.has("completion")) continue;
+    out.push({
+      ...model,
+      ...(f?.can.has("tools") ? { tools: true } : {}),
+      ...(f?.can.has("vision") ? { pictures: true } : {}),
+      ...(f && f.at > 0 ? { created: f.at } : {}),
+      ...(f?.context && !model.context ? { context: f.context } : {}),
+    });
   }
-  return (
-    bestModel(facts) ?? {
-      model: names[0] as string,
-      reason: "it is the first model listed.",
-    }
-  );
+  const pick = pickFrom(facts, names);
+  return { models: out, ...(pick ? { pick } : {}) };
 }

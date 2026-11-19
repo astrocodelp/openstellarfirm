@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bestModel, pickLocalModel } from "./model-pick";
+import { bestModel, describeLocalModels, pickLocalModel } from "./model-pick";
 
 function stubFetch(routes: Record<string, (body: unknown) => unknown>) {
   const asked: string[] = [];
@@ -105,5 +105,48 @@ describe("picking a first model", () => {
     );
     expect(pick?.model).toBe("see-and-tools");
     expect(asked).toEqual(["stub://lms/api/v0/models"]);
+  });
+});
+
+describe("what a program on this computer says about its models", () => {
+  it("adds tools, pictures, the window and when it came, and leaves out embedding models", async () => {
+    const shows: Record<string, unknown> = {
+      "embed:latest": { capabilities: ["embedding"] },
+      "qwen3:8b": {
+        capabilities: ["completion", "tools"],
+        model_info: { "qwen3.context_length": 40960 },
+      },
+      "gemma3:4b": {
+        capabilities: ["completion", "vision"],
+        model_info: { "gemma3.context_length": 131072 },
+      },
+    };
+    const { impl } = stubFetch({
+      "stub://ollama/api/tags": () => ({
+        models: [
+          { name: "embed:latest" },
+          { name: "qwen3:8b", modified_at: "2026-11-03T00:00:00Z" },
+          { name: "gemma3:4b" },
+        ],
+      }),
+      "stub://ollama/api/show": (body) =>
+        shows[(body as { model: string }).model],
+    });
+    const described = await describeLocalModels(
+      "ollama",
+      "stub://ollama/v1",
+      [{ id: "embed:latest" }, { id: "gemma3:4b" }, { id: "qwen3:8b" }],
+      { fetchImpl: impl },
+    );
+    expect(described.models).toEqual([
+      { id: "gemma3:4b", pictures: true, context: 131072 },
+      {
+        id: "qwen3:8b",
+        tools: true,
+        created: Date.parse("2026-11-03T00:00:00Z"),
+        context: 40960,
+      },
+    ]);
+    expect(described.pick?.model).toBe("qwen3:8b");
   });
 });

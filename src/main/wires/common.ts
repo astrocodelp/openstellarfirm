@@ -7,7 +7,7 @@
  */
 
 import type { KeyHeader } from "../../shared/catalog";
-import type { Wire } from "../../shared/types";
+import type { ModelInfo, Wire } from "../../shared/types";
 
 export interface ToolCall {
   id: string;
@@ -312,15 +312,70 @@ export async function getList(
   return listBody(response);
 }
 
-/** Keeps sane, sorted model ids. */
-export function cleanIds(ids: unknown[]): string[] {
-  return ids
-    .filter(
-      (id): id is string =>
-        typeof id === "string" && id.length > 0 && id.length <= 200,
-    )
-    .slice(0, 500)
-    .sort((a, b) => a.localeCompare(b));
+/** The most models one list keeps, so a huge answer stays quick to pick from. */
+export const MAX_LISTED = 500;
+
+/** A model id or name: printable, one line, and not too long. */
+function plain(value: unknown, max: number): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const text = value.trim();
+  if (!text || text.length > max) return undefined;
+  for (const char of text) {
+    const code = char.charCodeAt(0);
+    if (code < 0x20 || code === 0x7f) return undefined;
+  }
+  return text;
+}
+
+/** A whole number of tokens a model takes in, within reason. */
+export function tokens(value: unknown): number | undefined {
+  return typeof value === "number" &&
+    Number.isInteger(value) &&
+    value > 0 &&
+    value <= 100_000_000
+    ? value
+    : undefined;
+}
+
+/** A Unix time in seconds, or an ISO date, as milliseconds; only after 2000. */
+export function when(value: unknown): number | undefined {
+  let ms: number | undefined;
+  if (typeof value === "number" && Number.isFinite(value)) ms = value * 1000;
+  else if (typeof value === "string") ms = Date.parse(value);
+  const earliest = Date.UTC(2000, 0, 1);
+  const latest = Date.UTC(2100, 0, 1);
+  return ms !== undefined && !Number.isNaN(ms) && ms > earliest && ms < latest
+    ? ms
+    : undefined;
+}
+
+/**
+ * Keeps the entries a list may show: a sane id, once each, at most
+ * MAX_LISTED, sorted by id. Only the facts a list gave are kept.
+ */
+export function cleanModels(
+  rows: (Partial<ModelInfo> | undefined)[],
+): ModelInfo[] {
+  const seen = new Set<string>();
+  const out: ModelInfo[] = [];
+  for (const row of rows) {
+    const id = plain(row?.id, 200);
+    if (!row || !id || seen.has(id)) continue;
+    seen.add(id);
+    const name = plain(row.name, 120);
+    const context = tokens(row.context);
+    const created = typeof row.created === "number" ? row.created : undefined;
+    out.push({
+      id,
+      ...(name && name !== id ? { name } : {}),
+      ...(context ? { context } : {}),
+      ...(row.pictures === true ? { pictures: true } : {}),
+      ...(row.tools === true ? { tools: true } : {}),
+      ...(created ? { created } : {}),
+    });
+    if (out.length >= MAX_LISTED) break;
+  }
+  return out.sort((a, b) => a.id.localeCompare(b.id));
 }
 
 const NOT_A_SERVICE = "That address did not answer like a model service.";

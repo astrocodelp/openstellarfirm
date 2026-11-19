@@ -9,7 +9,7 @@
  * that never carries the key.
  */
 
-import type { Wire } from "../shared/types";
+import type { ModelInfo, Wire } from "../shared/types";
 import { listAnthropic, streamAnthropic } from "./wires/anthropic";
 import type {
   ListInput,
@@ -58,11 +58,18 @@ export function streamTurn(call: ModelCall): AsyncGenerator<TurnEvent> {
   return streamOpenAi(call);
 }
 
-/** Lists the models an address serves. Also the way a source is checked. */
-export function listModels(
+/** Lists the models an address serves, with what its list says of each. */
+export function listModelInfo(
   input: ListInput & { wire?: Wire },
-): Promise<string[]> {
+): Promise<ModelInfo[]> {
   if (input.wire === "anthropic") return listAnthropic(input);
   if (input.wire === "gemini") return listGemini(input);
   return listOpenAi(input);
+}
+
+/** Lists the model ids an address serves. Also the way a source is checked. */
+export async function listModels(
+  input: ListInput & { wire?: Wire },
+): Promise<string[]> {
+  return (await listModelInfo(input)).map((model) => model.id);
 }
