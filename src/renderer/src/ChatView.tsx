@@ -33,6 +33,7 @@ import {
   useFoundMessage,
   useSaveChat,
 } from "./ChatTools";
+import { StepFrame } from "./Computer";
 import { Markdown } from "./Markdown";
 import {
   ContextBar,
@@ -108,6 +109,8 @@ interface ChatViewProps {
   onChatChanged(messages: ChatMessage[]): void;
   /** More buttons in the head, before Customize. */
   headExtra?: ReactNode;
+  /** A quiet line under the empty chat's words. */
+  emptyExtra?: ReactNode;
 }
 
 /** The time a check started, as the person's computer writes it. */
@@ -123,9 +126,12 @@ function Steps({
   enter,
   noteIds,
   onUndoNote,
+  assistantId,
 }: {
   steps: ChatStep[];
   enter: boolean;
+  /** Whose computer a step's picture is from. */
+  assistantId: string;
   /** The notes still in memory, so a saved note offers Undo only while it is there. */
   noteIds?: Set<string> | undefined;
   onUndoNote?: (id: string) => Promise<void>;
@@ -147,6 +153,13 @@ function Steps({
           <li key={index} className={step.ok ? "step" : "step step-failed"}>
             <Icon name={step.ok ? "check" : "alert"} size={14} />
             <span>{step.label}</span>
+            {step.frame ? (
+              <StepFrame
+                assistantId={assistantId}
+                frameId={step.frame}
+                label={step.label}
+              />
+            ) : null}
           </li>
         );
       })}
@@ -376,7 +389,9 @@ export function ChatView(props: ChatViewProps) {
     ) : m.failed ? (
       <div key={m.id} className="turn" data-message-id={m.id}>
         {m.check ? <p className="check-note">Check update</p> : null}
-        {m.steps ? <Steps steps={m.steps} enter={fresh(m)} /> : null}
+        {m.steps ? (
+          <Steps steps={m.steps} enter={fresh(m)} assistantId={assistant.id} />
+        ) : null}
         <p
           className={[
             "bubble bubble-failed",
@@ -418,6 +433,7 @@ export function ChatView(props: ChatViewProps) {
           <Steps
             steps={m.steps}
             enter={fresh(m)}
+            assistantId={assistant.id}
             noteIds={noteIds}
             onUndoNote={undoNote}
           />
@@ -602,11 +618,14 @@ export function ChatView(props: ChatViewProps) {
               Tell {assistant.name} what you need.
             </h2>
             {modelLine ? (
-              <p className="dim">
-                {canAct
-                  ? "It asks before it reaches a new website. It never changes or deletes a file."
-                  : "Right now it can only talk. Pick folders or turn on web pages in Customize."}
-              </p>
+              <>
+                <p className="dim">
+                  {canAct
+                    ? "It asks before it reaches a new website. It never changes or deletes a file."
+                    : "Right now it can only talk. Pick folders or turn on web pages in Customize."}
+                </p>
+                {props.emptyExtra}
+              </>
             ) : (
               <>
                 <p className="dim">It needs a model to think with first.</p>

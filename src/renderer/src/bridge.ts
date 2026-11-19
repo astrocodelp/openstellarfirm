@@ -2,6 +2,7 @@ import { presetOf } from "../../shared/catalog";
 import type {
   ComputerHold,
   ComputerProgress,
+  ComputerState,
   ComputerView,
 } from "../../shared/computer";
 import { catalogEntry, catalogPreset } from "../../shared/connection-catalog";
@@ -299,6 +300,10 @@ function preview(): OpenApi {
   let computerImage = false;
   /** Running stand-in computers and who holds each. */
   const computers = new Map<string, ComputerHold>();
+  const stateListeners = new Set<(state: ComputerState) => void>();
+  const tellState = (assistantId: string, on: boolean) => {
+    for (const listener of stateListeners) listener({ assistantId, on });
+  };
   const computerViewOf = (assistantId: string): ComputerView => ({
     container: computers.has(assistantId) ? "on" : "off",
     hold: computers.get(assistantId) ?? "none",
@@ -342,8 +347,13 @@ function preview(): OpenApi {
         web: input.web ?? existing?.web ?? false,
         createdAt: existing?.createdAt ?? now(),
       };
-      if (computer === null) delete next.computer;
-      else if (computer) next.computer = computer;
+      if (computer === null) {
+        delete next.computer;
+        next.computerOff = true;
+      } else if (computer) {
+        next.computer = computer;
+        delete next.computerOff;
+      }
       state.assistants = existing
         ? state.assistants.map((a) => (a.id === next.id ? next : a))
         : [...state.assistants, next];
@@ -623,6 +633,7 @@ function preview(): OpenApi {
     computerView: async (assistantId) => computerViewOf(assistantId),
     computerStart: async (assistantId) => {
       computers.set(assistantId, "none");
+      tellState(assistantId, true);
       return computerViewOf(assistantId);
     },
     computerShot: async (assistantId) =>
@@ -641,16 +652,31 @@ function preview(): OpenApi {
     computerInput: async () => {},
     computerStop: async (assistantId) => {
       computers.delete(assistantId);
+      tellState(assistantId, false);
       return computerViewOf(assistantId);
     },
     computerRemove: async (assistantId) => {
       computers.delete(assistantId);
+      tellState(assistantId, false);
       return computerViewOf(assistantId);
     },
     computerOpenExchange: async () => {},
     onComputerProgress: (listener) => {
       progressListeners.add(listener);
       return () => progressListeners.delete(listener);
+    },
+    computerRunning: async () => [...computers.keys()],
+    computerList: async () =>
+      state.assistants
+        .filter((a) => a.computer)
+        .map((a) => ({
+          assistantId: a.id,
+          container: computers.has(a.id) ? ("on" as const) : ("none" as const),
+        })),
+    computerFrame: async () => null,
+    onComputerState: (listener) => {
+      stateListeners.add(listener);
+      return () => stateListeners.delete(listener);
     },
     ...recordPreview(state),
   };

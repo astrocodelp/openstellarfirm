@@ -277,3 +277,126 @@ describe("plain text", () => {
     expect(plainLine("**Command Output**: `Linu")).toBe("Command Output: Linu");
   });
 });
+
+describe("tables", () => {
+  const text = (t: string) => [{ type: "text", text: t }];
+
+  it("reads a pipe table with its alignment", () => {
+    expect(
+      parseMarkdown(
+        "| Name | Count | Note |\n| :--- | ---: | :-: |\n| a | 1 | **x** |\n| b | 22 | |",
+      ),
+    ).toEqual([
+      {
+        type: "table",
+        align: ["left", "right", "center"],
+        head: [text("Name"), text("Count"), text("Note")],
+        rows: [
+          [
+            text("a"),
+            text("1"),
+            [{ type: "strong", children: [{ type: "text", text: "x" }] }],
+          ],
+          [text("b"), text("22"), []],
+        ],
+      },
+    ]);
+  });
+
+  it("reads a table without the outer pipes, and pads or cuts its rows", () => {
+    const [table] = parseMarkdown("a | b\n--- | ---\n1\n1 | 2 | 3");
+    expect(table).toMatchObject({
+      type: "table",
+      align: [null, null],
+      rows: [
+        [text("1"), []],
+        [text("1"), text("2")],
+      ],
+    });
+  });
+
+  it("keeps a pipe that is escaped or inside code in its cell", () => {
+    const [table] = parseMarkdown(
+      "| a | b |\n|---|---|\n| x \\| y | `p | q` |",
+    );
+    expect(table).toMatchObject({
+      type: "table",
+      rows: [[text("x | y"), [{ type: "code", text: "p | q" }]]],
+    });
+  });
+
+  it("reads a <br> in a cell as a line break, never as HTML", () => {
+    const [table] = parseMarkdown("| a |\n|---|\n| one<br>two <BR/> three |");
+    expect(table).toMatchObject({
+      rows: [
+        [
+          [
+            { type: "text", text: "one" },
+            { type: "break" },
+            { type: "text", text: "two " },
+            { type: "break" },
+            { type: "text", text: " three" },
+          ],
+        ],
+      ],
+    });
+  });
+
+  it("is not a table when the dashed line does not match the header", () => {
+    expect(parseMarkdown("a | b\n--- | --- | ---")[0]?.type).toBe("paragraph");
+    expect(parseMarkdown("Title\n---")[0]?.type).not.toBe("table");
+    expect(parseMarkdown("a | b")[0]?.type).toBe("paragraph");
+  });
+
+  it("ends at a blank line, and can follow a paragraph", () => {
+    const blocks = parseMarkdown("Here:\n| a |\n|---|\n| 1 |\n\nAfter.");
+    expect(blocks.map((b) => b.type)).toEqual([
+      "paragraph",
+      "table",
+      "paragraph",
+    ]);
+  });
+
+  it("finds links in its cells, and copies as tab-separated lines", () => {
+    const md =
+      "| Site | Why |\n|---|---|\n| [Docs](https://example.com/) | ok |";
+    expect(linksOf(md)).toEqual(["https://example.com/"]);
+    expect(plainText(md, { links: "words" })).toBe("Site\tWhy\nDocs\tok");
+  });
+
+  it("keeps at most twenty columns", () => {
+    const head = Array.from({ length: 30 }, (_, i) => `c${i}`).join(" | ");
+    const dash = Array.from({ length: 30 }, () => "---").join(" | ");
+    const [table] = parseMarkdown(`${head}\n${dash}`);
+    expect(table?.type === "table" && table.head.length).toBe(20);
+  });
+});
+
+describe("task lists", () => {
+  it("reads ticked and open tasks, and items that are not tasks", () => {
+    const [list] = parseMarkdown("- [x] Done\n- [ ] To do\n- Plain");
+    expect(list).toEqual({
+      type: "list",
+      ordered: false,
+      start: 1,
+      checks: [true, false, null],
+      items: [
+        [{ type: "paragraph", children: [{ type: "text", text: "Done" }] }],
+        [{ type: "paragraph", children: [{ type: "text", text: "To do" }] }],
+        [{ type: "paragraph", children: [{ type: "text", text: "Plain" }] }],
+      ],
+    });
+  });
+
+  it("leaves a list with no task as it was", () => {
+    expect(parseMarkdown("- a\n- b")[0]).not.toHaveProperty("checks");
+    // A box in a numbered list is only text.
+    expect(parseMarkdown("1. [x] a")[0]).not.toHaveProperty("checks");
+  });
+
+  it("writes the boxes in plain text", () => {
+    expect(plainText("- [x] Done\n- [ ] To do")).toBe(
+      "- [x] Done\n- [ ] To do",
+    );
+  });
+});

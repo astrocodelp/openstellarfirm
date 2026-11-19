@@ -1,6 +1,6 @@
 import { type FormEvent, useId, useState } from "react";
 import { COLORS, PETS } from "../../shared/catalog";
-import type { ComputerSettings } from "../../shared/computer";
+import { type ComputerSettings, defaultComputer } from "../../shared/computer";
 import type { OwnSkill } from "../../shared/own-skills";
 import type {
   Assistant,
@@ -56,8 +56,9 @@ export function AssistantForm(props: AssistantFormProps) {
   const [skills, setSkills] = useState<string[]>(assistant?.skills ?? []);
   const [web, setWeb] = useState(assistant?.web ?? false);
   const [screen, setScreen] = useState(assistant?.screen ?? false);
+  // A new assistant has its own computer, with no network, unless turned off.
   const [computer, setComputer] = useState<ComputerSettings | null>(
-    assistant?.computer ?? null,
+    assistant ? (assistant.computer ?? null) : defaultComputer(),
   );
   const [connectionIds, setConnectionIds] = useState<string[]>(
     assistant?.connections ?? [],

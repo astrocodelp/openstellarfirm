@@ -4,7 +4,8 @@
  * own elements, and anything that is not in the subset stays text.
  *
  * Blocks: paragraphs (single line breaks kept), headings (drawn as a bold
- * line), fenced code, bullet and numbered lists (nested by indent), quotes and
+ * line), fenced code, bullet and numbered lists (nested by indent), task list
+ * items ("- [ ]" and "- [x]"), tables in GitHub's pipe form, quotes and
  * rules. Inline: bold, italic, code and links. A link is kept only when its
  * address is http or https; any other address leaves only its words.
  *
@@ -25,9 +26,28 @@ export type Block =
   | { type: "paragraph"; children: Inline[] }
   | { type: "heading"; children: Inline[] }
   | { type: "code"; lang: string; text: string }
-  | { type: "list"; ordered: boolean; start: number; items: Block[][] }
+  | {
+      type: "list";
+      ordered: boolean;
+      start: number;
+      items: Block[][];
+      /**
+       * For a task list, whether each item is ticked; null for an item that
+       * is not a task. Missing when no item is one.
+       */
+      checks?: (boolean | null)[];
+    }
+  | {
+      type: "table";
+      /** How each column lines up; null when the dashes say nothing. */
+      align: (Align | null)[];
+      head: Inline[][];
+      rows: Inline[][][];
+    }
   | { type: "quote"; children: Block[] }
   | { type: "rule" };
+
+export type Align = "left" | "center" | "right";
 
 export interface ParseOptions {
   /** True while the text is still arriving. */
@@ -38,6 +58,9 @@ export interface ParseOptions {
 const MAX_CHARS = 200_000;
 /** How deep lists and quotes may nest before the rest is read as text. */
 const MAX_DEPTH = 8;
+/** A table wider or longer than this keeps only its first columns and rows. */
+export const MAX_TABLE_COLUMNS = 20;
+export const MAX_TABLE_ROWS = 500;
 
 /**
  * The address a link may open, or undefined. Only http and https, with no
@@ -78,6 +101,10 @@ const HEADING = /^ {0,3}#{1,6}(?:\s+(.*?))?\s*$/;
 const RULE = /^ {0,3}([-*_])(?:\s*\1){2,}\s*$/;
 const QUOTE = /^ {0,3}>\s?(.*)$/;
 const ITEM = /^(\s*)([-*+]|\d{1,9}[.)])(\s+|$)(.*)$/;
+/** A task list item's box, at the start of its text: "[ ] ", "[x] ". */
+const TASK = /^\[([ xX])\](?:\s+|$)/;
+/** One cell of a table's dashed line: "---", ":--", "--:" or ":-:". */
+const DELIMITER_CELL = /^:?-+:?$/;
 
 interface ItemLine {
   indent: number;
@@ -134,6 +161,72 @@ function dedent(line: string, n: number): string {
 
 function leading(line: string): number {
   return columns(/^\s*/.exec(line)?.[0] ?? "");
+}
+
+/**
+ * A table row's cells, split at each "|" that is not escaped and not in a
+ * code span. The pipes at the very start and end are optional.
+ */
+function cells(line: string): string[] {
+  let text = line.trim();
+  if (text.startsWith("|")) text = text.slice(1);
+  if (text.endsWith("|") && !text.endsWith("\\|")) text = text.slice(0, -1);
+  const out: string[] = [];
+  let cell = "";
+  let i = 0;
+  while (i < text.length) {
+    const c = text[i];
+    if (c === "\\" && text[i + 1] === "|") {
+      // An escaped pipe is a pipe in the cell's words.
+      cell += "\\|";
+      i += 2;
+      continue;
+    }
+    if (c === "`") {
+      const span = codeSpanEnd(text, i);
+      if (span.end !== -1) {
+        cell += text.slice(i, span.end + span.run);
+        i = span.end + span.run;
+        continue;
+      }
+    }
+    if (c === "|") {
+      out.push(cell.trim());
+      cell = "";
+      i += 1;
+      continue;
+    }
+    cell += c;
+    i += 1;
+  }
+  out.push(cell.trim());
+  return out;
+}
+
+/** The columns' alignment when `line` is a table's dashed line, else undefined. */
+function delimiterRow(line: string): (Align | null)[] | undefined {
+  if (!line.includes("-") || !/^[\s|:-]+$/.test(line)) return undefined;
+  const parts = cells(line);
+  if (parts.length === 0 || !parts.every((p) => DELIMITER_CELL.test(p)))
+    return undefined;
+  // A line of dashes with no pipe at all is a rule or a heading's underline.
+  if (!line.includes("|") && parts.length === 1) return undefined;
+  return parts.map((p) =>
+    p.startsWith(":") && p.endsWith(":")
+      ? "center"
+      : p.endsWith(":")
+        ? "right"
+        : p.startsWith(":")
+          ? "left"
+          : null,
+  );
+}
+
+/** True when `line` and the one after it start a table. */
+function startsTable(line: string, next: string | undefined): boolean {
+  if (next === undefined || !line.includes("|")) return false;
+  const align = delimiterRow(next);
+  return align !== undefined && cells(line).length === align.length;
 }
 
 function startsBlock(line: string): boolean {
@@ -202,6 +295,34 @@ function parseLines(
       continue;
     }
 
+    if (startsTable(line, lines[i + 1])) {
+      const align = (delimiterRow(lines[i + 1] ?? "") ?? []).slice(
+        0,
+        MAX_TABLE_COLUMNS,
+      );
+      const width = align.length;
+      const row = (text: string): Inline[][] => {
+        const parts = cells(text).slice(0, width);
+        while (parts.length < width) parts.push("");
+        // A cell holds one line, so models write "<br>" for a new one: it
+        // becomes a line break, never HTML.
+        return parts.map((part) =>
+          parseInline(part.replace(/<br\s*\/?>/gi, "\n"), options),
+        );
+      };
+      const head = row(line);
+      const rows: Inline[][][] = [];
+      i += 2;
+      while (i < lines.length) {
+        const next = lines[i] ?? "";
+        if (blank(next) || (startsBlock(next) && !next.includes("|"))) break;
+        if (rows.length < MAX_TABLE_ROWS) rows.push(row(next));
+        i += 1;
+      }
+      blocks.push({ type: "table", align, head, rows });
+      continue;
+    }
+
     if (QUOTE.test(line) && depth < MAX_DEPTH) {
       const inner: string[] = [];
       while (i < lines.length) {
@@ -220,6 +341,7 @@ function parseLines(
     const first = itemLine(line);
     if (first && depth < MAX_DEPTH) {
       const items: Block[][] = [];
+      const checks: (boolean | null)[] = [];
       while (i < lines.length) {
         const head = itemLine(lines[i] ?? "");
         if (
@@ -229,7 +351,10 @@ function parseLines(
           head.kind !== first.kind
         )
           break;
-        const body = [head.text];
+        // "[ ] " or "[x] " at the start of an unordered item makes it a task.
+        const task = head.ordered ? null : TASK.exec(head.text);
+        checks.push(task ? task[1] !== " " : null);
+        const body = [task ? head.text.slice(task[0].length) : head.text];
         i += 1;
         // The item goes on while lines are indented under its text, and over
         // blank lines when something indented follows them.
@@ -278,6 +403,7 @@ function parseLines(
         ordered: first.ordered,
         start: first.number,
         items,
+        ...(checks.some((c) => c !== null) ? { checks } : {}),
       });
       continue;
     }
@@ -287,7 +413,8 @@ function parseLines(
     i += 1;
     while (i < lines.length) {
       const next = lines[i] ?? "";
-      if (blank(next) || startsBlock(next)) break;
+      if (blank(next) || startsBlock(next) || startsTable(next, lines[i + 1]))
+        break;
       para.push(next.trim());
       i += 1;
     }
@@ -644,10 +771,23 @@ function blockText(block: Block, options: PlainOptions): string {
       return "";
     case "quote":
       return blocksText(block.children, options);
+    case "table":
+      // One line a row, the cells apart by tabs, so a copy pastes into a
+      // spreadsheet as columns.
+      return [block.head, ...block.rows]
+        .map((row) => row.map((cell) => inlineText(cell, options)).join("\t"))
+        .join("\n");
     case "list":
       return block.items
         .map((item, index) => {
-          const mark = block.ordered ? `${block.start + index}. ` : "- ";
+          const check = block.checks?.[index];
+          const mark = block.ordered
+            ? `${block.start + index}. `
+            : check === true
+              ? "- [x] "
+              : check === false
+                ? "- [ ] "
+                : "- ";
           const body = item
             .map((b) => blockText(b, options))
             .filter((t) => t !== "")
@@ -701,6 +841,9 @@ export function linksOf(text: string): string[] {
       else if (block.type === "quote") walk(block.children);
       else if (block.type === "list")
         for (const item of block.items) walk(item);
+      else if (block.type === "table")
+        for (const row of [block.head, ...block.rows])
+          for (const cell of row) walkInline(cell);
     }
   };
   walk(parseMarkdown(text));

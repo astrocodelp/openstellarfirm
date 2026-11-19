@@ -20,7 +20,12 @@ import {
 import { api } from "./bridge";
 import type { FoundMessage } from "./ChatTools";
 import { ChatView } from "./ChatView";
-import { ComputerPanel } from "./Computer";
+import {
+  ComputerHeadButton,
+  ComputerNote,
+  ComputerPanel,
+  useComputers,
+} from "./Computer";
 import {
   findKeys,
   focusScreen,
@@ -71,10 +76,13 @@ export function App() {
   /** The step that waits for the person, by assistant. */
   const [approvals, setApprovals] = useState<Record<string, ApprovalCard>>({});
   /**
-   * Whether each assistant's computer panel is open. Missing means the person
-   * has not chosen: then it opens by itself when the assistant uses its computer.
+   * Whether each assistant's computer panel is open. It opens only when the
+   * person asks: the thumbnail in the chat's head shows the computer at work.
    */
   const [computerOpen, setComputerOpen] = useState<Record<string, boolean>>({});
+  /** True when the open panel was asked for with a click, so it slides in. */
+  const [computerSlide, setComputerSlide] = useState(false);
+  const computers = useComputers();
   const [error, setError] = useState("");
   /** Find anything (Ctrl or Cmd+K), and where its last pick leads. */
   const [finding, setFinding] = useState(false);
@@ -178,10 +186,6 @@ export function App() {
     });
     const offActivity = api.onActivity(({ assistantId, label }) => {
       setActivity((a) => ({ ...a, [assistantId]: label }));
-      if (/its computer/.test(label))
-        setComputerOpen((open) =>
-          assistantId in open ? open : { ...open, [assistantId]: true },
-        );
     });
     const offApproval = api.onApproval(({ assistantId, card }) => {
       if (card)
@@ -313,6 +317,11 @@ export function App() {
 
   const newVersion = availableUpdate(state.settings, state.version);
   const assistant = state.assistants.find((a) => a.id === selected);
+  // Its computer shows in the chat once Docker runs here; until the
+  // computers are set up, the panel is where that is done.
+  const computerShown =
+    assistant?.computer !== undefined &&
+    (computers.readiness === "ready" || computers.readiness === "setup");
   const editing =
     view.name === "assistant"
       ? state.assistants.find((a) => a.id === view.id)
@@ -513,21 +522,33 @@ export function App() {
                 // in the next: each assistant gets a fresh chat view.
                 key={assistant.id}
                 headExtra={
-                  assistant.computer ? (
-                    <button
-                      type="button"
-                      className="btn"
-                      aria-expanded={computerOpen[assistant.id] === true}
-                      aria-controls="computer-panel"
-                      onClick={() =>
+                  computerShown ? (
+                    <ComputerHeadButton
+                      assistant={assistant}
+                      on={computers.running.has(assistant.id)}
+                      open={computerOpen[assistant.id] === true}
+                      onToggle={(pointer) => {
+                        setComputerSlide(pointer);
                         setComputerOpen((open) => ({
                           ...open,
                           [assistant.id]: open[assistant.id] !== true,
-                        }))
-                      }
-                    >
-                      Computer
-                    </button>
+                        }));
+                      }}
+                    />
+                  ) : null
+                }
+                emptyExtra={
+                  assistant.computer ? (
+                    <ComputerNote
+                      readiness={computers.readiness}
+                      onSetUp={() => {
+                        setComputerSlide(false);
+                        setComputerOpen((open) => ({
+                          ...open,
+                          [assistant.id]: true,
+                        }));
+                      }}
+                    />
                   ) : null
                 }
                 assistant={assistant}
@@ -558,9 +579,12 @@ export function App() {
                 }}
               />
             </div>
-            {assistant.computer && computerOpen[assistant.id] === true ? (
+            {computerShown && computerOpen[assistant.id] === true ? (
               <ComputerPanel
                 assistant={assistant}
+                assistants={state.assistants}
+                slide={computerSlide}
+                onSetUp={() => void computers.check()}
                 busy={streams[assistant.id] !== undefined}
                 onStop={() => void api.stop(assistant.id)}
                 onClose={() =>

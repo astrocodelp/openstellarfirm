@@ -80,9 +80,16 @@ app's version and operating system. Please do not include a real key.
   not followed.
 - **Connections.** Made only from a web address you typed (https, or http on
   this computer). The app never starts a program for one.
-- **An assistant's own computer.** Off unless you turn it on for that
-  assistant; only the assistant form sets it, and no shared file, backup or
-  persona carries it. `docker` is run with an argument array, never a shell,
+- **An assistant's own computer.** On by default for every assistant, with
+  no network, but only where Docker runs and only after you set the
+  computers up once (the image is built only on your click, after the panel
+  says what it downloads and its size). Nothing starts when the app opens: a
+  computer starts when its assistant first uses it in an answer, or when you
+  press Start. At most three run at once, and one nobody used for 15 minutes
+  is stopped (never removed). Without Docker no computer tool is offered.
+  Only the assistant form turns it off or changes it (a new assistant from a
+  shared file, a backup or a persona gets the same default, network off), and
+  no file carries its settings. `docker` is run with an argument array, never a shell,
   and every value from a model is checked before it becomes one argument
   (whole pixels on the screen, keys from a fixed list, a command within its
   length and time limits). The container has `--network none` unless you

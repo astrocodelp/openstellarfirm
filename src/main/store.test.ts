@@ -27,6 +27,78 @@ const input = {
   skills: ["plan", "plan"],
 } as const;
 
+describe("an assistant's own computer", () => {
+  it("is on for a new assistant, with no network", () => {
+    const saved = store.saveAssistant({ ...input, skills: [] });
+    expect(saved.computer).toEqual({ network: false, memoryGb: 2, cpus: 2 });
+    expect(saved.computerOff).toBeUndefined();
+  });
+
+  it("stays off once the person turns it off, and comes back when they turn it on", () => {
+    const a = store.saveAssistant({ ...input, skills: [] });
+    const off = store.saveAssistant({
+      ...input,
+      skills: [],
+      id: a.id,
+      computer: null,
+    });
+    expect(off.computer).toBeUndefined();
+    expect(off.computerOff).toBe(true);
+    // Saving the form again without touching it keeps it off, after a restart too.
+    store.saveAssistant({ ...input, skills: [], id: a.id, name: "Scout 2" });
+    expect(new Store(dir).assistant(a.id).computer).toBeUndefined();
+    const on = store.saveAssistant({
+      ...input,
+      skills: [],
+      id: a.id,
+      computer: { network: true, memoryGb: 4, cpus: 1 },
+    });
+    expect(on.computer).toEqual({ network: true, memoryGb: 4, cpus: 1 });
+    expect(new Store(dir).assistant(a.id).computerOff).toBeUndefined();
+  });
+
+  it("can be off from the start, when the form says so", () => {
+    const saved = store.saveAssistant({ ...input, skills: [], computer: null });
+    expect(saved.computer).toBeUndefined();
+    expect(saved.computerOff).toBe(true);
+  });
+
+  it("gives the default to one saved before it was on by default, and keeps an off one off", () => {
+    const a = store.saveAssistant({ ...input, skills: [] });
+    const b = store.saveAssistant({ ...input, skills: [], computer: null });
+    const c = store.saveAssistant({
+      ...input,
+      skills: [],
+      computer: { network: true, memoryGb: 8, cpus: 4 },
+    });
+    const file = join(dir, "state.json");
+    const raw = JSON.parse(readFileSync(file, "utf8"));
+    // As an older version wrote them: no field at all for "never chose".
+    delete raw.assistants[0].computer;
+    // A value that is not one of the choices takes the safe default.
+    raw.assistants[2].computer = { network: "yes", memoryGb: 64, cpus: 4 };
+    writeFileSync(file, JSON.stringify(raw));
+    const read = new Store(dir);
+    expect(read.assistant(a.id).computer).toEqual({
+      network: false,
+      memoryGb: 2,
+      cpus: 2,
+    });
+    expect(read.assistant(b.id).computer).toBeUndefined();
+    expect(read.assistant(c.id).computer).toEqual({
+      network: false,
+      memoryGb: 2,
+      cpus: 4,
+    });
+  });
+
+  it("is never carried by a shared assistant file", () => {
+    const a = store.saveAssistant({ ...input, skills: [], computer: null });
+    const file = JSON.stringify(store.exportFile(a.id));
+    expect(file).not.toMatch(/computer/i);
+  });
+});
+
 describe("assistants", () => {
   it("cleans and keeps an assistant", () => {
     const saved = store.saveAssistant({ ...input, skills: [...input.skills] });

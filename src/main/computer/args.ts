@@ -208,3 +208,27 @@ export const LIST_RUNNING_ARGS = [
   "--filter",
   `label=${LABEL}=assistant`,
 ];
+
+/** The assistant ids of the app's running computers, one a line. */
+export const LIST_RUNNING_ASSISTANTS_ARGS = [
+  "ps",
+  "--filter",
+  `label=${LABEL}=assistant`,
+  "--format",
+  `{{.Label "${LABEL_ASSISTANT}"}}`,
+];
+
+/** Every computer of the app, running or not: its assistant id and state. */
+export const LIST_ALL_ARGS = [
+  "ps",
+  "--all",
+  "--filter",
+  `label=${LABEL}=assistant`,
+  "--format",
+  `{{.Label "${LABEL_ASSISTANT}"}}|{{.State}}`,
+];
+
+/** True for an id the app made, which names a container of its own. */
+export function isAssistantId(id: string): boolean {
+  return ASSISTANT_ID.test(id);
+}
