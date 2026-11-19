@@ -1300,6 +1300,8 @@ textarea.input {
 }
 
 .md-table :is(th, td) {
+  /* Words in a cell wrap between words, never mid-word as in a bubble. */
+  overflow-wrap: normal;
   padding: 0.4375rem 0.75rem;
   text-align: start;
   vertical-align: top;
@@ -3089,6 +3091,12 @@ kbd {
    * the empty spot under a message must not forget it. The first tap shows it.
    */
   pointer-events: none;
+}
+
+/* In an answer's row of actions, Forget shows like Copy and Read aloud. */
+:where(.turn-actions) > .forget-btn {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 /*

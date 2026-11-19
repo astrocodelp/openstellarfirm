@@ -380,7 +380,8 @@ export function ChatView(props: ChatViewProps) {
   }
 
   /** One saved message, as the chat shows it. */
-  function renderMessage(m: ChatMessage) {
+  /** One saved message; an answer's Forget sits in its row of actions. */
+  function renderMessage(m: ChatMessage, forget?: ReactNode) {
     return m.check === "request" ? (
       <p key={m.id} className="check-note" data-message-id={m.id}>
         <Icon name="check" size={14} />
@@ -460,6 +461,7 @@ export function ChatView(props: ChatViewProps) {
             text={plainText(m.text, { links: "words" })}
             rate={props.readRate ?? 1}
           />
+          {forget}
         </div>
       </div>
     );
@@ -661,8 +663,25 @@ export function ChatView(props: ChatViewProps) {
                   />
                 ) : (
                   <div key={m.id} className={`msg msg-${m.role}`}>
-                    {renderMessage(m)}
-                    <ForgetButton tools={tools} busy={busy} messageId={m.id} />
+                    {isAnswer(m) ? (
+                      renderMessage(
+                        m,
+                        <ForgetButton
+                          tools={tools}
+                          busy={busy}
+                          messageId={m.id}
+                        />,
+                      )
+                    ) : (
+                      <>
+                        {renderMessage(m)}
+                        <ForgetButton
+                          tools={tools}
+                          busy={busy}
+                          messageId={m.id}
+                        />
+                      </>
+                    )}
                   </div>
                 ),
               )}
@@ -798,4 +817,9 @@ export function ChatView(props: ChatViewProps) {
  */
 function stoppedByPerson(m: ChatMessage): boolean {
   return m.failed === true && m.text === "Stopped.";
+}
+
+/** A saved answer, the kind that has a row of actions under it. */
+function isAnswer(m: ChatMessage): boolean {
+  return m.role === "assistant" && !m.failed && m.check !== "request";
 }
