@@ -18,6 +18,7 @@ import {
   text,
 } from "../shared/assistant-file";
 import { presetOf } from "../shared/catalog";
+import { cleanLookFor, isCheckEvery, LOOK_FOR_MAX } from "../shared/checks";
 import { connectionPresetOf } from "../shared/connection-catalog";
 import { checkEndpoint } from "../shared/endpoint";
 import {
@@ -65,6 +66,18 @@ export interface StoredConnection
 /** A mail account as kept on disk. The password lives in the keychain, never here. */
 export type StoredMail = Omit<MailAccount, "hasPassword">;
 
+/** What the checks keep between runs, so a restart never gives extra ones. */
+export interface CheckCounters {
+  /** The local day the count is for, such as "2026-11-19". */
+  day: string;
+  /** Checks that started that day. */
+  count: number;
+  /** Checks in a row that failed. */
+  failures: number;
+  /** When the last check started, or when checks were switched on. */
+  lastAt?: string;
+}
+
 interface StoredState {
   v: 1;
   assistants: Assistant[];
@@ -74,6 +87,8 @@ interface StoredState {
   /** Missing in a file saved before mail existed. */
   mail?: StoredMail[];
   settings: Settings;
+  /** Missing in a file saved before checks existed. */
+  checks?: CheckCounters;
 }
 
 const MAX_MAIL = 5;
@@ -84,6 +99,7 @@ const MAX_FOLDERS = 10;
 const MAX_SITES = 100;
 const MAX_CONNECTIONS = 20;
 const MAX_ALLOWED_TOOLS = 200;
+const MAX_CAN_ASK = 10;
 
 /** Seconds-precise ISO times only, so a bad value never reaches a date. */
 function cleanTime(value: unknown): string | undefined {
@@ -106,6 +122,22 @@ function cleanSettings(raw: Partial<Settings> | undefined): Settings {
     sendWith: cleanSendKey(base.sendWith),
     checkUpdates: base.checkUpdates === true,
   };
+  // The main assistant's checks: a value that is not valid is dropped, and a
+  // missing one reads as its default (see `checkSettings`).
+  delete settings.mainAssistantId;
+  delete settings.checkOnItsOwn;
+  delete settings.checkEvery;
+  delete settings.checkLookFor;
+  delete settings.checkNotify;
+  delete settings.checkUnread;
+  if (typeof base.mainAssistantId === "string" && ID.test(base.mainAssistantId))
+    settings.mainAssistantId = base.mainAssistantId;
+  if (base.checkOnItsOwn === true) settings.checkOnItsOwn = true;
+  if (isCheckEvery(base.checkEvery)) settings.checkEvery = base.checkEvery;
+  const lookFor = cleanLookFor(base.checkLookFor);
+  if (lookFor) settings.checkLookFor = lookFor;
+  if (base.checkNotify === true) settings.checkNotify = true;
+  if (base.checkUnread === true) settings.checkUnread = true;
   const checked = cleanTime(base.lastUpdateCheck);
   const newest = cleanVersion(base.newestVersion);
   const dismissed = cleanVersion(base.dismissedVersion);
@@ -162,9 +194,16 @@ export class Store {
       sites: a.sites ?? [],
       connections: a.connections ?? [],
       connectionTools: a.connectionTools ?? [],
+      canAsk: cleanCanAsk(a.canAsk, parsed.assistants, a.id),
     }));
     parsed.connections ??= [];
     parsed.mail ??= [];
+    // A main assistant that is no longer here is none, and nothing checks.
+    if (
+      parsed.settings.mainAssistantId &&
+      !parsed.assistants.some((a) => a.id === parsed.settings.mainAssistantId)
+    )
+      noMain(parsed.settings);
     return parsed;
   }
 
@@ -209,6 +248,10 @@ export class Store {
         screen: input.screen === undefined ? existing.screen : clean.screen,
         folders: existing.folders,
         sites: existing.sites,
+        canAsk:
+          input.canAsk === undefined
+            ? (existing.canAsk ?? [])
+            : cleanCanAsk(input.canAsk, state.assistants, id),
         connections,
         connectionTools: keptTools(
           existing.connectionTools,
@@ -243,8 +286,10 @@ export class Store {
       connectionTools: [],
       ...mailFields(cleanMailIds(input.mail ?? [], state.mail ?? []), []),
       id: randomUUID(),
+      canAsk: [],
       createdAt: new Date().toISOString(),
     };
+    created.canAsk = cleanCanAsk(input.canAsk, state.assistants, created.id);
     state.assistants.push(created);
     this.write(state);
     return created;
@@ -253,7 +298,15 @@ export class Store {
   removeAssistant(id: string): void {
     const state = this.read();
     if (!state.assistants.some((a) => a.id === id)) return;
-    state.assistants = state.assistants.filter((a) => a.id !== id);
+    state.assistants = state.assistants
+      .filter((a) => a.id !== id)
+      // Nobody may ask it any more.
+      .map((a) =>
+        (a.canAsk ?? []).includes(id)
+          ? { ...a, canAsk: (a.canAsk ?? []).filter((x) => x !== id) }
+          : a,
+      );
+    if (state.settings.mainAssistantId === id) noMain(state.settings);
     this.write(state);
     rmSync(this.chatFile(id), { force: true });
   }
@@ -277,14 +330,17 @@ export class Store {
     body: string,
     failed = false,
     steps: ChatStep[] = [],
+    check?: ChatMessage["check"],
+    at: Date = new Date(),
   ): ChatMessage {
     const message: ChatMessage = {
       id: randomUUID(),
       role,
       text: body,
-      at: new Date().toISOString(),
+      at: at.toISOString(),
       ...(failed ? { failed: true } : {}),
       ...(steps.length > 0 ? { steps } : {}),
+      ...(check ? { check } : {}),
     };
     const all = [...this.messages(assistantId), message].slice(-MAX_MESSAGES);
     this.writeFile(this.chatFile(assistantId), all);
@@ -606,7 +662,62 @@ export class Store {
       typeof patch.checkUpdates !== "boolean"
     )
       throw new Error("That is not allowed.");
+    if (patch.checkEvery !== undefined && !isCheckEvery(patch.checkEvery))
+      throw new Error("That is not a time between checks.");
+    for (const key of ["checkOnItsOwn", "checkNotify"] as const) {
+      if (patch[key] !== undefined && typeof patch[key] !== "boolean")
+        throw new Error("That is not allowed.");
+    }
+    if (patch.checkLookFor !== undefined) {
+      if (
+        typeof patch.checkLookFor !== "string" ||
+        patch.checkLookFor.length > LOOK_FOR_MAX
+      )
+        throw new Error(
+          `Say it in ${LOOK_FOR_MAX.toLocaleString("en-US")} characters or fewer.`,
+        );
+    }
+    // The page may only mark an update as seen; the app is what sets it.
+    if (patch.checkUnread !== undefined && patch.checkUnread !== false)
+      throw new Error("That is not allowed.");
+    if (
+      patch.mainAssistantId !== undefined &&
+      typeof patch.mainAssistantId !== "string"
+    )
+      throw new Error("That is not allowed.");
     const state = this.read();
+    if (patch.mainAssistantId !== undefined) {
+      if (patch.mainAssistantId === "") noMain(state.settings);
+      else if (!state.assistants.some((a) => a.id === patch.mainAssistantId))
+        throw new Error("That assistant is no longer here.");
+      else if (state.settings.mainAssistantId !== patch.mainAssistantId) {
+        state.settings.mainAssistantId = patch.mainAssistantId;
+        // Another assistant is main now: checks start again from nothing.
+        delete state.settings.checkOnItsOwn;
+        delete state.settings.checkUnread;
+      }
+    }
+    if (patch.checkOnItsOwn !== undefined) {
+      if (patch.checkOnItsOwn && !state.settings.mainAssistantId)
+        throw new Error("Pick the main assistant first.");
+      if (patch.checkOnItsOwn && !state.settings.checkOnItsOwn) {
+        // Switched on now: the first check is one wait away, never at once.
+        state.checks = {
+          day: state.checks?.day ?? "",
+          count: state.checks?.count ?? 0,
+          failures: 0,
+          lastAt: new Date().toISOString(),
+        };
+      }
+      state.settings.checkOnItsOwn = patch.checkOnItsOwn;
+    }
+    if (patch.checkEvery !== undefined)
+      state.settings.checkEvery = patch.checkEvery;
+    if (patch.checkLookFor !== undefined)
+      state.settings.checkLookFor = cleanLookFor(patch.checkLookFor);
+    if (patch.checkNotify !== undefined)
+      state.settings.checkNotify = patch.checkNotify;
+    if (patch.checkUnread === false) delete state.settings.checkUnread;
     if (patch.theme !== undefined) state.settings.theme = patch.theme;
     if (patch.textSize !== undefined) state.settings.textSize = patch.textSize;
     if (patch.sendWith !== undefined) state.settings.sendWith = patch.sendWith;
@@ -690,6 +801,32 @@ export class Store {
     });
     this.write(state);
     return count;
+  }
+
+  /** What the checks have done so far today, kept so a restart cannot reset it. */
+  checkCounters(): CheckCounters {
+    return this.read().checks ?? { day: "", count: 0, failures: 0 };
+  }
+
+  saveCheckCounters(counters: CheckCounters): void {
+    const state = this.read();
+    state.checks = counters;
+    this.write(state);
+  }
+
+  /** Marks that a check left an update the person has not seen. */
+  markCheckUpdate(assistantId: string): void {
+    const state = this.read();
+    if (state.settings.mainAssistantId !== assistantId) return;
+    state.settings.checkUnread = true;
+    this.write(state);
+  }
+
+  /** Switches checks off, as the app does after three failures in a row. */
+  stopChecks(): void {
+    const state = this.read();
+    delete state.settings.checkOnItsOwn;
+    this.write(state);
   }
 
   exportFile(id: string): AssistantFile {
@@ -814,4 +951,30 @@ function mailFields(
     ...(mail.length > 0 ? { mail } : {}),
     ...(kept.length > 0 ? { mailReads: kept } : {}),
   };
+}
+
+/** No main assistant: nothing checks, and nothing is unread. */
+function noMain(settings: Settings): void {
+  delete settings.mainAssistantId;
+  delete settings.checkOnItsOwn;
+  delete settings.checkUnread;
+}
+
+/** The assistants it may ask: others that exist, once each, never itself. */
+function cleanCanAsk(
+  ids: unknown,
+  assistants: { id: string }[],
+  self: string,
+): string[] {
+  if (!Array.isArray(ids)) return [];
+  return [
+    ...new Set(
+      ids.filter(
+        (id): id is string =>
+          typeof id === "string" &&
+          id !== self &&
+          assistants.some((a) => a.id === id),
+      ),
+    ),
+  ].slice(0, MAX_CAN_ASK);
 }

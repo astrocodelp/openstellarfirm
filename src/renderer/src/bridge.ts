@@ -114,6 +114,7 @@ function preview(): OpenApi {
         sites: existing?.sites ?? [],
         connections: input.connections ?? existing?.connections ?? [],
         connectionTools: existing?.connectionTools ?? [],
+        canAsk: input.canAsk ?? existing?.canAsk ?? [],
         web: input.web ?? existing?.web ?? false,
         createdAt: existing?.createdAt ?? now(),
       };
@@ -343,6 +344,7 @@ function preview(): OpenApi {
       chats.clear();
       return count;
     },
+    checkNow: async () => {},
     checkForUpdate: async () => ({ status: "current" }),
     dismissUpdate: async () => state.settings,
     onDelta: () => () => {},

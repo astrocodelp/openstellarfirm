@@ -43,8 +43,11 @@ export function buildBackup(
   if (includeChats) {
     const chats: NonNullable<BackupFile["chats"]> = {};
     list.forEach((a, index) => {
+      // A check and its update are the app's own, and the check holds what the
+      // person asked it to look for: neither travels.
       const messages = store
         .messages(a.id)
+        .filter((m) => !m.check)
         .slice(-MAX_BACKUP_MESSAGES)
         .map((m) => ({
           role: m.role,

@@ -63,6 +63,7 @@ const api: OpenApi = {
   openDataFolder: () => call(IPC.openDataFolder),
   clearApprovals: () => call(IPC.clearApprovals),
   deleteAllChats: () => call(IPC.deleteAllChats),
+  checkNow: () => call(IPC.checkNow),
   checkForUpdate: () => call(IPC.checkForUpdate),
   dismissUpdate: () => call(IPC.dismissUpdate),
   onDelta: (listener) => listen(IPC.delta, listener),

@@ -1,11 +1,12 @@
 /** Types shared by the main process, the preload and the page. No Node or DOM imports. */
 
+import type { CheckEvery } from "./checks";
 import type { LinkName } from "./links";
 import type { SendKey, TextSize } from "./preferences";
 import type { Theme } from "./theme";
 import type { UpdateCheck } from "./update";
 
-export type { LinkName, SendKey, TextSize, UpdateCheck };
+export type { CheckEvery, LinkName, SendKey, TextSize, UpdateCheck };
 
 export const PET_IDS = [
   "blip",
@@ -101,6 +102,12 @@ export interface Assistant {
    * Only an account listed in `mail` can be here.
    */
   mailReads?: string[];
+  /**
+   * Ids of the other assistants it may ask one question at a time. Empty unless
+   * the person ticks them in the assistant form; never in a shared file, a
+   * backup or a persona.
+   */
+  canAsk?: string[];
   /** The start of its newest message, for the sidebar. */
   lastLine?: string;
   createdAt: string;
@@ -116,6 +123,7 @@ export type AssistantInput = Pick<
   screen?: boolean;
   connections?: string[];
   mail?: string[];
+  canAsk?: string[];
 };
 
 /** One thing the assistant did while answering, as a short plain line. */
@@ -132,6 +140,11 @@ export interface ChatMessage {
   /** True when the model call failed and the text says why. */
   failed?: boolean;
   steps?: ChatStep[];
+  /**
+   * Set when the app wrote or answered this on its own: "request" is the check
+   * the app started (not something the person typed), "update" is the reply.
+   */
+  check?: "request" | "update";
 }
 
 /** A step that waits for the person. Built by the main process, in plain words. */
@@ -289,6 +302,18 @@ export interface Settings {
   newestVersion?: string;
   /** The version whose notice the person closed. */
   dismissedVersion?: string;
+  /** The one assistant that may check on its own. Missing means none. */
+  mainAssistantId?: string;
+  /** Off until the person turns it on: checks run only while the app is open. */
+  checkOnItsOwn?: boolean;
+  /** Minutes between checks; one of the choices in `CHECK_EVERY`. */
+  checkEvery?: CheckEvery;
+  /** What to look for, in the person's own words. */
+  checkLookFor?: string;
+  /** Off until the person turns it on: a notice, with the name only. */
+  checkNotify?: boolean;
+  /** True while the main assistant has an update the person has not seen. */
+  checkUnread?: boolean;
 }
 
 export interface AppState {
@@ -319,6 +344,8 @@ export interface ChatDelta {
 export interface ChatDone {
   assistantId: string;
   message: ChatMessage;
+  /** The check the app started, saved just before `message`; none for an answer. */
+  request?: ChatMessage;
 }
 
 /** What the assistant is doing right now, such as "Reading notes.md". */
@@ -430,6 +457,11 @@ export interface OpenApi {
   clearApprovals(): Promise<number>;
   /** Deletes every chat and keeps the assistants. Returns how many chats. */
   deleteAllChats(): Promise<number>;
+  /**
+   * Starts one check by the main assistant, on the person's click. It only
+   * reads. Resolves when it has started; the update appears in the chat.
+   */
+  checkNow(): Promise<void>;
   /** One check for a newer version, on the person's click. */
   checkForUpdate(): Promise<UpdateCheck>;
   /** Closes the notice for the version that is shown now. */
@@ -480,6 +512,7 @@ export const IPC = {
   openDataFolder: "data:open",
   clearApprovals: "approvals:clear",
   deleteAllChats: "chats:deleteAll",
+  checkNow: "checks:now",
   checkForUpdate: "update:check",
   dismissUpdate: "update:dismiss",
   delta: "chat:delta",

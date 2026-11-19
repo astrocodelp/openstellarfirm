@@ -1002,6 +1002,19 @@ textarea.input {
   background: var(--signal);
 }
 
+.dot-update {
+  background: var(--ok);
+}
+
+.check-note {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  margin: 0.25rem 0;
+  color: var(--faint);
+  font-size: var(--text-caption);
+}
+
 .approval {
   align-self: stretch;
   display: flex;

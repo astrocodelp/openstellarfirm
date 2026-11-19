@@ -26,6 +26,8 @@ interface AssistantFormProps {
   sources: ModelSource[];
   connections: Connection[];
   mailAccounts: MailAccount[];
+  /** Every assistant, so the person can pick the ones this one may ask. */
+  assistants: Assistant[];
   onSaved(assistant: Assistant): void;
   /** Folders or sites changed; the form stays open. */
   onChanged(): void;
@@ -35,6 +37,7 @@ interface AssistantFormProps {
 
 export function AssistantForm(props: AssistantFormProps) {
   const { assistant, sources, connections, mailAccounts } = props;
+  const others = props.assistants.filter((a) => a.id !== assistant?.id);
   const [name, setName] = useState(assistant?.name ?? "");
   const [group, setGroup] = useState(assistant?.group ?? "Personal");
   const [pet, setPet] = useState<PetId>(assistant?.pet ?? "glim");
@@ -47,6 +50,7 @@ export function AssistantForm(props: AssistantFormProps) {
     assistant?.connections ?? [],
   );
   const [mailIds, setMailIds] = useState<string[]>(assistant?.mail ?? []);
+  const [canAsk, setCanAsk] = useState<string[]>(assistant?.canAsk ?? []);
   const [sourceId, setSourceId] = useState(assistant?.sourceId ?? "");
   const [model, setModel] = useState(assistant?.model ?? "");
   const [error, setError] = useState("");
@@ -95,6 +99,7 @@ export function AssistantForm(props: AssistantFormProps) {
           screen,
           connections: connectionIds,
           mail: mailIds,
+          canAsk,
           ...(sourceId ? { sourceId } : {}),
           ...(sourceId && model.trim() ? { model: model.trim() } : {}),
         }),
@@ -495,6 +500,45 @@ export function AssistantForm(props: AssistantFormProps) {
                 ))}
               </ul>
             ) : null}
+          </fieldset>
+          <fieldset className="stack-tight">
+            <legend className="section-title">Can ask</legend>
+            {others.length === 0 ? (
+              <p className="faint">
+                Make another assistant first. Then you can let this one ask it.
+              </p>
+            ) : (
+              <>
+                <p className="faint">
+                  This assistant may ask the ones you tick one question at a
+                  time. The one that is asked answers with its own brief,
+                  skills, tools and model, and sees only the question, not this
+                  chat. A question, and anything in it, goes to the other
+                  assistant's model, and what the other assistant reads to
+                  answer comes back here and goes to this assistant's model. If
+                  it needs your Approve for a step, the card shows in this chat
+                  and says whose step it is. It cannot ask a third assistant.
+                </p>
+                <div className="stack-tight">
+                  {others.map((other) => (
+                    <label className="choice" key={other.id}>
+                      <input
+                        type="checkbox"
+                        checked={canAsk.includes(other.id)}
+                        onChange={(event) =>
+                          setCanAsk((ids) =>
+                            event.target.checked
+                              ? [...ids, other.id]
+                              : ids.filter((id) => id !== other.id),
+                          )
+                        }
+                      />
+                      <span>{other.name}</span>
+                    </label>
+                  ))}
+                </div>
+              </>
+            )}
           </fieldset>
 
           <div className="wrap" style={{ alignItems: "flex-start" }}>

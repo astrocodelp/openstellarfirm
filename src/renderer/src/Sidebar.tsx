@@ -9,6 +9,8 @@ interface SidebarProps {
   busy: Set<string>;
   /** The assistants with a step that waits for the person. */
   waiting: Set<string>;
+  /** The assistants with an update from a check that has not been seen. */
+  unread: Set<string>;
   showCloudCard: boolean;
   /** The screen that is open, so its link in the foot reads as the current one. */
   current?:
@@ -33,12 +35,13 @@ interface SidebarProps {
 }
 
 export function Sidebar(props: SidebarProps) {
-  const { assistants, selected, busy, waiting } = props;
+  const { assistants, selected, busy, waiting, unread } = props;
   // Groups keep the order in which their first assistant was made.
   const groups = [...new Set(assistants.map((a) => a.group))];
   const line = (a: Assistant) => {
     if (waiting.has(a.id)) return "Waiting for your Approve";
     if (busy.has(a.id)) return "Working…";
+    if (unread.has(a.id)) return "New update from a check";
     return a.lastLine ?? "No messages yet";
   };
   const nav = (
@@ -101,6 +104,12 @@ export function Sidebar(props: SidebarProps) {
                   </span>
                   {waiting.has(a.id) ? (
                     <span className="dot" role="img" aria-label="Needs you" />
+                  ) : unread.has(a.id) ? (
+                    <span
+                      className="dot dot-update"
+                      role="img"
+                      aria-label="New update"
+                    />
                   ) : null}
                 </button>
               ))}

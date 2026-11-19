@@ -40,6 +40,7 @@ export function cleanAssistant(
   | "sites"
   | "connections"
   | "connectionTools"
+  | "canAsk"
 > {
   const raw = (input ?? {}) as Record<string, unknown>;
   // A name is one line: control characters are taken out before it is cut.
@@ -89,7 +90,7 @@ export function isAssistantFile(file: unknown): boolean {
 /**
  * Reads one assistant file field by field. A shared file never brings a model
  * source, a model, web access or screen access with it, and never a folder, a
- * site or a connection (it has no field for them): the person picks those for
+ * site, a connection or a list of assistants it may ask (it has no field for them): the person picks those for
  * themselves.
  */
 export function readAssistantFile(file: unknown): {

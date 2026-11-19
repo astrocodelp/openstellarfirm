@@ -79,13 +79,22 @@ export function App() {
         card ? { ...a, [assistantId]: card } : without(a, assistantId),
       );
     });
-    const offDone = api.onDone(({ assistantId, message }) => {
+    const offDone = api.onDone(({ assistantId, message, request }) => {
       setStreams((s) => without(s, assistantId));
       setActivity((a) => without(a, assistantId));
       setApprovals((a) => without(a, assistantId));
       setChats((c) => {
         const loaded = c[assistantId];
-        return loaded ? { ...c, [assistantId]: [...loaded, message] } : c;
+        return loaded
+          ? {
+              ...c,
+              [assistantId]: [
+                ...loaded,
+                ...(request ? [request] : []),
+                message,
+              ],
+            }
+          : c;
       });
       void refresh();
     });
@@ -115,6 +124,19 @@ export function App() {
       live = false;
     };
   }, [selected, chats]);
+
+  // An update from a check counts as seen once its chat is open.
+  const unreadMain = state?.settings.checkUnread
+    ? state.settings.mainAssistantId
+    : undefined;
+  useEffect(() => {
+    if (unreadMain && unreadMain === selected && view.name === "chat") {
+      void api
+        .setSettings({ checkUnread: false })
+        .then(refresh)
+        .catch(() => undefined);
+    }
+  }, [unreadMain, selected, view.name, refresh]);
 
   if (!state) {
     return (
@@ -210,6 +232,7 @@ export function App() {
         selected={view.name === "chat" ? selected : null}
         busy={new Set(Object.keys(streams))}
         waiting={new Set(Object.keys(approvals))}
+        unread={new Set(unreadMain ? [unreadMain] : [])}
         showCloudCard={!state.settings.hideCloudCard}
         current={
           view.name === "models" ||
@@ -298,6 +321,7 @@ export function App() {
             sources={state.sources}
             connections={state.connections}
             mailAccounts={state.mailAccounts}
+            assistants={state.assistants}
             onSaved={(saved) => {
               void refresh().then(() => {
                 setSelected(saved.id);
