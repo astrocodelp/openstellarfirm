@@ -34,14 +34,20 @@ export function ApprovalsSection({
   return (
     <Section section="approvals">
       <p className="faint">
-        An assistant asks before it reads a website, uses a read-only tool of a
-        connection, or reads a mail account, for the first time. If you choose
-        "Always allow", the app remembers that site, that tool or that mailbox
-        for that assistant only. It still asks again in an answer that has
-        already read something from outside, because an address or a tool's
-        details could carry it out. Nothing else is remembered: a look at your
-        screen and any tool that can change something ask every time.
+        Always allow remembers one site, tool or mailbox for one assistant.
       </p>
+      <details className="how">
+        <summary>How approvals work</summary>
+        <p className="faint">
+          An assistant asks before it reads a website, uses a read-only tool of
+          a connection, or reads a mail account, for the first time. If you
+          choose "Always allow", the app remembers that site, that tool or that
+          mailbox for that assistant only. It still asks again in an answer that
+          has already read something from outside, because an address or a
+          tool's details could carry it out. Nothing else is remembered: a look
+          at your screen and any tool that can change something ask every time.
+        </p>
+      </details>
       <p>
         {remembered === 0
           ? "Nothing is remembered."

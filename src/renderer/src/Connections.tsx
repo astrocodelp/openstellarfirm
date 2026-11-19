@@ -144,8 +144,8 @@ function ConnectionForm({
           onChange={(event) => setBaseUrl(event.target.value)}
         />
         <span className="faint" id={`${ids}-address-note`}>
-          Starts with https://, or http:// for a server on this computer. No
-          sign-in or “?” in it.
+          Starts with https://, or http:// on this computer, with no sign-in or
+          “?” in it.
         </span>
       </label>
       <label className="field">
@@ -165,7 +165,7 @@ function ConnectionForm({
         />
         <span className="faint" id={`${ids}-key-note`}>
           {keychain
-            ? "Kept in this computer's keychain. It is sent only to this address, and never shown again."
+            ? "Kept in this computer's keychain, sent only to this address and never shown again."
             : noKeychainNote(document.documentElement.dataset.platform, "key")}
         </span>
       </label>
@@ -220,7 +220,7 @@ interface CatalogFormProps {
 }
 
 const KEY_PROMISE = (service: string) =>
-  `Your key stays in this computer's keychain and is sent only to ${service}. Every tool call still asks you first.`;
+  `Kept in this computer's keychain, sent only to ${service} and never shown again.`;
 
 /** Adds or changes one service from the built-in list: a name and the person's own key. */
 function CatalogForm({
@@ -297,8 +297,7 @@ function CatalogForm({
           onChange={(event) => setName(event.target.value)}
         />
         <span className="faint">
-          Each connection needs its own name, so you can add the same service
-          twice, for example a work and a personal one.
+          A name of its own, such as Work or Personal.
         </span>
       </label>
       <label className="field">
@@ -419,10 +418,17 @@ function ComposioForm({
   return (
     <form className="stack" onSubmit={save}>
       <p className="dim">
-        This uses your own Composio account and key. Your usage and any cost are
-        between you and Composio. What you send through it leaves this computer.
-        Every tool call still asks you first.
+        It uses your own Composio account, so any cost is between you and
+        Composio.
       </p>
+      <details className="how">
+        <summary>How Composio works</summary>
+        <p className="faint">
+          This uses your own Composio account and key. Your usage and any cost
+          are between you and Composio. What you send through it leaves this
+          computer. Every tool call still asks you first.
+        </p>
+      </details>
       <div>
         <button
           type="button"
@@ -459,7 +465,7 @@ function ComposioForm({
         />
         <span className="faint" id={`${ids}-key-note`}>
           {keychain
-            ? "Kept in this computer's keychain. It is sent only to Composio, and never shown again."
+            ? "Kept in this computer's keychain, sent only to Composio and never shown again."
             : noKeychainNote(document.documentElement.dataset.platform, "key")}
         </span>
       </label>
@@ -544,8 +550,7 @@ function CompanyLookup({
             onChange={(event) => setDomain(event.target.value)}
           />
           <span className="faint">
-            Pressing Look up makes this app contact that site, once, to read one
-            public file. No key or cookie is sent.
+            Look up reads one public file from that site, with no key or cookie.
           </span>
         </label>
         <div className="wrap">
@@ -603,8 +608,7 @@ function CompanyLookup({
             </ul>
           )}
           <p className="faint">
-            This only shows what the company publishes. OpenStellarFirm cannot
-            sign in to a company for you yet.
+            OpenStellarFirm cannot sign in to a company for you yet.
           </p>
         </div>
       ) : null}
@@ -717,21 +721,31 @@ export function ConnectionsScreen({ state, onChanged, onMail }: ScreenProps) {
     <div className="screen">
       <div className="screen-body">
         <ScreenHead title={pageTitle("connections")}>
-          A connection lets an assistant use the tools of another service. You
-          make a key in that service, and this app sends it only to that
-          service, straight from this computer. You choose which assistants may
-          use each connection, in each assistant's own settings. Every call asks
-          you first and shows what would be sent. A tool the service says only
-          reads can be allowed for good; every other tool asks every time. What
-          an assistant sends to a connection leaves this computer.
+          Every call asks you first, and what an assistant sends to a connection
+          leaves this computer.
         </ScreenHead>
+        <details className="how">
+          <summary>How connections work</summary>
+          <p className="faint">
+            A connection lets an assistant use the tools of another service. You
+            make a key in that service, and this app sends it only to that
+            service, straight from this computer. You choose which assistants
+            may use each connection, in each assistant's own settings. Every
+            call asks you first and shows what would be sent. A tool the service
+            says only reads can be allowed for good; every other tool asks every
+            time. The services listed below let you make a key of your own; add
+            the same one more than once if you have more than one account. This
+            only shows what a company publishes about itself when you look it
+            up.
+          </p>
+        </details>
 
         <section className="stack" aria-labelledby="connections-title">
           <h2 className="section-title" id="connections-title">
             Services you added
           </h2>
           {state.connections.length === 0 ? (
-            <p className="dim">Nothing yet. Add a service below.</p>
+            <p className="dim">No services yet.</p>
           ) : (
             <ul className="list card">
               {state.connections.map((connection) => {
@@ -868,8 +882,8 @@ export function ConnectionsScreen({ state, onChanged, onMail }: ScreenProps) {
           <div className="card pad mail-card">
             <p className="dim">
               {state.mailAccounts.length === 0
-                ? "Gmail, Outlook, iCloud or any IMAP mailbox, with an app password. Read only: an assistant can never send, delete or move mail."
-                : `${state.mailAccounts.length === 1 ? "1 mailbox" : `${state.mailAccounts.length} mailboxes`} added. Read only: an assistant can never send, delete or move mail.`}
+                ? "Gmail, Outlook, iCloud or any IMAP mailbox, read only: an assistant can never send, delete or move mail."
+                : `${state.mailAccounts.length === 1 ? "1 mailbox" : `${state.mailAccounts.length} mailboxes`} added, read only: an assistant can never send, delete or move mail.`}
             </p>
             <button type="button" className="btn" onClick={onMail}>
               {state.mailAccounts.length === 0 ? "Add a mailbox" : "Open Mail"}
@@ -881,10 +895,6 @@ export function ConnectionsScreen({ state, onChanged, onMail }: ScreenProps) {
           <h2 className="section-title" id="add-service-title">
             Add a service
           </h2>
-          <p className="dim">
-            Services that let you make a key of your own. Add the same one more
-            than once if you have more than one account.
-          </p>
           <ConnectionGallery
             onMail={onMail}
             connections={state.connections}
@@ -916,8 +926,7 @@ export function ConnectionsScreen({ state, onChanged, onMail }: ScreenProps) {
             Add Composio
           </h2>
           <p className="dim">
-            More apps through your own Composio account, such as mail, calendars
-            and Slack, for apps that have no direct way in above.
+            Mail, calendars, Slack and more, through your own Composio account.
           </p>
           {open?.kind === "composio" ? (
             <div className="card pad">
@@ -951,7 +960,8 @@ export function ConnectionsScreen({ state, onChanged, onMail }: ScreenProps) {
             <div className="card pad">
               {open.name || open.baseUrl ? (
                 <p className="dim" role="status">
-                  Filled in from the company look-up. Check it, then add it.
+                  Filled in from the company look-up, so check it before you add
+                  it.
                 </p>
               ) : null}
               <ConnectionForm
@@ -982,8 +992,8 @@ export function ConnectionsScreen({ state, onChanged, onMail }: ScreenProps) {
             Look up a company
           </h2>
           <p className="dim">
-            Companies can publish what they offer to people's AI agents. Type a
-            site name to see it. Nothing is saved or connected by a look-up.
+            See what a company offers to AI agents, without saving or connecting
+            anything.
           </p>
           <div className="card pad">
             <CompanyLookup onFill={fill} />

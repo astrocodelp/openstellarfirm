@@ -7,8 +7,9 @@ export function noKeychainNote(
   platform: string | undefined,
   secret: "key" | "password",
 ): string {
-  const base = `This computer has no keychain, so a ${secret} cannot be saved here.`;
+  const base = `This computer has no keychain, so a ${secret} cannot be saved here`;
+  // One sentence, as every hint under a field is.
   return platform === "linux"
-    ? `${base} Start GNOME Keyring, KWallet or another Secret Service keyring, then open OpenStellarFirm again.`
-    : base;
+    ? `${base} until you start GNOME Keyring, KWallet or another Secret Service keyring and open OpenStellarFirm again.`
+    : `${base}.`;
 }

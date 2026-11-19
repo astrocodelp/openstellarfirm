@@ -26,6 +26,7 @@ export function ReadingSection() {
   const { busy, error, run } = useAction();
   const selectId = useId();
   const barId = useId();
+  const hintId = useId();
   const selectRef = useRef<HTMLSelectElement>(null);
   const stopRef = useRef<HTMLButtonElement>(null);
   /** Read by the progress listener, which is set up once. */
@@ -99,11 +100,8 @@ export function ReadingSection() {
   return (
     <Section section="reading">
       <p className="faint">
-        When a model cannot read a picture or a scanned PDF, the app reads its
-        text on this computer and sends that instead. It reads English. To read
-        another language, download it here. That download is the only thing this
-        does on the internet: one file from huggingface.co, checked against the
-        copy the app expects before it is kept.
+        Reads the text of a picture or a scanned PDF on this computer when a
+        model cannot.
       </p>
       <p>Reads: {installed.map((l) => l.name).join(", ") || "English"}</p>
       {installed.some((l) => !l.builtIn) ? (
@@ -190,11 +188,18 @@ export function ReadingSection() {
             type="button"
             className="btn"
             aria-disabled={busy || undefined}
+            aria-describedby={hintId}
             onClick={() => download(pick)}
           >
             Download {pick.name} ({fileSize(pick.size)})
           </button>
         </div>
+      ) : null}
+      {downloading || pick ? (
+        // Under the row in both its states, so nothing moves when it changes.
+        <p className="faint" id={hintId}>
+          One file from huggingface.co, checked before it is kept.
+        </p>
       ) : null}
       {/* The end, said once by this region; the line itself is no second region. */}
       <div aria-live="polite">
@@ -205,6 +210,16 @@ export function ReadingSection() {
         ) : null}
       </div>
       <ErrorLine>{error}</ErrorLine>
+      <details className="how">
+        <summary>How reading works</summary>
+        <p className="faint">
+          When a model cannot read a picture or a scanned PDF, the app reads its
+          text on this computer and sends that instead. It reads English. To
+          read another language, download it here. That download is the only
+          thing this does on the internet: one file from huggingface.co, checked
+          against the copy the app expects before it is kept.
+        </p>
+      </details>
     </Section>
   );
 }

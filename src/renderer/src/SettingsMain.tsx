@@ -17,8 +17,7 @@ import {
 } from "./SettingsParts";
 import { OkLine } from "./ui";
 
-const EXAMPLE =
-  "For example: new mail that needs an answer today, and anything in my Notes folder marked urgent.";
+const EXAMPLE = "For example: new mail that needs an answer today.";
 
 /**
  * Settings, Main assistant: one assistant that checks on its own while the app
@@ -45,17 +44,17 @@ export function MainAssistantSection({
 
   return (
     <Section section="main">
-      <p className="faint">
-        Pick one assistant to check on things for you. It only works while this
-        app is open. Each check uses your model, which costs you money if the
-        model is a paid service. A check only reads: anything that would need
-        your Approve is left for you, and it says so in its update.
-      </p>
-
       <label className="field">
-        <span className="field-label">Main assistant</span>
+        <span className="field-label" id={`${id}-main`}>
+          Main assistant
+        </span>
+        <span className="faint" id={`${id}-main-note`}>
+          A check only reads, and it uses your model, which may cost money.
+        </span>
         <select
           className="input"
+          aria-labelledby={`${id}-main`}
+          aria-describedby={`${id}-main-note`}
           value={check.mainAssistantId ?? ""}
           onChange={(event) =>
             void save({ mainAssistantId: event.target.value })
@@ -69,6 +68,19 @@ export function MainAssistantSection({
           ))}
         </select>
       </label>
+      <details className="how">
+        <summary>How checks work</summary>
+        <p className="faint">
+          Pick one assistant to check on things for you. It only works while
+          this app is open. Each check uses your model, which costs you money if
+          the model is a paid service. A check only reads: anything that would
+          need your Approve is left for you, and it says so in its update. At
+          most 48 checks a day. A check waits while the assistant is answering
+          or a step waits for you. A notification says only that the assistant
+          has an update, never what it says. Without one, a small mark shows in
+          the sidebar.
+        </p>
+      </details>
 
       {main ? (
         <>
@@ -112,7 +124,6 @@ export function MainAssistantSection({
               id: `${minutes}` as const,
               name: EVERY_NAMES[minutes],
             }))}
-            note="At most 48 checks a day. A check waits while the assistant is answering or a step waits for you."
             onPick={(next) =>
               void save({ checkEvery: Number(next) as CheckEvery })
             }
@@ -121,6 +132,7 @@ export function MainAssistantSection({
           <label className="choice" style={{ alignSelf: "flex-start" }}>
             <input
               type="checkbox"
+              aria-describedby={`${id}-notify-note`}
               checked={check.notify}
               onChange={(event) =>
                 void save({ checkNotify: event.target.checked })
@@ -128,9 +140,8 @@ export function MainAssistantSection({
             />
             <span>Tell me with a notification</span>
           </label>
-          <p className="faint">
-            The notice says only that {main.name} has an update. Never what it
-            says. Without it, a small mark shows in the sidebar.
+          <p className="faint" id={`${id}-notify-note`}>
+            The notice says only that {main.name} has an update, never what.
           </p>
 
           <div className="wrap">

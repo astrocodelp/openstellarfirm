@@ -90,7 +90,7 @@ export function Welcome({ keychain, onDone, onCloud }: WelcomeProps) {
           className="dim"
           style={{ maxWidth: "34em", fontSize: "var(--text-body)" }}
         >
-          Give it a name, a look and a job. It thinks with a model you choose.
+          Give it a name, a look, a job and a model to think with.
         </p>
         <ul className="checks">
           {POINTS.map((point) => (
@@ -164,8 +164,8 @@ function NothingFound({ onLookAgain }: { onLookAgain(): void }) {
   return (
     <div className="stack-tight">
       <p className="faint">
-        No model is running on this computer. Get Ollama or LM Studio, which run
-        a model here, offline, and start it. Or use your own key below.
+        No model runs here yet, so get Ollama or LM Studio, or use your own key
+        below.
       </p>
       <div className="wrap">
         <button
@@ -205,15 +205,15 @@ function NoModelYet({
       {program === "ollama" ? (
         <>
           <p className="faint">
-            Ollama is running here, but it has no model yet. Get one in a
-            terminal, for example with the line below, then look again.
+            Ollama has no model yet, so run this line in a terminal, then look
+            again.
           </p>
           <CommandLine command="ollama pull qwen3" />
         </>
       ) : (
         <p className="faint">
-          LM Studio is running here, but it has no model yet. In LM Studio,
-          search for a model such as Qwen3 and download it, then look again.
+          LM Studio has no model yet, so download one in it, such as Qwen3, then
+          look again.
         </p>
       )}
       <div>
