@@ -1,7 +1,7 @@
-appId: ai.stellarfirm.open
-productName: StellarFirm Open
-artifactName: StellarFirm-Open-${version}-${os}-${arch}.${ext}
-copyright: Copyright © 2026 Vasileios Drosatos and Astro Code L.P. MIT licence.
+appId: ai.stellarfirm.openstellarfirm
+productName: OpenStellarFirm
+artifactName: OpenStellarFirm-${version}-${os}-${arch}.${ext}
+copyright: Copyright © 2026 Vasileios Drosatos and Astro Code L.P. Apache-2.0 with the Commons Clause.
 directories:
   output: release
 # Everything the app needs is bundled into dist/, so no node_modules ship.
@@ -9,6 +9,7 @@ files:
   - dist/**
   - package.json
   - LICENSE
+  - NOTICE
   - THIRD-PARTY-NOTICES.md
 asar: true
 npmRebuild: false
@@ -27,12 +28,12 @@ electronFuses:
   # the app's own would let this go off; that is a follow-up.
   grantFileProtocolExtraPrivileges: true
   resetAdHocDarwinSignature: true
-# Local builds stay unsigned. A GitHub Release (docs/releasing.md) signs only
-# when that platform's signing secrets are set, and the release says so when
-# they are not.
+# Local builds stay unsigned. A release signs when that platform's
+# certificates are set, and says so when they are not. See docs/RELEASING.md.
 forceCodeSigning: false
 publish: null
 mac:
+  icon: build/icon.png
   category: public.app-category.productivity
   hardenedRuntime: true
   gatekeeperAssess: false
@@ -44,6 +45,16 @@ mac:
     - target: zip
       arch: [x64, arm64]
 win:
+  icon: build/icon.png
   target:
     - target: nsis
+      arch: [x64]
+linux:
+  category: Utility
+  # No deb or rpm yet: they need a maintainer email address the project has not chosen.
+  # icon: left to the change that adds build/icon.png.
+  target:
+    - target: AppImage
+      arch: [x64]
+    - target: tar.gz
       arch: [x64]

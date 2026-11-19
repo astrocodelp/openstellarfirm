@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img">
+  <title>OpenStellarFirm</title>
+  <!-- A night tile with padding all round, so macOS and Windows do not crop it. -->
+  <rect x="100" y="100" width="824" height="824" rx="190" fill="#070709"/>
+  <!-- Glim, the spark, in lime. Drawn from the pet shape in src/shared/catalog.ts. -->
+  <g transform="translate(512 512) scale(12.5) translate(-24 -24)">
+    <path fill="#d9ff3f" d="M24 3c2 11 6 15 17 21-11 4-15 8-17 21-2-13-6-17-17-21 11-6 15-10 17-21z"/>
+    <circle cx="20.5" cy="24" r="2.4" fill="#070709"/>
+    <circle cx="27.5" cy="24" r="2.4" fill="#070709"/>
+  </g>
+</svg>

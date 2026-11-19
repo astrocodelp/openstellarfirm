@@ -1,5 +1,5 @@
 name: Bug report
-description: Tell us what went wrong in the app.
+description: Tell us what went wrong in OpenStellarFirm.
 labels: [bug]
 body:
   - type: markdown

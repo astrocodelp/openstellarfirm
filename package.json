@@ -1,9 +1,9 @@
 {
-  "name": "stellarfirm-open",
+  "name": "openstellarfirm",
   "version": "0.1.0",
   "private": true,
-  "description": "An open-source desktop app for personal AI assistants that run on your own computer, on your own model.",
-  "license": "MIT",
+  "description": "OpenStellarFirm, a desktop app for personal AI assistants that run on your own computer, on your own model. Nothing is saved in a cloud.",
+  "license": "SEE LICENSE IN LICENSE",
   "author": "Vasileios Drosatos and Astro Code L.P.",
   "homepage": "https://github.com/astrocodelp/worker-bot-open-source",
   "type": "module",
@@ -21,11 +21,16 @@
     "test": "vitest run",
     "lint": "biome check .",
     "format": "biome check --write .",
+    "icon": "electron scripts/icon.mjs",
     "package": "pnpm build && electron-builder --publish never",
     "package:mac": "pnpm build && electron-builder --mac --publish never",
     "package:mac-x64": "pnpm build && electron-builder --mac --x64 --publish never",
     "package:mac-arm64": "pnpm build && electron-builder --mac --arm64 --publish never",
-    "package:win": "pnpm build && electron-builder --win --x64 --publish never"
+    "package:win": "pnpm build && electron-builder --win --x64 --publish never",
+    "package:linux": "pnpm build && electron-builder --linux --x64 --publish never",
+    "ci": "bash scripts/ci.sh",
+    "release:fly": "bash scripts/release/fly-run.sh",
+    "release:mac": "bash scripts/release/mac.sh"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

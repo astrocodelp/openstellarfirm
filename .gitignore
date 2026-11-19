@@ -1,6 +1,6 @@
 node_modules/
 dist/
-release/
+/release/
 electron-builder.signed.json
 signing-status-*.json
 *.tsbuildinfo

@@ -1,8 +1,12 @@
+import { presetOf } from "../../shared/catalog";
+import { catalogEntry, catalogPreset } from "../../shared/connection-catalog";
 import type {
   AppState,
   Assistant,
   ChatDone,
   ChatMessage,
+  Connection,
+  MailAccount,
   ModelSource,
   OpenApi,
 } from "../../shared/types";
@@ -21,6 +25,7 @@ function preview(): OpenApi {
     preset: "ollama",
     name: "Ollama",
     baseUrl: "http://localhost:11434/v1",
+    wire: "openai",
     model: "example-model",
     hasKey: false,
   };
@@ -37,6 +42,8 @@ function preview(): OpenApi {
         folders: ["/Users/you/Documents/Notes"],
         web: true,
         sites: ["example.com"],
+        connections: [],
+        connectionTools: [],
         lastLine: "This is the browser preview.",
         createdAt: now(),
       },
@@ -51,13 +58,26 @@ function preview(): OpenApi {
         folders: [],
         web: false,
         sites: [],
+        connections: [],
+        connectionTools: [],
         createdAt: now(),
       },
     ],
     sources: [source],
-    settings: { onboarded: true, defaultSourceId: source.id },
+    connections: [],
+    mailAccounts: [],
+    settings: {
+      onboarded: true,
+      theme: "system",
+      textSize: "default",
+      sendWith: "enter",
+      checkUpdates: false,
+      defaultSourceId: source.id,
+    },
     keychain: true,
     platform: "browser",
+    version: "0.0.0",
+    dataDir: "/Users/you/Library/Application Support/OpenStellarFirm",
   };
   const chats = new Map<string, ChatMessage[]>();
   const doneListeners = new Set<(done: ChatDone) => void>();
@@ -92,6 +112,9 @@ function preview(): OpenApi {
         id: existing?.id ?? id(),
         folders: existing?.folders ?? [],
         sites: existing?.sites ?? [],
+        connections: input.connections ?? existing?.connections ?? [],
+        connectionTools: existing?.connectionTools ?? [],
+        canAsk: input.canAsk ?? existing?.canAsk ?? [],
         web: input.web ?? existing?.web ?? false,
         createdAt: existing?.createdAt ?? now(),
       };
@@ -105,6 +128,8 @@ function preview(): OpenApi {
     },
     exportAssistant: async () => false,
     importAssistant: async () => null,
+    exportBackup: async () => false,
+    importBackup: async () => null,
     addFolder: async () => null,
     removeFolder: async (assistantId, folder) =>
       change(assistantId, (a) => ({
@@ -133,12 +158,162 @@ function preview(): OpenApi {
     stop: async () => {},
     pending: async () => null,
     decide: async () => {},
+    checkConnection: async () => [
+      { name: "search_notes", description: "Search notes.", readOnly: true },
+      { name: "create_note", description: "Add a note.", readOnly: false },
+    ],
+    saveConnection: async (input) => {
+      const next: Connection = {
+        id: input.id ?? id(),
+        name: input.name,
+        preset: "custom",
+        baseUrl: input.baseUrl,
+        hasKey: Boolean(input.apiKey),
+        tools: [
+          {
+            name: "search_notes",
+            description: "Search notes.",
+            readOnly: true,
+          },
+          { name: "create_note", description: "Add a note.", readOnly: false },
+        ],
+        checkedAt: now(),
+      };
+      state.connections = [
+        ...state.connections.filter((c) => c.id !== next.id),
+        next,
+      ];
+      return next;
+    },
+    checkComposio: async () => [
+      {
+        name: "COMPOSIO_SEARCH_TOOLS",
+        description: "Find tools.",
+        readOnly: true,
+      },
+      {
+        name: "COMPOSIO_MULTI_EXECUTE_TOOL",
+        description: "Run tools.",
+        readOnly: false,
+      },
+    ],
+    saveComposio: async (input) => {
+      const next: Connection = {
+        id: input.id ?? id(),
+        name: input.name,
+        preset: "composio",
+        baseUrl: "https://connect.composio.dev/mcp",
+        hasKey: Boolean(input.apiKey),
+        tools: [],
+        checkedAt: now(),
+      };
+      state.connections = [
+        ...state.connections.filter((c) => c.id !== next.id),
+        next,
+      ];
+      return next;
+    },
+    checkCatalog: async () => [
+      { name: "search_issues", description: "Search issues.", readOnly: true },
+      { name: "create_issue", description: "Make an issue.", readOnly: false },
+    ],
+    saveCatalog: async (input) => {
+      const entry = catalogEntry(input.catalogId);
+      const next: Connection = {
+        id: input.id ?? id(),
+        name: input.name,
+        preset: catalogPreset(input.catalogId),
+        baseUrl: entry?.url ?? "",
+        hasKey: Boolean(input.apiKey),
+        tools: [
+          {
+            name: "search_issues",
+            description: "Search issues.",
+            readOnly: true,
+          },
+          {
+            name: "create_issue",
+            description: "Make an issue.",
+            readOnly: false,
+          },
+        ],
+        checkedAt: now(),
+      };
+      state.connections = [
+        ...state.connections.filter((c) => c.id !== next.id),
+        next,
+      ];
+      return next;
+    },
+    lookupCompany: async (domain) => ({
+      domain,
+      name: "Example company",
+      signIn: true,
+      apis: [
+        {
+          type: "mcp",
+          url: `https://mcp.${domain}/mcp`,
+          description: "Product search",
+        },
+      ],
+    }),
+    removeConnection: async (connectionId) => {
+      state.connections = state.connections.filter(
+        (c) => c.id !== connectionId,
+      );
+      state.assistants = state.assistants.map((a) => ({
+        ...a,
+        connections: a.connections.filter((c) => c !== connectionId),
+      }));
+    },
+    removeConnectionTool: async (assistantId, connectionId, tool) =>
+      change(assistantId, (a) => ({
+        ...a,
+        connectionTools: a.connectionTools.filter(
+          (t) => t !== `${connectionId}:${tool}`,
+        ),
+      })),
+    checkMail: async () => ({
+      folders: ["INBOX", "Sent", "Drafts", "Archive"],
+      more: 0,
+    }),
+    saveMail: async (input) => {
+      const next: MailAccount = {
+        id: input.id ?? id(),
+        name: input.name,
+        host: input.host,
+        port: input.port,
+        username: input.username,
+        ownNetwork: input.ownNetwork,
+        hasPassword: true,
+        checkedAt: now(),
+      };
+      state.mailAccounts = [
+        ...state.mailAccounts.filter((m) => m.id !== next.id),
+        next,
+      ];
+      return next;
+    },
+    removeMail: async (accountId) => {
+      state.mailAccounts = state.mailAccounts.filter((m) => m.id !== accountId);
+      state.assistants = state.assistants.map((a) => ({
+        ...a,
+        mail: (a.mail ?? []).filter((m) => m !== accountId),
+        mailReads: (a.mailReads ?? []).filter((m) => m !== accountId),
+      }));
+    },
+    removeMailRead: async (assistantId, accountId) =>
+      change(assistantId, (a) => ({
+        ...a,
+        mailReads: (a.mailReads ?? []).filter((m) => m !== accountId),
+      })),
     saveSource: async (input) => {
       const next: ModelSource = {
         id: input.id ?? id(),
         preset: input.preset,
         name: input.name ?? input.preset,
-        baseUrl: input.baseUrl ?? "",
+        baseUrl: input.baseUrl ?? presetOf(input.preset).baseUrl,
+        wire: presetOf(input.preset).wire,
         model: input.model,
         hasKey: Boolean(input.apiKey),
       };
@@ -157,6 +332,21 @@ function preview(): OpenApi {
       return state.settings;
     },
     openCloud: async () => {},
+    openLink: async () => {},
+    openDataFolder: async () => {},
+    clearApprovals: async () => {
+      const count = state.assistants.reduce((n, a) => n + a.sites.length, 0);
+      state.assistants = state.assistants.map((a) => ({ ...a, sites: [] }));
+      return count;
+    },
+    deleteAllChats: async () => {
+      const count = chats.size;
+      chats.clear();
+      return count;
+    },
+    checkNow: async () => {},
+    checkForUpdate: async () => ({ status: "current" }),
+    dismissUpdate: async () => state.settings,
     onDelta: () => () => {},
     onDone: (listener) => {
       doneListeners.add(listener);

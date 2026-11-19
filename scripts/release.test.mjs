@@ -51,7 +51,7 @@ afterEach(() => {
 });
 
 function temp() {
-  const dir = mkdtempSync(join(tmpdir(), "stellarfirm-open-release-"));
+  const dir = mkdtempSync(join(tmpdir(), "openstellarfirm-release-"));
   dirs.push(dir);
   return dir;
 }
@@ -260,11 +260,13 @@ describe("release notes", () => {
         { target: "win-x64", signed: false },
       ],
     });
-    expect(notes.title).toBe("StellarFirm Open 0.1.0 (unsigned)");
+    expect(notes.title).toBe("OpenStellarFirm 0.1.0 (unsigned)");
     expect(notes.body).toMatch(/stable/);
     expect(notes.body).toMatch(/unsigned/);
     expect(notes.body).toContain(artifactName("0.1.0", "mac-arm64", "dmg"));
     expect(notes.body).toContain("issues/4");
+    expect(notes.body).toContain("Apache License 2.0 with the Commons Clause");
+    expect(notes.body).not.toContain("MIT");
     expect(notes.unsigned).toBe(true);
   });
 
@@ -278,7 +280,7 @@ describe("release notes", () => {
         { target: "win-x64", signed: true },
       ],
     });
-    expect(notes.title).toBe("StellarFirm Open 0.1.0-rc.1");
+    expect(notes.title).toBe("OpenStellarFirm 0.1.0-rc.1");
     expect(notes.body).toMatch(/release candidate/);
     expect(notes.body).toMatch(/notarised/);
     expect(notes.body).not.toMatch(/\(unsigned\)/);
@@ -298,10 +300,10 @@ describe("release notes", () => {
     expect(notes.title).toMatch(/\(unsigned\)$/);
     expect(notes.body).toMatch(/Some of these installers are \*\*unsigned\*\*/);
     expect(notes.body).toContain(
-      "| `StellarFirm-Open-0.2.0-win-x64.exe` | Windows (x64) | Unsigned |",
+      "| `OpenStellarFirm-0.2.0-win-x64.exe` | Windows (x64) | Unsigned |",
     );
     expect(notes.body).toContain(
-      "| `StellarFirm-Open-0.2.0-mac-x64.dmg` | macOS Intel (x64) | Signed |",
+      "| `OpenStellarFirm-0.2.0-mac-x64.dmg` | macOS Intel (x64) | Signed |",
     );
   });
 });
@@ -422,10 +424,10 @@ describe("workflow contract", () => {
   it("uses the installer names electron-builder is configured to write", () => {
     const builder = readFileSync(join(root, "electron-builder.yml"), "utf8");
     expect(builder).toContain(
-      `artifactName: StellarFirm-Open-\${version}-\${os}-\${arch}.\${ext}`,
+      `artifactName: OpenStellarFirm-\${version}-\${os}-\${arch}.\${ext}`,
     );
     expect(artifactName("0.1.0", "mac-x64", "dmg")).toBe(
-      "StellarFirm-Open-0.1.0-mac-x64.dmg",
+      "OpenStellarFirm-0.1.0-mac-x64.dmg",
     );
   });
 });

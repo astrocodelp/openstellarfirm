@@ -1,5 +1,13 @@
 /** Types shared by the main process, the preload and the page. No Node or DOM imports. */
 
+import type { CheckEvery } from "./checks";
+import type { LinkName } from "./links";
+import type { SendKey, TextSize } from "./preferences";
+import type { Theme } from "./theme";
+import type { UpdateCheck } from "./update";
+
+export type { CheckEvery, LinkName, SendKey, TextSize, UpdateCheck };
+
 export const PET_IDS = [
   "blip",
   "glim",
@@ -17,12 +25,36 @@ export const PRESET_IDS = [
   "ollama",
   "lmstudio",
   "openai",
+  "anthropic",
+  "gemini",
   "openrouter",
   "mistral",
   "together",
+  "xai",
+  "deepseek",
+  "groq",
+  "cerebras",
+  "nvidia",
+  "huggingface",
+  "requesty",
+  "requesty-eu",
+  "vercel",
+  "llmapi",
+  "ironlane",
+  "orcarouter",
+  "azure",
+  "bedrock",
+  "litellm",
   "custom",
 ] as const;
 export type PresetId = (typeof PRESET_IDS)[number];
+
+/**
+ * The way a model service is spoken to. The preset decides it in the main
+ * process; the page never sends one. A source saved before this existed
+ * has none, and reads as "openai".
+ */
+export type Wire = "openai" | "anthropic" | "gemini";
 
 export interface Assistant {
   id: string;
@@ -45,8 +77,37 @@ export interface Assistant {
   folders: string[];
   /** Whether it may read web pages (it asks before a site's first read). */
   web: boolean;
+  /**
+   * Whether it may ask to look at the screen. Off unless the person turns it
+   * on here; never in a shared file, a backup or a persona. Every look still
+   * asks first.
+   */
+  screen?: boolean;
   /** Sites the person chose to always allow for this assistant. */
   sites: string[];
+  /** Ids of the connections it may use. Only the assistant form sets them. */
+  connections: string[];
+  /**
+   * Reads the person chose to always allow, as "<connection id>:<tool>".
+   * Only a tool marked as a read can ever be listed here.
+   */
+  connectionTools: string[];
+  /**
+   * Ids of the mail accounts it may read. Only the assistant form sets them;
+   * never in a shared file, a backup or a persona. Missing means none.
+   */
+  mail?: string[];
+  /**
+   * Mail accounts the person chose to always allow reading for this assistant.
+   * Only an account listed in `mail` can be here.
+   */
+  mailReads?: string[];
+  /**
+   * Ids of the other assistants it may ask one question at a time. Empty unless
+   * the person ticks them in the assistant form; never in a shared file, a
+   * backup or a persona.
+   */
+  canAsk?: string[];
   /** The start of its newest message, for the sidebar. */
   lastLine?: string;
   createdAt: string;
@@ -56,7 +117,14 @@ export interface Assistant {
 export type AssistantInput = Pick<
   Assistant,
   "name" | "group" | "pet" | "color" | "brief" | "skills" | "sourceId" | "model"
-> & { id?: string; web?: boolean };
+> & {
+  id?: string;
+  web?: boolean;
+  screen?: boolean;
+  connections?: string[];
+  mail?: string[];
+  canAsk?: string[];
+};
 
 /** One thing the assistant did while answering, as a short plain line. */
 export interface ChatStep {
@@ -72,6 +140,11 @@ export interface ChatMessage {
   /** True when the model call failed and the text says why. */
   failed?: boolean;
   steps?: ChatStep[];
+  /**
+   * Set when the app wrote or answered this on its own: "request" is the check
+   * the app started (not something the person typed), "update" is the reply.
+   */
+  check?: "request" | "update";
 }
 
 /** A step that waits for the person. Built by the main process, in plain words. */
@@ -84,6 +157,8 @@ export interface ApprovalCard {
   why: string;
   /** The site an "always allow" would remember; none when it cannot be remembered. */
   site?: string;
+  /** True when "Always allow" would remember this one read for this assistant. */
+  canAlways?: boolean;
 }
 
 export type Decision = "approve" | "always" | "reject";
@@ -94,6 +169,8 @@ export interface ModelSource {
   preset: PresetId;
   name: string;
   baseUrl: string;
+  /** Set from the preset when saved. */
+  wire: Wire;
   model: string;
   hasKey: boolean;
 }
@@ -103,25 +180,155 @@ export interface ModelSourceInput {
   preset: PresetId;
   name?: string;
   baseUrl?: string;
+  /**
+   * What the person types for a cloud preset: an Azure resource name or host,
+   * or a Bedrock region. Checked in the main process, never trusted.
+   */
+  part?: string;
   model: string;
   /** Sent once, on save. Never returned. Empty keeps the saved key. */
   apiKey?: string;
 }
 
+/**
+ * How a connection was made. "custom" is an address the person typed,
+ * "composio" is the Composio preset, and "catalog:<id>" is one service from the
+ * built-in list. Only the main process decides it.
+ */
+export type ConnectionPreset = "custom" | "composio" | `catalog:${string}`;
+
+/** What the page may send for a catalog service: which one, a name and a key. */
+export interface CatalogInput {
+  /** An id from the built-in list. The address and header come from it. */
+  catalogId: string;
+  id?: string;
+  name: string;
+  /** Sent once, on check or save. Never returned. Empty keeps the saved key. */
+  apiKey?: string;
+}
+
+/** What the page may send for a Composio connection: no address, no header. */
+export interface ComposioInput {
+  id?: string;
+  name: string;
+  /** Sent once, on check or save. Never returned. Empty keeps the saved key. */
+  apiKey?: string;
+}
+
+/** What a company says it offers to personal agents. Plain, cleaned text. */
+export interface CompanyOffer {
+  domain: string;
+  name: string;
+  /** True when the file says sign-in is offered. */
+  signIn: boolean;
+  apis: { type: "mcp" | "openapi"; url: string; description: string }[];
+}
+
+/** One tool a connection offers. Only the main process ever sets these. */
+export interface ConnectionTool {
+  name: string;
+  /** Cut and cleaned. It is the server's own text, so it is only shown. */
+  description: string;
+  /** True only when the server says it reads and the name does not read like a change. */
+  readOnly: boolean;
+}
+
+/** A remote server the assistants may use tools from. The key never leaves the main process. */
+export interface Connection {
+  id: string;
+  name: string;
+  /** "composio" is the preset that uses the person's own Composio key. */
+  preset: ConnectionPreset;
+  baseUrl: string;
+  hasKey: boolean;
+  tools: ConnectionTool[];
+  checkedAt: string;
+}
+
+export interface ConnectionInput {
+  id?: string;
+  name: string;
+  baseUrl: string;
+  /** Sent once, on check or save. Never returned. Empty keeps the saved key. */
+  apiKey?: string;
+}
+
+/** A mailbox an assistant may read. The password never leaves the main process. */
+export interface MailAccount {
+  id: string;
+  name: string;
+  host: string;
+  port: number;
+  username: string;
+  /** True when the person said the server is on their own network. */
+  ownNetwork: boolean;
+  hasPassword: boolean;
+  checkedAt: string;
+}
+
+export interface MailAccountInput {
+  id?: string;
+  name: string;
+  host: string;
+  port: number;
+  username: string;
+  ownNetwork: boolean;
+  /** Sent once, on check or save. Never returned. Empty keeps the saved one. */
+  password?: string;
+}
+
+/** What a mail check found: the folder names, cut and cleaned. */
+export interface MailCheck {
+  folders: string[];
+  /** How many more folders there were than are listed. */
+  more: number;
+}
+
 export interface Settings {
   onboarded: boolean;
+  /** How the app looks: follow the computer, or always dark or light. */
+  theme: Theme;
   defaultSourceId?: string;
   /** True once the person closed the StellarFirm cloud card in the sidebar. */
   hideCloudCard?: boolean;
+  /** How big the text is: the root size the whole page scales from. */
+  textSize: TextSize;
+  /** What sends a message in the chat box. */
+  sendWith: SendKey;
+  /** Off until the person turns it on: a once-a-day look at the newest version. */
+  checkUpdates: boolean;
+  /** When the update check last ran, and the newest version it found. */
+  lastUpdateCheck?: string;
+  newestVersion?: string;
+  /** The version whose notice the person closed. */
+  dismissedVersion?: string;
+  /** The one assistant that may check on its own. Missing means none. */
+  mainAssistantId?: string;
+  /** Off until the person turns it on: checks run only while the app is open. */
+  checkOnItsOwn?: boolean;
+  /** Minutes between checks; one of the choices in `CHECK_EVERY`. */
+  checkEvery?: CheckEvery;
+  /** What to look for, in the person's own words. */
+  checkLookFor?: string;
+  /** Off until the person turns it on: a notice, with the name only. */
+  checkNotify?: boolean;
+  /** True while the main assistant has an update the person has not seen. */
+  checkUnread?: boolean;
 }
 
 export interface AppState {
   assistants: Assistant[];
   sources: ModelSource[];
+  connections: Connection[];
+  mailAccounts: MailAccount[];
   settings: Settings;
   /** False when this computer has no keychain to keep a key in. */
   keychain: boolean;
   platform: string;
+  /** This app's own version, such as "0.1.0". */
+  version: string;
+  /** The folder the app keeps everything in, shown as plain text. */
+  dataDir: string;
 }
 
 export interface LocalModels {
@@ -137,6 +344,8 @@ export interface ChatDelta {
 export interface ChatDone {
   assistantId: string;
   message: ChatMessage;
+  /** The check the app started, saved just before `message`; none for an answer. */
+  request?: ChatMessage;
 }
 
 /** What the assistant is doing right now, such as "Reading notes.md". */
@@ -151,6 +360,16 @@ export interface ApprovalChange {
   card: ApprovalCard | null;
 }
 
+/** What a backup import did, so the screen can say it in numbers. */
+export interface BackupResult {
+  added: number;
+  skipped: number;
+  /** How many of the added assistants came with their chat. */
+  chats: number;
+  /** True when the app's limit on assistants stopped the rest. */
+  full: boolean;
+}
+
 /** What the page can ask the main process to do. */
 export interface OpenApi {
   getState(): Promise<AppState>;
@@ -158,6 +377,13 @@ export interface OpenApi {
   removeAssistant(id: string): Promise<void>;
   exportAssistant(id: string): Promise<boolean>;
   importAssistant(): Promise<Assistant | null>;
+  /**
+   * Saves every assistant to one file, through the system's save dialog.
+   * False when the person closed the dialog. The page never names a path.
+   */
+  exportBackup(includeChats: boolean): Promise<boolean>;
+  /** Adds the assistants of a backup as new ones; null when no file was picked. */
+  importBackup(): Promise<BackupResult | null>;
   /** Opens the system's folder picker. Null when the person closed it. */
   addFolder(assistantId: string): Promise<Assistant | null>;
   removeFolder(assistantId: string, folder: string): Promise<Assistant>;
@@ -172,12 +398,39 @@ export interface OpenApi {
     approvalId: string,
     decision: Decision,
   ): Promise<void>;
+  /** Connects to the address and lists its tools. Saves nothing. */
+  checkConnection(input: ConnectionInput): Promise<ConnectionTool[]>;
+  /** Connects, lists the tools the server offers, and saves the connection. */
+  saveConnection(input: ConnectionInput): Promise<Connection>;
+  removeConnection(id: string): Promise<void>;
+  /** Like checkConnection, for the Composio preset: the address is fixed. */
+  checkComposio(input: ComposioInput): Promise<ConnectionTool[]>;
+  saveComposio(input: ComposioInput): Promise<Connection>;
+  /** Like checkConnection, for a service from the built-in list. */
+  checkCatalog(input: CatalogInput): Promise<ConnectionTool[]>;
+  saveCatalog(input: CatalogInput): Promise<Connection>;
+  /** Reads what a company publishes for personal agents. Saves nothing. */
+  lookupCompany(domain: string): Promise<CompanyOffer>;
+  /** Takes back an "Always allow" for one read of one connection. */
+  removeConnectionTool(
+    assistantId: string,
+    connectionId: string,
+    tool: string,
+  ): Promise<Assistant>;
+  /** Signs in to a mailbox, lists its folders and signs out. Saves nothing. */
+  checkMail(input: MailAccountInput): Promise<MailCheck>;
+  /** Signs in once to prove it works, then saves the account. */
+  saveMail(input: MailAccountInput): Promise<MailAccount>;
+  removeMail(id: string): Promise<void>;
+  /** Takes back an "Always allow" for reading one mail account. */
+  removeMailRead(assistantId: string, accountId: string): Promise<Assistant>;
   saveSource(input: ModelSourceInput): Promise<ModelSource>;
   removeSource(id: string): Promise<void>;
   /** Lists the models of a source that is not saved yet. */
   probeModels(input: {
     preset: PresetId;
     baseUrl?: string;
+    part?: string;
     apiKey?: string;
   }): Promise<string[]>;
   /** Lists the models of a saved source, which also proves it works. */
@@ -190,6 +443,29 @@ export interface OpenApi {
    * process from fixed parts; the page never supplies one.
    */
   openCloud(target: "home" | "copy", assistantId?: string): Promise<void>;
+  /**
+   * Opens one of the app's fixed links in the browser, by name. The address
+   * is built in the main process; the page never supplies one.
+   */
+  openLink(name: LinkName | `catalog:${string}`): Promise<void>;
+  /** Opens the app's own data folder. The page names no path. */
+  openDataFolder(): Promise<void>;
+  /**
+   * Forgets every site "Always allow" remembered, for every assistant, so each
+   * asks again. Returns how many were forgotten.
+   */
+  clearApprovals(): Promise<number>;
+  /** Deletes every chat and keeps the assistants. Returns how many chats. */
+  deleteAllChats(): Promise<number>;
+  /**
+   * Starts one check by the main assistant, on the person's click. It only
+   * reads. Resolves when it has started; the update appears in the chat.
+   */
+  checkNow(): Promise<void>;
+  /** One check for a newer version, on the person's click. */
+  checkForUpdate(): Promise<UpdateCheck>;
+  /** Closes the notice for the version that is shown now. */
+  dismissUpdate(): Promise<Settings>;
   onDelta(listener: (delta: ChatDelta) => void): () => void;
   onDone(listener: (done: ChatDone) => void): () => void;
   onActivity(listener: (activity: ChatActivity) => void): () => void;
@@ -202,6 +478,8 @@ export const IPC = {
   removeAssistant: "assistant:remove",
   exportAssistant: "assistant:export",
   importAssistant: "assistant:import",
+  exportBackup: "backup:export",
+  importBackup: "backup:import",
   addFolder: "assistant:folder:add",
   removeFolder: "assistant:folder:remove",
   removeSite: "assistant:site:remove",
@@ -210,6 +488,19 @@ export const IPC = {
   stop: "chat:stop",
   pending: "chat:pending",
   decide: "chat:decide",
+  checkConnection: "connection:check",
+  saveConnection: "connection:save",
+  removeConnection: "connection:remove",
+  checkComposio: "connection:composio:check",
+  saveComposio: "connection:composio:save",
+  checkCatalog: "connection:catalog:check",
+  saveCatalog: "connection:catalog:save",
+  lookupCompany: "company:lookup",
+  removeConnectionTool: "assistant:connection-tool:remove",
+  checkMail: "mail:check",
+  saveMail: "mail:save",
+  removeMail: "mail:remove",
+  removeMailRead: "assistant:mail-read:remove",
   saveSource: "source:save",
   removeSource: "source:remove",
   probeModels: "source:probe",
@@ -217,6 +508,13 @@ export const IPC = {
   detectLocal: "source:detect",
   setSettings: "settings:set",
   openCloud: "cloud:open",
+  openLink: "link:open",
+  openDataFolder: "data:open",
+  clearApprovals: "approvals:clear",
+  deleteAllChats: "chats:deleteAll",
+  checkNow: "checks:now",
+  checkForUpdate: "update:check",
+  dismissUpdate: "update:dismiss",
   delta: "chat:delta",
   done: "chat:done",
   activity: "chat:activity",

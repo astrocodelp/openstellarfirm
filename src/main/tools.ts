@@ -8,6 +8,7 @@ import {
   shortName,
 } from "./folders";
 import type { ToolSpec } from "./models";
+import { SCREEN_TOOL } from "./screen";
 import { checkWebAddress, readWebPage, type WebDeps, WebError } from "./web";
 
 /**
@@ -20,7 +21,9 @@ import { checkWebAddress, readWebPage, type WebDeps, WebError } from "./web";
  * address carries extra text after a "?", which asks every time.
  */
 
-export type ToolAssistant = Pick<Assistant, "folders" | "web" | "sites">;
+export type ToolAssistant = Pick<Assistant, "folders" | "web" | "sites"> & {
+  screen?: boolean;
+};
 
 /** What a planned call needs from the person before it may run. */
 export interface Ask {
@@ -29,6 +32,11 @@ export interface Ask {
   why: string;
   /** The site an "always allow" would remember. */
   site?: string;
+  /**
+   * What an "always allow" would remember: one read of one connection, or
+   * reading one mail account.
+   */
+  remember?: { connectionId: string; tool: string } | { mailAccountId: string };
 }
 
 export interface PlannedCall {
@@ -111,6 +119,7 @@ export function toolsFor(assistant: ToolAssistant): ToolSpec[] {
   return [
     ...(assistant.folders.length > 0 ? FOLDER_TOOLS : []),
     ...(assistant.web ? [WEB_TOOL] : []),
+    ...(assistant.screen ? [SCREEN_TOOL] : []),
   ];
 }
 
@@ -140,11 +149,17 @@ export function planCall(
   name: string,
   rawArguments: string,
   web?: WebDeps,
-  /** True once this answer has read from the person's folders. */
-  afterFiles = false,
+  /**
+   * True once this answer has read from the person's folders, "screen" once it
+   * has looked at the screen, or "mail" once it has read mail: any of them can
+   * hold text that an address carries out.
+   */
+  afterFiles: boolean | "screen" | "mail" = false,
 ): PlannedCall {
   const offered = toolsFor(assistant).some((tool) => tool.name === name);
-  if (!offered) throw new FolderError("That tool is not available here.");
+  // The screen tool has its own path in the agent, which asks before it looks.
+  if (!offered || name === SCREEN_TOOL.name)
+    throw new FolderError("That tool is not available here.");
   const args = parse(rawArguments);
   const { folders } = assistant;
 
@@ -199,7 +214,12 @@ export function planCall(
       ask: {
         title: `Read a page on ${site}`,
         detail: url.href,
-        why: "It has read from your folders in this answer, and an address can carry text out. Check the address holds nothing private.",
+        why:
+          afterFiles === "screen"
+            ? "It looked at your screen in this answer, and an address can carry text out. Check the address holds nothing private."
+            : afterFiles === "mail"
+              ? "It has read your mail in this answer, and an address can carry text out. Check the address holds nothing private."
+              : "It has read from your folders in this answer, and an address can carry text out. Check the address holds nothing private.",
       },
     };
   }

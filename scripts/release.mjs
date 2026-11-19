@@ -15,7 +15,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-export const INSTALLER_PREFIX = "StellarFirm-Open";
+export const INSTALLER_PREFIX = "OpenStellarFirm";
 export const SIGNED_CONFIG_FILE = "electron-builder.signed.json";
 export const SIGNING_ISSUE_URL =
   "https://github.com/astrocodelp/worker-bot-open-source/issues/4";
@@ -234,7 +234,7 @@ function writeAppleKey(env, runnerTemp) {
   if (value.includes("PRIVATE KEY")) {
     const dir = runnerTemp || tmpdir();
     mkdirSync(dir, { recursive: true });
-    const file = join(dir, "stellarfirm-open-apple-api-key.p8");
+    const file = join(dir, "openstellarfirm-apple-api-key.p8");
     writeFileSync(file, value.endsWith("\n") ? value : `${value}\n`, {
       mode: 0o600,
     });
@@ -376,9 +376,9 @@ export function buildReleaseNotes({ version, prerelease, statuses }) {
         `| \`${row.name}\` | ${row.label} | ${row.signed ? "Signed" : "Unsigned"} |`,
     ),
   ].join("\n");
-  const title = `StellarFirm Open ${version}${unsigned ? " (unsigned)" : ""}`;
+  const title = `OpenStellarFirm ${version}${unsigned ? " (unsigned)" : ""}`;
   const body = [
-    `Installers for **StellarFirm Open** ${version}.`,
+    `Installers for **OpenStellarFirm** ${version}.`,
     "",
     kind,
     "",
@@ -386,7 +386,7 @@ export function buildReleaseNotes({ version, prerelease, statuses }) {
     "",
     signing,
     "",
-    "StellarFirm Open is MIT licensed. The source for this tag is this repository.",
+    "OpenStellarFirm is licensed under the Apache License 2.0 with the Commons Clause: free to use, change and share, not to sell. The source for this tag is this repository. See LICENSE and NOTICE.",
     "",
   ].join("\n");
   return { title, body, unsigned };
@@ -443,7 +443,7 @@ function readIfExists(file) {
 }
 
 function fail(error) {
-  console.error(`::error::${error} See docs/releasing.md.`);
+  console.error(`::error::${error} See docs/RELEASING.md.`);
   process.exit(1);
 }
 
@@ -464,7 +464,7 @@ function main() {
       `signing_mode=${plan.signingMode}`,
     ]);
     console.log(
-      `StellarFirm Open ${plan.version} (prerelease=${plan.prerelease}, publish=${plan.publish}, signing=${plan.signingMode})`,
+      `OpenStellarFirm ${plan.version} (prerelease=${plan.prerelease}, publish=${plan.publish}, signing=${plan.signingMode})`,
     );
     return;
   }

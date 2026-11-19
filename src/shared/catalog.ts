@@ -1,4 +1,4 @@
-import type { PetColor, PetId, PresetId } from "./types";
+import type { PetColor, PetId, PresetId, Wire } from "./types";
 
 /** A pet is one filled shape and two eyes, on a 48 by 48 canvas. */
 export interface PetShape {
@@ -112,71 +112,258 @@ export const SKILLS: { id: string; name: string; guidance: string }[] = [
   },
 ];
 
+/** The six headings the model choice is grouped under, in this order. */
+export const PRESET_GROUPS = [
+  { id: "local", name: "On this computer" },
+  { id: "makers", name: "Model makers" },
+  { id: "fast", name: "Fast inference" },
+  { id: "routers", name: "Routers" },
+  { id: "clouds", name: "Clouds" },
+  { id: "own", name: "Your own address" },
+] as const;
+export type PresetGroup = (typeof PRESET_GROUPS)[number]["id"];
+
+/** The header a key travels in. Decided here, never by the page. */
+export type KeyHeader = "bearer" | "api-key";
+
+/**
+ * Where a preset's address comes from. "fixed" is pinned in code; "azure" and
+ * "bedrock" are built from one checked part the person types; "own" is the
+ * person's own address.
+ */
+export type AddressRule = "fixed" | "azure" | "bedrock" | "own";
+
 export interface Preset {
   id: PresetId;
   name: string;
-  /** Empty for "custom": the person types the address. */
+  group: PresetGroup;
+  /** Empty when the address is built or typed. */
   baseUrl: string;
+  address: AddressRule;
+  /** How the service is spoken to. */
+  wire: Wire;
   /** True when the model runs on this computer and needs no key. */
   local: boolean;
+  /** True when saving needs a key. A gateway of your own may not. */
+  needsKey: boolean;
+  /** The header the key goes in. */
+  header: KeyHeader;
+  /** True when the service lists its models, so the person can pick one. */
+  lists: boolean;
+  /** One plain line: where to get a key, and anything to know. */
   note: string;
 }
 
-/** Every preset speaks the OpenAI-compatible chat completions wire. */
+const KEY = "Your own key. You name the model.";
+
+function hosted(
+  id: PresetId,
+  name: string,
+  group: PresetGroup,
+  baseUrl: string,
+  note: string,
+  extra: Partial<Preset> = {},
+): Preset {
+  return {
+    id,
+    name,
+    group,
+    baseUrl,
+    address: "fixed",
+    wire: "openai",
+    local: false,
+    needsKey: true,
+    header: "bearer",
+    lists: false,
+    note,
+    ...extra,
+  };
+}
+
+/** Most presets speak the OpenAI-compatible chat completions wire. */
 export const PRESETS: Preset[] = [
-  {
-    id: "ollama",
-    name: "Ollama",
-    baseUrl: "http://localhost:11434/v1",
-    local: true,
-    note: "Runs on this computer. Free, and nothing leaves this machine.",
-  },
-  {
-    id: "lmstudio",
-    name: "LM Studio",
-    baseUrl: "http://localhost:1234/v1",
-    local: true,
-    note: "Runs on this computer. Free, and nothing leaves this machine.",
-  },
-  {
-    id: "openai",
-    name: "OpenAI",
-    baseUrl: "https://api.openai.com/v1",
-    local: false,
-    note: "Your own key.",
-  },
-  {
-    id: "openrouter",
-    name: "OpenRouter",
-    baseUrl: "https://openrouter.ai/api/v1",
-    local: false,
-    note: "Your own key. You name the model.",
-  },
-  {
-    id: "mistral",
-    name: "Mistral",
-    baseUrl: "https://api.mistral.ai/v1",
-    local: false,
-    note: "Your own key.",
-  },
-  {
-    id: "together",
-    name: "Together AI",
-    baseUrl: "https://api.together.ai/v1",
-    local: false,
-    note: "Your own key. You name the model.",
-  },
-  {
-    id: "custom",
-    name: "Your own endpoint",
-    baseUrl: "",
-    local: false,
-    note: "Any OpenAI-compatible address, such as a LiteLLM gateway.",
-  },
+  hosted(
+    "ollama",
+    "Ollama",
+    "local",
+    "http://localhost:11434/v1",
+    "Runs on this computer. Free, and nothing leaves this machine.",
+    { local: true, needsKey: false, lists: true },
+  ),
+  hosted(
+    "lmstudio",
+    "LM Studio",
+    "local",
+    "http://localhost:1234/v1",
+    "Runs on this computer. Free, and nothing leaves this machine.",
+    { local: true, needsKey: false, lists: true },
+  ),
+  hosted(
+    "openai",
+    "OpenAI",
+    "makers",
+    "https://api.openai.com/v1",
+    "Your own key, from your OpenAI account.",
+    { lists: true },
+  ),
+  hosted(
+    "anthropic",
+    "Anthropic (Claude)",
+    "makers",
+    "https://api.anthropic.com/v1",
+    "Your own Anthropic key.",
+    { wire: "anthropic", lists: true },
+  ),
+  hosted(
+    "gemini",
+    "Google (Gemini)",
+    "makers",
+    "https://generativelanguage.googleapis.com/v1beta",
+    "Your own Google AI key.",
+    { wire: "gemini", lists: true },
+  ),
+  hosted(
+    "mistral",
+    "Mistral",
+    "makers",
+    "https://api.mistral.ai/v1",
+    "Your own key, from your Mistral account.",
+    { lists: true },
+  ),
+  hosted(
+    "xai",
+    "xAI (Grok)",
+    "makers",
+    "https://api.x.ai/v1",
+    "Your own key, from the xAI console.",
+    { lists: true },
+  ),
+  hosted(
+    "deepseek",
+    "DeepSeek",
+    "makers",
+    "https://api.deepseek.com",
+    "Your own key, from the DeepSeek platform.",
+    { lists: true },
+  ),
+  hosted(
+    "groq",
+    "Groq",
+    "fast",
+    "https://api.groq.com/openai/v1",
+    "Your own key, from the Groq console.",
+    { lists: true },
+  ),
+  hosted("cerebras", "Cerebras", "fast", "https://api.cerebras.ai/v1", KEY, {
+    lists: true,
+  }),
+  hosted(
+    "nvidia",
+    "NVIDIA",
+    "fast",
+    "https://integrate.api.nvidia.com/v1",
+    "Your own key from build.nvidia.com.",
+    { lists: true },
+  ),
+  hosted("together", "Together AI", "fast", "https://api.together.ai/v1", KEY, {
+    lists: true,
+  }),
+  hosted(
+    "huggingface",
+    "Hugging Face",
+    "fast",
+    "https://router.huggingface.co/v1",
+    "Inference Providers. Use a token that may call them.",
+    { lists: true },
+  ),
+  hosted(
+    "openrouter",
+    "OpenRouter",
+    "routers",
+    "https://openrouter.ai/api/v1",
+    KEY,
+    { lists: true },
+  ),
+  hosted(
+    "requesty",
+    "Requesty",
+    "routers",
+    "https://router.requesty.ai/v1",
+    KEY,
+    { lists: true },
+  ),
+  hosted(
+    "requesty-eu",
+    "Requesty (Europe)",
+    "routers",
+    "https://router.eu.requesty.ai/v1",
+    `${KEY} Pick its EU models, whose names end in @eu, to keep calls in Europe.`,
+    { lists: true },
+  ),
+  hosted(
+    "vercel",
+    "Vercel AI Gateway",
+    "routers",
+    "https://ai-gateway.vercel.sh/v1",
+    "Your own AI Gateway key. Models are named like anthropic/claude-opus-5.",
+    { lists: true },
+  ),
+  hosted("llmapi", "LLM API", "routers", "https://api.llmapi.ai/v1", KEY),
+  hosted(
+    "ironlane",
+    "Ironlane",
+    "routers",
+    "https://api.ironlane.ai/v1",
+    "Your own key. Models are named like openai/gpt-4o-mini.",
+  ),
+  hosted(
+    "orcarouter",
+    "OrcaRouter",
+    "routers",
+    "https://api.orcarouter.ai/v1",
+    "Your own key. Models are named like openai/gpt-4o-mini.",
+  ),
+  hosted(
+    "azure",
+    "Azure OpenAI",
+    "clouds",
+    "",
+    "Your resource's key. Type the resource name, and the name you gave the deployment as the model.",
+    { address: "azure", header: "api-key" },
+  ),
+  hosted(
+    "bedrock",
+    "Amazon Bedrock",
+    "clouds",
+    "",
+    "A Bedrock API key, and the region it was made in. You name the model.",
+    { address: "bedrock" },
+  ),
+  hosted(
+    "litellm",
+    "LiteLLM gateway",
+    "own",
+    "",
+    "Your own LiteLLM gateway: https, or http on this computer. A key only if yours asks for one.",
+    { address: "own", needsKey: false, lists: true },
+  ),
+  hosted(
+    "custom",
+    "Your own endpoint",
+    "own",
+    "",
+    "Any OpenAI-compatible address. A key only if it asks for one.",
+    { address: "own", needsKey: false, lists: true },
+  ),
 ];
 
 export function presetOf(id: PresetId): Preset {
   const preset = PRESETS.find((p) => p.id === id);
   if (!preset) throw new Error("That model source is not known.");
   return preset;
+}
+
+/** The header a saved source's key goes in; a source with no known preset uses Bearer. */
+export function headerOf(id: string): KeyHeader {
+  return PRESETS.find((p) => p.id === id)?.header ?? "bearer";
 }

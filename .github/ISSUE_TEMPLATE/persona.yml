@@ -1,0 +1,28 @@
+name: Propose a persona
+description: A starter persona for OpenStellarFirm, before you send the file.
+labels: ["persona", "needs-triage"]
+body:
+  - type: input
+    id: name
+    attributes:
+      label: Persona name
+    validations:
+      required: true
+  - type: textarea
+    id: job
+    attributes:
+      label: What it does
+      description: Who it helps, how it answers, and what it must not do.
+    validations:
+      required: true
+  - type: checkboxes
+    id: rules
+    attributes:
+      label: Rules
+      options:
+        - label: The words are my own.
+          required: true
+        - label: It names no brand and no real person.
+          required: true
+        - label: It claims no tool or licence it does not have, and a regulated field (law, tax, health, money) carries a safety line.
+          required: true

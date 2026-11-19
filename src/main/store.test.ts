@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -9,7 +9,7 @@ let dir: string;
 let store: Store;
 
 beforeEach(() => {
-  dir = mkdtempSync(join(tmpdir(), "stellarfirm-open-"));
+  dir = mkdtempSync(join(tmpdir(), "openstellarfirm-"));
   store = new Store(dir);
 });
 
@@ -132,6 +132,58 @@ describe("folders and sites", () => {
   });
 });
 
+describe("screen access", () => {
+  it("is off by default and is set only by the person's own save", () => {
+    const made = store.saveAssistant({ ...input, skills: [] });
+    expect(made.screen).toBe(false);
+    const on = store.saveAssistant({
+      ...input,
+      skills: [],
+      id: made.id,
+      screen: true,
+    });
+    expect(on.screen).toBe(true);
+    // A save that says nothing about the screen leaves that choice as it was.
+    expect(
+      store.saveAssistant({ ...input, skills: [], id: made.id }).screen,
+    ).toBe(true);
+    expect(
+      store.saveAssistant({ ...input, skills: [], id: made.id, screen: false })
+        .screen,
+    ).toBe(false);
+  });
+
+  it("reads an assistant saved before the switch existed as off", () => {
+    const made = store.saveAssistant({ ...input, skills: [] });
+    const file = join(dir, "state.json");
+    const state = JSON.parse(readFileSync(file, "utf8"));
+    delete state.assistants[0].screen;
+    writeFileSync(file, JSON.stringify(state));
+    expect(store.assistant(made.id).screen).toBe(false);
+  });
+
+  it("never puts the switch in a shared file, and never takes it from one", () => {
+    const made = store.saveAssistant({ ...input, skills: [], screen: true });
+    const exported = store.exportFile(made.id);
+    expect(JSON.stringify(exported)).not.toMatch(/screen/i);
+    const imported = store.importFile(
+      JSON.stringify({ ...exported, screen: true }),
+    );
+    expect(imported.screen).toBe(false);
+  });
+
+  it("keeps no picture in a saved chat, whatever the answer's steps say", () => {
+    const made = store.saveAssistant({ ...input, skills: [], screen: true });
+    store.appendMessage(made.id, "assistant", "I can see a window.", false, [
+      { label: "Looked at the screen at 14:05", ok: true },
+    ]);
+    const saved = readFileSync(join(dir, "chats", `${made.id}.json`), "utf8");
+    expect(saved).toContain("Looked at the screen at 14:05");
+    expect(saved).not.toContain("base64");
+    expect(saved).not.toContain("image");
+  });
+});
+
 describe("assistant files", () => {
   it("round-trips an assistant without any model source", () => {
     const source = store.saveSource({ preset: "ollama", model: "m" });
@@ -167,6 +219,55 @@ describe("model sources", () => {
     });
     expect(saved.baseUrl).toBe("https://api.openai.com/v1");
     expect(store.settings().defaultSourceId).toBe(saved.id);
+  });
+
+  it("decides the wire from the preset, never from the page", () => {
+    const sent = (preset: "anthropic" | "gemini" | "openai" | "custom") =>
+      store.saveSource({
+        preset,
+        baseUrl: "https://models.example.com/v1",
+        wire: "openai",
+        model: "m",
+      } as never);
+    expect(sent("anthropic")).toMatchObject({
+      baseUrl: "https://api.anthropic.com/v1",
+      wire: "anthropic",
+    });
+    expect(sent("gemini")).toMatchObject({
+      baseUrl: "https://generativelanguage.googleapis.com/v1beta",
+      wire: "gemini",
+    });
+    expect(sent("openai").wire).toBe("openai");
+    expect(sent("custom").wire).toBe("openai");
+    const first = store.sources()[0];
+    const again = store.saveSource({
+      id: first?.id,
+      preset: "openai",
+      wire: "gemini",
+      model: "m",
+    } as never);
+    expect(again.wire).toBe("openai");
+  });
+
+  it("reads a source saved before wires existed as openai", () => {
+    writeFileSync(
+      join(dir, "state.json"),
+      JSON.stringify({
+        v: 1,
+        assistants: [],
+        sources: [
+          {
+            id: "11111111-1111-1111-1111-111111111111",
+            preset: "openai",
+            name: "OpenAI",
+            baseUrl: "https://api.openai.com/v1",
+            model: "m",
+          },
+        ],
+        settings: { onboarded: true },
+      }),
+    );
+    expect(store.sources()[0]?.wire).toBe("openai");
   });
 
   it("checks a custom address", () => {
@@ -251,5 +352,124 @@ describe("secrets", () => {
       /no keychain/,
     );
     expect(secrets.has("a")).toBe(false);
+  });
+});
+
+describe("the theme", () => {
+  it("reads as the system's setting until the person chooses", () => {
+    expect(store.settings().theme).toBe("system");
+  });
+
+  it("keeps a chosen theme, and refuses one it does not know", () => {
+    expect(store.setSettings({ theme: "light" }).theme).toBe("light");
+    expect(store.setSettings({ theme: "dark" }).theme).toBe("dark");
+    expect(() => store.setSettings({ theme: "sepia" as never })).toThrow(
+      /theme/,
+    );
+    expect(store.settings().theme).toBe("dark");
+    // A save about something else leaves it alone.
+    expect(store.setSettings({ hideCloudCard: true }).theme).toBe("dark");
+  });
+
+  it("reads a settings file from before the theme existed as system", () => {
+    writeFileSync(
+      join(dir, "state.json"),
+      JSON.stringify({
+        v: 1,
+        assistants: [],
+        sources: [],
+        settings: { onboarded: true },
+      }),
+    );
+    const old = store;
+    expect(old.settings()).toEqual({
+      onboarded: true,
+      theme: "system",
+      textSize: "default",
+      sendWith: "enter",
+      checkUpdates: false,
+    });
+    writeFileSync(
+      join(dir, "state.json"),
+      JSON.stringify({
+        v: 1,
+        assistants: [],
+        sources: [],
+        settings: { onboarded: true, theme: "neon" },
+      }),
+    );
+    expect(old.settings().theme).toBe("system");
+  });
+});
+
+describe("model sources from the wider preset list", () => {
+  it("builds a cloud source's address from its checked part", () => {
+    expect(
+      store.saveSource({ preset: "azure", part: "my-resource", model: "d" })
+        .baseUrl,
+    ).toBe("https://my-resource.openai.azure.com/openai/v1");
+    expect(
+      store.saveSource({ preset: "bedrock", part: "eu-west-1", model: "m" })
+        .baseUrl,
+    ).toBe("https://bedrock-runtime.eu-west-1.amazonaws.com/openai/v1");
+    expect(() =>
+      store.saveSource({
+        preset: "azure",
+        part: "evil.example.com",
+        model: "d",
+      }),
+    ).toThrow();
+    expect(() =>
+      store.saveSource({ preset: "bedrock", part: "mars-1", model: "m" }),
+    ).toThrow();
+  });
+
+  it("pins a new router to its address and keeps a LiteLLM gateway typed", () => {
+    expect(
+      store.saveSource({
+        preset: "groq",
+        baseUrl: "https://evil.example.com",
+        model: "m",
+      }).baseUrl,
+    ).toBe("https://api.groq.com/openai/v1");
+    expect(
+      store.saveSource({
+        preset: "litellm",
+        baseUrl: "http://localhost:4000",
+        model: "m",
+      }).baseUrl,
+    ).toBe("http://localhost:4000");
+  });
+
+  it("keeps a source saved before these presets unchanged", () => {
+    writeFileSync(
+      join(dir, "state.json"),
+      JSON.stringify({
+        v: 1,
+        assistants: [],
+        sources: [
+          {
+            id: "22222222-2222-2222-2222-222222222222",
+            preset: "together",
+            name: "Together AI",
+            baseUrl: "https://api.together.ai/v1",
+            wire: "openai",
+            model: "m",
+          },
+          {
+            id: "33333333-3333-3333-3333-333333333333",
+            preset: "custom",
+            name: "Mine",
+            baseUrl: "https://models.example.com/v1",
+            model: "m",
+          },
+        ],
+        settings: { onboarded: true },
+      }),
+    );
+    expect(store.sources().map((s) => [s.preset, s.baseUrl, s.wire])).toEqual([
+      ["together", "https://api.together.ai/v1", "openai"],
+      ["custom", "https://models.example.com/v1", "openai"],
+    ]);
   });
 });

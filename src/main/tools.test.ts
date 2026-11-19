@@ -35,7 +35,7 @@ let notes: string;
 let outside: string;
 
 beforeEach(() => {
-  base = realpathSync(mkdtempSync(join(tmpdir(), "stellarfirm-open-tools-")));
+  base = realpathSync(mkdtempSync(join(tmpdir(), "openstellarfirm-tools-")));
   notes = join(base, "Notes");
   outside = join(base, "Outside");
   mkdirSync(join(notes, "sub"), { recursive: true });
@@ -513,7 +513,7 @@ describe("the agent loop", () => {
     ]);
   });
 
-  it("answers by talking when the model cannot take tools", async () => {
+  it("falls back to text mode when the model cannot take tools", async () => {
     let turns = 0;
     const result = await runAgent(
       { folders: [notes], web: false, sites: [] },
@@ -531,7 +531,7 @@ describe("the agent loop", () => {
     );
     expect(turns).toBe(2);
     expect(result.text).toBe("Plain answer.");
-    expect(result.steps[0]?.label).toMatch(/cannot use tools/);
+    expect(result.steps[0]?.label).toMatch(/cannot call tools itself/);
   });
 
   it("stops after a fixed number of rounds", async () => {

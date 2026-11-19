@@ -11,10 +11,11 @@ The app is at version 0.1.0. There is no tagged release yet.
 
 ### Added
 
-- A tag `vX.Y.Z` or `vX.Y.Z-rc.N` builds the macOS and Windows installers and
-  publishes them on this repository's GitHub Releases. Signing is used when
-  the certificates are set. An unsigned release says so in its title. See
-  [docs/releasing.md](docs/releasing.md).
+- A GitHub Actions workflow can publish the macOS and Windows installers
+  from a `vX.Y.Z` or `vX.Y.Z-rc.N` tag, once Actions billing works. Signing
+  is used when the certificates are set. An unsigned release says so in its
+  title. The Fly and Mac scripts remain the path while Actions is blocked.
+  See [docs/RELEASING.md](docs/RELEASING.md).
 - How to contribute: fork the repository, open a pull request against `main`,
   and wait for CI and a maintainer. See [CONTRIBUTING.md](CONTRIBUTING.md).
 - A desktop app for macOS and Windows. You make assistants (name, group, one
@@ -49,6 +50,55 @@ The app is at version 0.1.0. There is no tagged release yet.
 - [SECURITY.md](SECURITY.md), which says what the code enforces and what it
   does not, and [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) for bundled
   fonts.
+
+- Starter personas (Coder, Legal, Writer, Researcher, Planner, Tutor,
+  Accountant, Marketing) in [`personas/`](personas), one file each, offered
+  in the new-assistant form. Anyone can add one.
+- Native wires for Anthropic (Claude) and Google (Gemini), on your own key.
+- Tools for models that cannot call tools: the model asks in writing, through
+  the same approvals.
+- Connections: an assistant can use the tools of a remote MCP server by its
+  web address. Every call asks first. Composio is offered as a preset, on
+  your own Composio key.
+- Look up a company: read what a company publishes for personal agents
+  (`poppy.json`) and add one of its servers as a connection yourself.
+- A look at your screen, off until you turn it on for an assistant. Every
+  look asks first, the picture is never saved, and it can only look.
+- Move or back up: one file with all your assistants, and your chats only if
+  you tick that, to open on another computer.
+- Settings: light, dark or system theme, text size, the send key, what is
+  remembered, the data folder, delete all chats, and About.
+- An update check that is off until you turn it on. It only asks GitHub for
+  the newest version and shows a notice. It never downloads or installs.
+- An app icon, and Linux builds (AppImage and tar.gz).
+- Release and check scripts that run without GitHub Actions
+  ([docs/RELEASING.md](docs/RELEASING.md)).
+- [COMMUNITY.md](COMMUNITY.md), [CONTRIBUTORS.md](CONTRIBUTORS.md), and
+  public instructions for the maintainer assistant in
+  [`docs/maintainers/`](docs/maintainers).
+
+### Changed
+
+- The app is named OpenStellarFirm. It was StellarFirm Solo. The package name
+  is `openstellarfirm` and the application id is
+  `ai.stellarfirm.openstellarfirm`. An install that already ran keeps its
+  data folder and its sealed keys under the old name; this name starts a new
+  folder. Assistant files and backups keep the `stellarfirm-open.assistant`
+  and `stellarfirm-open.backup` formats, so a file you already have still
+  opens, and Copy to StellarFirm cloud still matches what stellarfirm.ai
+  reads.
+- The licence is now the Apache License 2.0 with the Commons Clause: free to
+  use, change and share, not to sell. Selling needs a commercial licence
+  ([COMMERCIAL.md](COMMERCIAL.md)). [NOTICE](NOTICE) says what the licence
+  covers.
+- Motion and interactions: screens and new messages fade in; the chat follows
+  an answer only while you are at the end, with a "Jump to latest" button;
+  the approval card never takes focus while you type, and turns into its
+  outcome line after you decide; confirms take focus, close with Escape and
+  give focus back; the theme changes with one cross-fade. Everything is still
+  under reduced motion.
+- A redesigned interface: labelled navigation in the sidebar, pill buttons,
+  one screen frame, and a compact persona picker.
 
 ### Security
 

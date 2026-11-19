@@ -14,7 +14,7 @@ const POINTS = [
   "No account. Nothing is stored in a cloud.",
   "Your own model: a key you bring, or one that runs on this machine.",
   "It asks before it reaches a new website, and never deletes a file.",
-  "Open source under the MIT licence.",
+  "The code is open: free to use, change and share.",
 ];
 
 /** The first run: pick the model the assistants think with. */
@@ -48,7 +48,7 @@ export function Welcome({ keychain, onDone, onCloud }: WelcomeProps) {
       <section className="welcome-hero">
         <Nova size={96} />
         <div className="dim" style={{ fontWeight: 500 }}>
-          StellarFirm Open
+          OpenStellarFirm
         </div>
         <h1>Your own assistant, on your own computer.</h1>
         <p

@@ -1,18 +1,34 @@
 import { type FormEvent, useState } from "react";
 import { COLORS, PETS, SKILLS } from "../../shared/catalog";
+import { serviceLabel } from "../../shared/connection-catalog";
 import type {
   Assistant,
+  Connection,
+  MailAccount,
   ModelSource,
   PetColor,
   PetId,
 } from "../../shared/types";
 import { api } from "./bridge";
-import { ErrorLine, message as errorText, Icon, OkLine, Pet } from "./ui";
+import { PERSONAS } from "./personas";
+import {
+  ErrorLine,
+  message as errorText,
+  Icon,
+  InlineConfirm,
+  OkLine,
+  Pet,
+  ScreenHead,
+} from "./ui";
 
 interface AssistantFormProps {
   /** The assistant to change; none makes a new one. */
   assistant: Assistant | undefined;
   sources: ModelSource[];
+  connections: Connection[];
+  mailAccounts: MailAccount[];
+  /** Every assistant, so the person can pick the ones this one may ask. */
+  assistants: Assistant[];
   onSaved(assistant: Assistant): void;
   /** Folders or sites changed; the form stays open. */
   onChanged(): void;
@@ -21,7 +37,8 @@ interface AssistantFormProps {
 }
 
 export function AssistantForm(props: AssistantFormProps) {
-  const { assistant, sources } = props;
+  const { assistant, sources, connections, mailAccounts } = props;
+  const others = props.assistants.filter((a) => a.id !== assistant?.id);
   const [name, setName] = useState(assistant?.name ?? "");
   const [group, setGroup] = useState(assistant?.group ?? "Personal");
   const [pet, setPet] = useState<PetId>(assistant?.pet ?? "glim");
@@ -29,6 +46,12 @@ export function AssistantForm(props: AssistantFormProps) {
   const [brief, setBrief] = useState(assistant?.brief ?? "");
   const [skills, setSkills] = useState<string[]>(assistant?.skills ?? []);
   const [web, setWeb] = useState(assistant?.web ?? false);
+  const [screen, setScreen] = useState(assistant?.screen ?? false);
+  const [connectionIds, setConnectionIds] = useState<string[]>(
+    assistant?.connections ?? [],
+  );
+  const [mailIds, setMailIds] = useState<string[]>(assistant?.mail ?? []);
+  const [canAsk, setCanAsk] = useState<string[]>(assistant?.canAsk ?? []);
   const [sourceId, setSourceId] = useState(assistant?.sourceId ?? "");
   const [model, setModel] = useState(assistant?.model ?? "");
   const [error, setError] = useState("");
@@ -36,12 +59,27 @@ export function AssistantForm(props: AssistantFormProps) {
   const [removing, setRemoving] = useState(false);
   const [copying, setCopying] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [persona, setPersona] = useState("");
   const source = sources.find((s) => s.id === sourceId);
 
   function toggle(id: string) {
     setSkills((current) =>
       current.includes(id) ? current.filter((s) => s !== id) : [...current, id],
     );
+  }
+
+  /** Fills the look, brief and skills. Nothing is saved until the person saves. */
+  function startFrom(index: number) {
+    const picked = PERSONAS[index];
+    if (!picked) return;
+    const a = picked.assistant;
+    setPersona(a.name);
+    setName(a.name);
+    setGroup(a.group);
+    setPet(a.pet);
+    setColor(a.color);
+    setBrief(a.brief);
+    setSkills(a.skills);
   }
 
   async function save(event: FormEvent) {
@@ -59,6 +97,10 @@ export function AssistantForm(props: AssistantFormProps) {
           brief,
           skills,
           web,
+          screen,
+          connections: connectionIds,
+          mail: mailIds,
+          canAsk,
           ...(sourceId ? { sourceId } : {}),
           ...(sourceId && model.trim() ? { model: model.trim() } : {}),
         }),
@@ -99,12 +141,35 @@ export function AssistantForm(props: AssistantFormProps) {
     <div className="form-layout">
       <form className="screen" onSubmit={save}>
         <div className="screen-body">
-          <div className="stack-tight">
-            <h1 className="screen-title">
-              {assistant ? "Make it yours" : "New assistant"}
-            </h1>
-            <p className="dim">Everything here is saved on this computer.</p>
-          </div>
+          <ScreenHead
+            title={assistant ? "Make it yours" : "New assistant"}
+            onBack={props.onCancel}
+          >
+            Everything here is saved on this computer.
+          </ScreenHead>
+
+          {!assistant && PERSONAS.length > 0 ? (
+            <fieldset className="stack plain">
+              <legend className="field-label">Start from a persona</legend>
+              <div className="wrap">
+                {PERSONAS.map((p, index) => (
+                  <button
+                    key={p.assistant.name}
+                    type="button"
+                    className="choice persona"
+                    aria-pressed={p.assistant.name === persona}
+                    onClick={() => startFrom(index)}
+                  >
+                    {p.assistant.name}
+                  </button>
+                ))}
+              </div>
+              <p className="persona-note" aria-live="polite">
+                {PERSONAS.find((p) => p.assistant.name === persona)?.summary ||
+                  "A starting point only. Change anything below before you save."}
+              </p>
+            </fieldset>
+          ) : null}
 
           <div className="wrap" style={{ alignItems: "flex-start" }}>
             <label className="field grow">
@@ -157,7 +222,7 @@ export function AssistantForm(props: AssistantFormProps) {
                 >
                   <span
                     className="swatch"
-                    style={{ background: c.hex }}
+                    style={{ background: `var(--pet-${c.id})` }}
                     aria-hidden="true"
                   />
                   <span>{c.name}</span>
@@ -219,6 +284,20 @@ export function AssistantForm(props: AssistantFormProps) {
             <p className="faint">
               It asks you before it reaches a site for the first time, and every
               time an address carries extra text.
+            </p>
+
+            <label className="choice" style={{ alignSelf: "flex-start" }}>
+              <input
+                type="checkbox"
+                checked={screen}
+                onChange={(event) => setScreen(event.target.checked)}
+              />
+              <span>Can look at my screen</span>
+            </label>
+            <p className="faint">
+              Each time, it asks first, and takes one picture of your screen
+              only after you approve. Everything visible goes to the model you
+              chose, so close anything private first.
             </p>
 
             {assistant ? (
@@ -289,6 +368,180 @@ export function AssistantForm(props: AssistantFormProps) {
             )}
           </section>
 
+          <fieldset className="stack-tight">
+            <legend className="section-title">Connections</legend>
+            {connections.length === 0 ? (
+              <p className="faint">
+                Add a connection from the sidebar, then pick it here.
+              </p>
+            ) : (
+              <>
+                <p className="faint">
+                  The tools of these connections are offered to this assistant.
+                  Each call still asks you first.
+                </p>
+                <div className="stack-tight">
+                  {connections.map((connection) => (
+                    <label className="choice" key={connection.id}>
+                      <input
+                        type="checkbox"
+                        checked={connectionIds.includes(connection.id)}
+                        onChange={(event) =>
+                          setConnectionIds((ids) =>
+                            event.target.checked
+                              ? [...ids, connection.id]
+                              : ids.filter((id) => id !== connection.id),
+                          )
+                        }
+                      />
+                      <span>
+                        {connection.name}
+                        <span className="faint">
+                          {" · "}
+                          {serviceLabel(connection)}
+                        </span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </>
+            )}
+            {assistant && assistant.connectionTools.length > 0 ? (
+              <ul className="list card" aria-label="Reads it may always use">
+                {assistant.connectionTools.map((key) => {
+                  const at = key.indexOf(":");
+                  const connectionId = key.slice(0, at);
+                  const tool = key.slice(at + 1);
+                  const name =
+                    connections.find((c) => c.id === connectionId)?.name ?? "";
+                  return (
+                    <li key={key}>
+                      <span className="grow mono">
+                        {name ? `${name}: ` : ""}
+                        {tool}
+                      </span>
+                      <span className="faint">Always allowed</span>
+                      <button
+                        type="button"
+                        className="btn"
+                        onClick={() =>
+                          void run(() =>
+                            api.removeConnectionTool(
+                              assistant.id,
+                              connectionId,
+                              tool,
+                            ),
+                          )
+                        }
+                      >
+                        Remove
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : null}
+          </fieldset>
+
+          <fieldset className="stack-tight">
+            <legend className="section-title">Mail</legend>
+            {mailAccounts.length === 0 ? (
+              <p className="faint">
+                Add a mail account from the sidebar, then pick it here.
+              </p>
+            ) : (
+              <>
+                <p className="faint">
+                  This assistant may read the mail of the accounts you tick. It
+                  can only read: it cannot send, delete, move or mark anything.
+                  Each look asks you first, and what it reads goes to the model
+                  you chose.
+                </p>
+                <div className="stack-tight">
+                  {mailAccounts.map((account) => (
+                    <label className="choice" key={account.id}>
+                      <input
+                        type="checkbox"
+                        checked={mailIds.includes(account.id)}
+                        onChange={(event) =>
+                          setMailIds((ids) =>
+                            event.target.checked
+                              ? [...ids, account.id]
+                              : ids.filter((id) => id !== account.id),
+                          )
+                        }
+                      />
+                      <span>{account.name}</span>
+                    </label>
+                  ))}
+                </div>
+              </>
+            )}
+            {assistant && (assistant.mailReads ?? []).length > 0 ? (
+              <ul className="list card" aria-label="Mail it may always read">
+                {(assistant.mailReads ?? []).map((accountId) => (
+                  <li key={accountId}>
+                    <span className="grow">
+                      {mailAccounts.find((m) => m.id === accountId)?.name ??
+                        "A mail account"}
+                    </span>
+                    <span className="faint">Always allowed</span>
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={() =>
+                        void run(() =>
+                          api.removeMailRead(assistant.id, accountId),
+                        )
+                      }
+                    >
+                      Remove
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </fieldset>
+          <fieldset className="stack-tight">
+            <legend className="section-title">Can ask</legend>
+            {others.length === 0 ? (
+              <p className="faint">
+                Make another assistant first. Then you can let this one ask it.
+              </p>
+            ) : (
+              <>
+                <p className="faint">
+                  This assistant may ask the ones you tick one question at a
+                  time. The one that is asked answers with its own brief,
+                  skills, tools and model, and sees only the question, not this
+                  chat. A question, and anything in it, goes to the other
+                  assistant's model, and what the other assistant reads to
+                  answer comes back here and goes to this assistant's model. If
+                  it needs your Approve for a step, the card shows in this chat
+                  and says whose step it is. It cannot ask a third assistant.
+                </p>
+                <div className="stack-tight">
+                  {others.map((other) => (
+                    <label className="choice" key={other.id}>
+                      <input
+                        type="checkbox"
+                        checked={canAsk.includes(other.id)}
+                        onChange={(event) =>
+                          setCanAsk((ids) =>
+                            event.target.checked
+                              ? [...ids, other.id]
+                              : ids.filter((id) => id !== other.id),
+                          )
+                        }
+                      />
+                      <span>{other.name}</span>
+                    </label>
+                  ))}
+                </div>
+              </>
+            )}
+          </fieldset>
+
           <div className="wrap" style={{ alignItems: "flex-start" }}>
             <label className="field grow">
               <span className="field-label">Model</span>
@@ -341,10 +594,10 @@ export function AssistantForm(props: AssistantFormProps) {
           {assistant ? (
             <section className="stack" aria-label="Remove">
               {removing ? (
-                <div
+                <InlineConfirm
                   className="card stack pad"
-                  role="alertdialog"
-                  aria-label={`Remove ${assistant.name}`}
+                  label={`Remove ${assistant.name}`}
+                  onClose={() => setRemoving(false)}
                 >
                   <p>
                     Remove {assistant.name} and its chat from this computer?
@@ -359,6 +612,7 @@ export function AssistantForm(props: AssistantFormProps) {
                       Remove
                     </button>
                     <button
+                      data-autofocus
                       type="button"
                       className="btn"
                       onClick={() => setRemoving(false)}
@@ -366,7 +620,7 @@ export function AssistantForm(props: AssistantFormProps) {
                       Keep it
                     </button>
                   </div>
-                </div>
+                </InlineConfirm>
               ) : (
                 <div>
                   <button
@@ -408,10 +662,10 @@ export function AssistantForm(props: AssistantFormProps) {
               Export as a file
             </button>
             {copying ? (
-              <div
+              <InlineConfirm
                 className="card stack pad"
-                role="alertdialog"
-                aria-label="Copy to StellarFirm cloud"
+                label="Copy to StellarFirm cloud"
+                onClose={() => setCopying(false)}
               >
                 <p>
                   This opens stellarfirm.ai in your browser with this
@@ -439,6 +693,7 @@ export function AssistantForm(props: AssistantFormProps) {
                     <Icon name="external" size={14} />
                   </button>
                   <button
+                    data-autofocus
                     type="button"
                     className="btn"
                     onClick={() => setCopying(false)}
@@ -446,7 +701,7 @@ export function AssistantForm(props: AssistantFormProps) {
                     Cancel
                   </button>
                 </div>
-              </div>
+              </InlineConfirm>
             ) : (
               <button
                 type="button"
@@ -458,7 +713,7 @@ export function AssistantForm(props: AssistantFormProps) {
               </button>
             )}
             <p className="faint">
-              A file can be shared with anyone who runs StellarFirm Open. Keys
+              A file can be shared with anyone who runs OpenStellarFirm. Keys
               and models are never in it.
             </p>
           </div>
