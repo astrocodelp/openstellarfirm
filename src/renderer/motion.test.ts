@@ -5,7 +5,8 @@ import { describe, expect, it } from "vitest";
 /**
  * Motion rules, checked from the stylesheet itself: nothing moves the layout,
  * and nothing moves without a reduced-motion answer. Every transition and
- * animation sits in a prefers-reduced-motion block; with reduce, only opacity.
+ * animation sits in a motion block (the page's data-motion attribute, which
+ * follows the person's choice or the computer's); with reduce, only opacity.
  */
 
 const css = readFileSync(join(import.meta.dirname, "src/styles.css"), "utf8")
@@ -115,8 +116,11 @@ function moves(rule: Rule): boolean {
   );
 }
 
+const REDUCE = ':where(:root[data-motion="reduce"])';
+const FULL = ':where(:root[data-motion="full"])';
+
 const motion = (rule: Rule) =>
-  rule.context.find((c) => c.includes("prefers-reduced-motion"));
+  rule.context.find((c) => c === REDUCE || c === FULL);
 
 describe("motion in the stylesheet", () => {
   it("defines its curves and durations once, as tokens", () => {
@@ -162,9 +166,7 @@ describe("motion in the stylesheet", () => {
   });
 
   it("with reduced motion, fades opacity and nothing else", () => {
-    const reduced = all.filter((rule) =>
-      motion(rule)?.includes("prefers-reduced-motion: reduce"),
-    );
+    const reduced = all.filter((rule) => motion(rule) === REDUCE);
     expect(reduced.length).toBeGreaterThan(0);
     for (const rule of reduced) {
       for (const p of rule.declarations.flatMap(transitioned))
@@ -174,6 +176,13 @@ describe("motion in the stylesheet", () => {
           "opacity",
         ]);
     }
+  });
+
+  it("answers to the person's choice, not only to the computer's", () => {
+    // A media query would ignore "Less motion" or "Full motion" in Settings.
+    expect(css).not.toMatch(/@media[^{]*prefers-reduced-motion/);
+    expect(css).toContain(`${REDUCE} {`);
+    expect(css).toContain(`${FULL} {`);
   });
 
   it("names its properties, never transition: all", () => {

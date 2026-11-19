@@ -13,14 +13,27 @@ type Rgba = [number, number, number, number];
 
 const css = readFileSync(join(import.meta.dirname, "src/styles.css"), "utf8");
 
-function block(from: string): string {
-  const open = css.indexOf("{", from.length ? css.indexOf(from) : 0);
+/** The body of the block that starts at `at`. */
+function blockAt(at: number): string {
+  const open = css.indexOf("{", at);
   let depth = 0;
   for (let i = open; i < css.length; i++) {
     if (css[i] === "{") depth++;
     if (css[i] === "}" && --depth === 0) return css.slice(open + 1, i);
   }
-  throw new Error(`No block after ${from}`);
+  throw new Error(`No block at ${at}`);
+}
+
+function block(from: string): string {
+  return blockAt(from.length ? css.indexOf(from) : 0);
+}
+
+/** Every block that starts with `from`, in the order of the sheet. */
+function blocks(from: string): string[] {
+  const found: string[] = [];
+  for (let at = css.indexOf(from); at !== -1; at = css.indexOf(from, at + 1))
+    found.push(blockAt(at));
+  return found;
 }
 
 function tokens(body: string): Record<string, string> {
@@ -37,6 +50,20 @@ const light = {
     block("@media (prefers-color-scheme: light)").replace(/^\s*:root\s*\{/, ""),
   ),
 };
+
+/** "More contrast" lives in its own block in each theme, keyed by data-contrast. */
+const MORE = ':root[data-contrast="more"]';
+const moreBlock = (scheme: "dark" | "light") => {
+  const found = blocks(`@media (prefers-color-scheme: ${scheme})`).find((b) =>
+    b.includes(MORE),
+  );
+  if (!found) throw new Error(`No more-contrast block for ${scheme}`);
+  return found;
+};
+const moreDarkTokens = tokens(moreBlock("dark"));
+const moreLightTokens = tokens(moreBlock("light"));
+const darkMore = { ...dark, ...moreDarkTokens };
+const lightMore = { ...light, ...moreLightTokens };
 
 function linear(c: number): number {
   const v = c / 255;
@@ -100,19 +127,25 @@ function ratio(a: Rgb, b: Rgb): number {
 
 const SURFACES = ["--bg", "--raised", "--sunken", "--hover", "--active"];
 
-function themeChecks(name: string, all: Record<string, string>) {
+/**
+ * The checks every theme passes. With more contrast, text asks for 7:1 (the
+ * enhanced level) and a control's edge for 4.5:1, not the 4.5:1 and 3:1 floor.
+ */
+function themeChecks(name: string, all: Record<string, string>, more = false) {
+  const textFloor = more ? 7 : 4.5;
+  const edgeFloor = more ? 4.5 : 3;
   const rgb = (token: string, under: Rgb = [0, 0, 0]): Rgb =>
     over(parse(`var(${token})`, all), under);
   const surface = (token: string) => rgb(token);
 
   describe(`${name} theme`, () => {
-    it("main, muted and faint text pass 4.5:1 on every surface", () => {
+    it(`main, muted and faint text pass ${textFloor}:1 on every surface`, () => {
       for (const text of ["--text", "--dim", "--faint"])
         for (const s of SURFACES)
           expect(
             ratio(rgb(text, surface(s)), surface(s)),
             `${text} on ${s}`,
-          ).toBeGreaterThanOrEqual(4.5);
+          ).toBeGreaterThanOrEqual(textFloor);
     });
 
     it("the primary button's text passes 4.5:1 on its lime", () => {
@@ -128,28 +161,34 @@ function themeChecks(name: string, all: Record<string, string>) {
         ).toBeGreaterThanOrEqual(3);
     });
 
-    it("a control's edge passes 3:1 on the surfaces controls sit on", () => {
+    it(`a control's edge passes ${edgeFloor}:1 on the surfaces controls sit on`, () => {
       for (const s of ["--bg", "--raised", "--sunken"])
         for (const edge of ["--control-line", "--control-line-on"])
           expect(
             ratio(rgb(edge, surface(s)), surface(s)),
             `${edge} on ${s}`,
-          ).toBeGreaterThanOrEqual(3);
+          ).toBeGreaterThanOrEqual(edgeFloor);
       // The lime button's own edge, where it sits on the page.
       expect(ratio(rgb("--lime-edge"), surface("--bg"))).toBeGreaterThanOrEqual(
         3,
       );
     });
 
-    it("success and error words pass 4.5:1 on every surface", () => {
+    it(`success and error words pass ${textFloor}:1 on every surface`, () => {
       for (const word of ["--ok", "--danger", "--signal"])
         for (const s of SURFACES)
           expect(
             ratio(rgb(word), surface(s)),
             `${word} on ${s}`,
-          ).toBeGreaterThanOrEqual(4.5);
-      const wash = over(parse("var(--ok-wash)", all), surface("--bg"));
-      expect(ratio(rgb("--ok"), wash)).toBeGreaterThanOrEqual(4.5);
+          ).toBeGreaterThanOrEqual(textFloor);
+      // The "Working" badge: its word on its own wash, wherever it sits.
+      for (const s of ["--bg", "--raised", "--sunken"]) {
+        const wash = over(parse("var(--ok-wash)", all), surface(s));
+        expect(
+          ratio(rgb("--ok"), wash),
+          `--ok on its wash over ${s}`,
+        ).toBeGreaterThanOrEqual(4.5);
+      }
       // A calm destructive button fills with this wash when it is pointed at.
       for (const s of ["--bg", "--raised", "--sunken"]) {
         const danger = over(parse("var(--danger-wash)", all), surface(s));
@@ -188,6 +227,22 @@ function themeChecks(name: string, all: Record<string, string>) {
       const selected = over(parse("var(--selection)", all), surface("--bg"));
       expect(ratio(rgb("--text"), selected)).toBeGreaterThanOrEqual(4.5);
     });
+
+    it("a disabled lime button still says what it is, at 4.5:1", () => {
+      // Not lime when it cannot be pressed: faint text on the active fill.
+      expect(ratio(rgb("--faint"), surface("--active"))).toBeGreaterThanOrEqual(
+        4.5,
+      );
+    });
+
+    it("text on the user's own bubble and on a key passes 4.5:1", () => {
+      expect(ratio(rgb("--text"), surface("--active"))).toBeGreaterThanOrEqual(
+        4.5,
+      );
+      expect(ratio(rgb("--text"), surface("--sunken"))).toBeGreaterThanOrEqual(
+        4.5,
+      );
+    });
   });
 }
 
@@ -206,10 +261,20 @@ describe("the stylesheet", () => {
     expect(light["--bg"]).not.toBe(dark["--bg"]);
   });
 
-  it("types no colour outside the token block and the light block", () => {
+  it("sets the same tokens for more contrast in both themes", () => {
+    // Otherwise a token from one theme's block would be missing in the other.
+    expect(Object.keys(moreLightTokens).sort()).toEqual(
+      Object.keys(moreDarkTokens).sort(),
+    );
+    expect(Object.keys(moreDarkTokens).length).toBeGreaterThan(5);
+  });
+
+  it("types no colour outside the token blocks", () => {
     const outside = css
       .replace(block(":root {"), "")
-      .replace(block("@media (prefers-color-scheme: light)"), "");
+      .replace(block("@media (prefers-color-scheme: light)"), "")
+      .replace(moreBlock("dark"), "")
+      .replace(moreBlock("light"), "");
     expect(outside.match(/#[0-9a-fA-F]{3,8}\b|rgba?\(|oklch\(/g) ?? []).toEqual(
       [],
     );
@@ -218,3 +283,5 @@ describe("the stylesheet", () => {
 
 themeChecks("dark", dark);
 themeChecks("light", light);
+themeChecks("dark, more contrast", darkMore, true);
+themeChecks("light, more contrast", lightMore, true);

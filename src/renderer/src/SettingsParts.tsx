@@ -56,8 +56,15 @@ export function Choices<T extends string>({
   const ids = useId();
   return (
     <fieldset className="plain stack">
-      <legend className="field-label">{legend}</legend>
-      <div className="wrap" role="radiogroup" aria-describedby={`${ids}-note`}>
+      <legend className="field-label" id={`${ids}-legend`}>
+        {legend}
+      </legend>
+      <div
+        className="wrap"
+        role="radiogroup"
+        aria-labelledby={`${ids}-legend`}
+        aria-describedby={note ? `${ids}-note` : undefined}
+      >
         {options.map((option) => (
           <label key={option.id} className="choice">
             <input

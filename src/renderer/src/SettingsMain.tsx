@@ -73,11 +73,14 @@ export function MainAssistantSection({
       {main ? (
         <>
           <label className="field">
-            <span className="field-label">What to look for</span>
+            <span className="field-label" id={`${id}-label`}>
+              What to look for
+            </span>
             <span className="faint" id={`${id}-hint`}>
               {EXAMPLE}
             </span>
             <textarea
+              aria-labelledby={`${id}-label`}
               className="input"
               rows={4}
               value={lookFor}
@@ -135,6 +138,7 @@ export function MainAssistantSection({
               type="button"
               className="btn"
               disabled={busy || !lookFor.trim()}
+              aria-label={`Check now with ${main.name}`}
               onClick={() =>
                 void run(async () => {
                   setStarted("");

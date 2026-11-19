@@ -92,7 +92,7 @@ p.gallery-num {
   max-width: 65ch;
 }
 
-@media (prefers-reduced-motion: no-preference) {
+:where(:root[data-motion="full"]) {
   .gallery-card {
     transition: border-color var(--dur-press) var(--ease-out);
   }

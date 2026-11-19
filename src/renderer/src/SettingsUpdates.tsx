@@ -62,6 +62,8 @@ export function UpdatesSection({
           type="button"
           className="btn"
           disabled={busy}
+          // Two "Check now" buttons share this screen; the name tells them apart.
+          aria-label="Check now for a newer version"
           onClick={() =>
             void run(async () => {
               setResult(verdict(await api.checkForUpdate()));

@@ -3,7 +3,13 @@ import { BEDROCK_REGIONS } from "../../shared/address";
 import { PRESET_GROUPS, PRESETS, presetOf } from "../../shared/catalog";
 import type { AppState, ModelSource, PresetId } from "../../shared/types";
 import { api } from "./bridge";
-import { ErrorLine, message as errorText, OkLine, ScreenHead } from "./ui";
+import {
+  ErrorLine,
+  message as errorText,
+  InlineConfirm,
+  OkLine,
+  ScreenHead,
+} from "./ui";
 
 interface SourceFormProps {
   initialPreset?: PresetId;
@@ -30,6 +36,8 @@ export function SourceForm({
   const [models, setModels] = useState<string[]>(initialModels);
   const [busy, setBusy] = useState<"" | "look" | "save">("");
   const [error, setError] = useState("");
+  /** True when the error is about the model's name, so it is tied to that field. */
+  const [modelError, setModelError] = useState(false);
   const preset = presetOf(presetId);
   const own = preset.address === "own";
   const takesKey = !preset.local;
@@ -40,11 +48,13 @@ export function SourceForm({
     setModels([]);
     setModel("");
     setError("");
+    setModelError(false);
   }
 
   async function look() {
     setBusy("look");
     setError("");
+    setModelError(false);
     try {
       const found = await api.probeModels({
         preset: presetId,
@@ -53,9 +63,10 @@ export function SourceForm({
         apiKey,
       });
       setModels(found);
-      if (found.length === 0)
+      if (found.length === 0) {
         setError("It answered, but listed no models. Type the model's name.");
-      else if (!found.includes(model)) setModel(found[0] ?? "");
+        setModelError(true);
+      } else if (!found.includes(model)) setModel(found[0] ?? "");
     } catch (e) {
       setError(errorText(e));
     } finally {
@@ -67,6 +78,7 @@ export function SourceForm({
     event.preventDefault();
     setBusy("save");
     setError("");
+    setModelError(false);
     try {
       onSaved(
         await api.saveSource({
@@ -88,9 +100,13 @@ export function SourceForm({
   return (
     <form className="stack" onSubmit={save}>
       <label className="field">
-        <span className="field-label">Where the model runs</span>
+        <span className="field-label" id={`${ids}-where`}>
+          Where the model runs
+        </span>
         <select
           className="input"
+          aria-labelledby={`${ids}-where`}
+          aria-describedby={`${ids}-where-note`}
           value={presetId}
           onChange={(event) => pick(event.target.value as PresetId)}
         >
@@ -104,13 +120,19 @@ export function SourceForm({
             </optgroup>
           ))}
         </select>
-        <span className="faint">{preset.note}</span>
+        <span className="faint" id={`${ids}-where-note`}>
+          {preset.note}
+        </span>
       </label>
 
       {preset.address === "azure" ? (
         <label className="field">
-          <span className="field-label">Resource</span>
+          <span className="field-label" id={`${ids}-resource`}>
+            Resource
+          </span>
           <input
+            aria-labelledby={`${ids}-resource`}
+            aria-describedby={`${ids}-resource-note`}
             className="input mono"
             value={part}
             placeholder="my-resource"
@@ -118,7 +140,7 @@ export function SourceForm({
             autoComplete="off"
             onChange={(event) => setPart(event.target.value)}
           />
-          <span className="faint">
+          <span className="faint" id={`${ids}-resource-note`}>
             The resource's name, or its address ending in openai.azure.com.
           </span>
         </label>
@@ -158,10 +180,12 @@ export function SourceForm({
 
       {takesKey ? (
         <label className="field">
-          <span className="field-label">
+          <span className="field-label" id={`${ids}-key`}>
             {preset.needsKey || preset.local ? "Key" : "Key, if it needs one"}
           </span>
           <input
+            aria-labelledby={`${ids}-key`}
+            aria-describedby={`${ids}-key-note`}
             className="input mono"
             type="password"
             value={apiKey}
@@ -169,7 +193,7 @@ export function SourceForm({
             autoComplete="off"
             onChange={(event) => setApiKey(event.target.value)}
           />
-          <span className="faint">
+          <span className="faint" id={`${ids}-key-note`}>
             {keychain
               ? "Kept in this computer's keychain. It is sent only to this address, and never shown again."
               : "This computer has no keychain, so a key cannot be saved here."}
@@ -187,6 +211,15 @@ export function SourceForm({
             className="input mono grow"
             value={model}
             list={`${ids}-models`}
+            aria-invalid={modelError || undefined}
+            aria-describedby={
+              [
+                preset.lists ? "" : `${ids}-model-note`,
+                modelError ? `${ids}-error` : "",
+              ]
+                .filter(Boolean)
+                .join(" ") || undefined
+            }
             placeholder="The model's name, as its maker writes it"
             spellCheck={false}
             autoComplete="off"
@@ -209,7 +242,7 @@ export function SourceForm({
           ) : null}
         </div>
         {preset.lists ? null : (
-          <span className="faint">
+          <span className="faint" id={`${ids}-model-note`}>
             {preset.id === "azure"
               ? "Azure does not list models. Type the name you gave the deployment."
               : "This service does not list its models here. Type the model's name."}
@@ -222,12 +255,13 @@ export function SourceForm({
         ) : null}
       </div>
 
-      <ErrorLine>{error}</ErrorLine>
+      <ErrorLine id={`${ids}-error`}>{error}</ErrorLine>
       <div>
         <button
           type="submit"
           className="btn btn-primary"
           disabled={busy !== "" || !model.trim()}
+          aria-describedby={error ? `${ids}-error` : undefined}
         >
           {busy === "save" ? "Saving…" : submitLabel}
         </button>
@@ -255,6 +289,7 @@ export function ModelsScreen({ state, onChanged, onBack }: ModelsScreenProps) {
     Record<string, { ok: boolean; text: string }>
   >({});
   const [error, setError] = useState("");
+  const [removing, setRemoving] = useState<string | null>(null);
 
   async function check(source: ModelSource) {
     setChecks((c) => ({ ...c, [source.id]: { ok: true, text: "Checking…" } }));
@@ -321,7 +356,12 @@ export function ModelsScreen({ state, onChanged, onBack }: ModelsScreenProps) {
                           : "No key saved"}
                       </span>
                       {result ? (
-                        result.ok ? (
+                        result.text === "Checking…" ? (
+                          // Not a tick: nothing has worked yet.
+                          <span className="faint" role="status">
+                            {result.text}
+                          </span>
+                        ) : result.ok ? (
                           <OkLine>{result.text}</OkLine>
                         ) : (
                           <ErrorLine>{result.text}</ErrorLine>
@@ -334,6 +374,7 @@ export function ModelsScreen({ state, onChanged, onBack }: ModelsScreenProps) {
                       <button
                         type="button"
                         className="btn"
+                        aria-label={`Make ${source.name} the default`}
                         onClick={() =>
                           void run(() =>
                             api.setSettings({ defaultSourceId: source.id }),
@@ -347,20 +388,55 @@ export function ModelsScreen({ state, onChanged, onBack }: ModelsScreenProps) {
                       <button
                         type="button"
                         className="btn"
+                        aria-label={`Check ${source.name}`}
                         onClick={() => void check(source)}
                       >
                         Check
                       </button>
                     ) : null}
-                    <button
-                      type="button"
-                      className="btn btn-danger"
-                      onClick={() =>
-                        void run(() => api.removeSource(source.id))
-                      }
-                    >
-                      Remove
-                    </button>
+                    {removing === source.id ? (
+                      <InlineConfirm
+                        className="confirm stack list-confirm"
+                        label={`Remove ${source.name}`}
+                        onClose={() => setRemoving(null)}
+                      >
+                        <p>
+                          Remove {source.name}? Its saved key is deleted.
+                          Assistants that used it go back to the default.
+                        </p>
+                        <div className="wrap">
+                          <button
+                            data-autofocus
+                            type="button"
+                            className="btn"
+                            onClick={() => setRemoving(null)}
+                          >
+                            Keep it
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-danger"
+                            onClick={() =>
+                              void run(async () => {
+                                await api.removeSource(source.id);
+                                setRemoving(null);
+                              })
+                            }
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </InlineConfirm>
+                    ) : (
+                      <button
+                        type="button"
+                        className="btn btn-danger"
+                        aria-label={`Remove ${source.name}`}
+                        onClick={() => setRemoving(source.id)}
+                      >
+                        Remove
+                      </button>
+                    )}
                   </li>
                 );
               })}

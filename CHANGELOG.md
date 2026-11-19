@@ -20,6 +20,17 @@ The app is at version 0.1.0. There is no tagged release yet.
 - A searchable list of connections on an assistant's form once you have more
   than six, with a count of how many it may use.
 
+- Accessibility first, aiming at WCAG 2.2 AA. A new Settings section,
+  Accessibility: contrast (follow this computer, more, or standard, in light
+  and dark), motion (follow this computer, less, or full), underline links, a
+  stronger focus ring, more space for reading, larger click targets, and the
+  speed of read aloud. Each answer has a Read aloud button that uses only a
+  voice on this computer. Skip links, named landmarks, one polite announcer for
+  a finished answer, a step that waits and an error, a keyboard shortcuts list
+  (Ctrl or Cmd with /), and remove questions that take and give back the
+  focus. Field hints and errors are tied to their fields, and buttons that
+  repeat in a list say what they act on. See
+  [ACCESSIBILITY.md](ACCESSIBILITY.md).
 - A desktop app for macOS and Windows. You make assistants (name, group, one
   of six pets in five colours, a brief, and skills) that talk through a model
   you set up: Ollama or LM Studio on this computer, your own key, or your own

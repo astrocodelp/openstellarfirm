@@ -110,7 +110,7 @@ export function Sidebar(props: SidebarProps) {
     </li>
   );
   return (
-    <aside className="sidebar">
+    <aside className="sidebar" aria-label="Sidebar">
       <div className="sidebar-head">
         <Nova size={48} />
         <div className="brand-text">

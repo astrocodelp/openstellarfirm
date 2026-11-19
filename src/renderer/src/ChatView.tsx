@@ -13,6 +13,7 @@ import type {
   ChatStep,
   Decision,
 } from "../../shared/types";
+import { ReadAloud } from "./Accessibility";
 import {
   CopyButton,
   type FoundMessage,
@@ -72,6 +73,8 @@ interface ChatViewProps {
   onCopy?(messageId: string): Promise<void>;
   /** A message a search found in this chat, to bring into view. */
   found?: FoundMessage | undefined;
+  /** How fast Read aloud reads an answer. */
+  readRate?: number;
 }
 
 /** The time a check started, as the person's computer writes it. */
@@ -109,8 +112,8 @@ function Approval({
   const first = useRef<HTMLButtonElement>(null);
 
   // Focus moves to the card only when the person is not typing somewhere:
-  // a key pressed mid-sentence must never land on Approve. The chat is a live
-  // region, so the card is announced either way.
+  // a key pressed mid-sentence must never land on Approve. The app's live
+  // region says a step waits either way.
   // biome-ignore lint/correctness/useExhaustiveDependencies: focus once for each new card
   useEffect(() => {
     const active = document.activeElement;
@@ -343,12 +346,9 @@ export function ChatView(props: ChatViewProps) {
             )}
           </div>
         ) : (
-          <div
-            className="chat-column"
-            aria-live="polite"
-            key={assistant.id}
-            ref={column}
-          >
+          // Not a live region: an answer is told once it is done, by the app's
+          // one announcer, never word by word while it is written.
+          <div className="chat-column" key={assistant.id} ref={column}>
             {messages.map((m) =>
               m.check === "request" ? (
                 <p key={m.id} className="check-note" data-message-id={m.id}>
@@ -392,6 +392,11 @@ export function ChatView(props: ChatViewProps) {
                       onError={setError}
                     />
                   ) : null}
+                  <ReadAloud
+                    id={m.id}
+                    text={m.text}
+                    rate={props.readRate ?? 1}
+                  />
                 </div>
               ),
             )}
@@ -453,7 +458,7 @@ export function ChatView(props: ChatViewProps) {
           <Icon name="down" size={14} />
           Jump to latest
         </button>
-        <ErrorLine>{error}</ErrorLine>
+        <ErrorLine id="send-error">{error}</ErrorLine>
         <div className="composer">
           <label className="visually-hidden" htmlFor="message-box">
             Message {assistant.name}
@@ -466,7 +471,7 @@ export function ChatView(props: ChatViewProps) {
             placeholder={`Message ${assistant.name}`}
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={onKeyDown}
-            aria-describedby="send-hint"
+            aria-describedby={error ? "send-error send-hint" : "send-hint"}
           />
           {busy ? (
             <button
