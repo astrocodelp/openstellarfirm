@@ -63,7 +63,7 @@ is what anyone can read.
    open it the way the README says (Open Anyway, More info then Run anyway,
    `chmod +x` for the AppImage), get past the first run with a model (Ollama,
    or a key), make an assistant, send a message and see the answer stream, and
-   open Settings, About, and its licences. On Linux, save a key, to check the
+   open Settings, Updates and About, and its licences. On Linux, save a key, to check the
    keyring. Anything wrong: delete the draft's files, fix it, and tag again.
 9. Write the highlights in the draft's notes, from the changelog.
 10. Publish the release by hand. No script ever publishes.

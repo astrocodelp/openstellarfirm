@@ -14,22 +14,15 @@ interface SidebarProps {
   /** The assistants with an update from a check that has not been seen. */
   unread: Set<string>;
   showCloudCard: boolean;
-  /** The screen that is open, so its link in the foot reads as the current one. */
-  current?:
-    | "models"
-    | "connections"
-    | "mail"
-    | "backup"
-    | "settings"
-    | undefined;
+  /** True while Settings is open, so its button in the foot reads as the current place. */
+  settingsOpen: boolean;
   onSelect(id: string): void;
   onNew(): void;
   onImport(): void;
-  onBackup(): void;
-  onModels(): void;
+  /** Opens Settings, where the app is set up: models, connections, mail and the rest. */
   onSettings(): void;
-  onConnections(): void;
-  onMail(): void;
+  /** The key that opens Settings, as this computer writes it, such as "Ctrl ,". */
+  settingsKeys?: { text: string; aria: string };
   onCloud(): void;
   onHideCloudCard(): void;
   /** A quiet notice above the foot, such as "a new version is available". */
@@ -93,24 +86,6 @@ export function Sidebar(props: SidebarProps) {
     // A line saved by an older version may still carry Markdown marks.
     return a.lastLine ? plainLine(a.lastLine) : "No messages yet";
   };
-  const nav = (
-    name: "models" | "connections" | "mail" | "backup" | "settings",
-    label: string,
-    icon: "sliders" | "link" | "mail" | "download" | "gear",
-    onClick: () => void,
-  ) => (
-    <li key={name}>
-      <button
-        type="button"
-        className="nav-item"
-        aria-current={props.current === name ? "page" : undefined}
-        onClick={onClick}
-      >
-        <Icon name={icon} size={18} />
-        {label}
-      </button>
-    </li>
-  );
   return (
     <aside className="sidebar" aria-label="Sidebar">
       <div className="sidebar-head">
@@ -230,15 +205,28 @@ export function Sidebar(props: SidebarProps) {
         </div>
       </nav>
 
-      <nav aria-label="The app">
-        <ul className="sidebar-nav">
-          {nav("models", "Models", "sliders", props.onModels)}
-          {nav("connections", "Connections", "link", props.onConnections)}
-          {nav("mail", "Mail", "mail", props.onMail)}
-          {nav("backup", "Move or back up", "download", props.onBackup)}
-          {nav("settings", "Settings", "gear", props.onSettings)}
-        </ul>
-      </nav>
+      {/*
+       * One quiet row. The sidebar is for the assistants; everything that sets
+       * the app up (models, connections, mail, moving or backing up) is a page
+       * of Settings.
+       */}
+      <div className="sidebar-foot">
+        <button
+          type="button"
+          className="nav-item settings-btn"
+          aria-current={props.settingsOpen ? "page" : undefined}
+          aria-keyshortcuts={props.settingsKeys?.aria}
+          onClick={props.onSettings}
+        >
+          <Icon name="gear" size={18} />
+          Settings
+          {props.settingsKeys ? (
+            <span className="kbd" aria-hidden="true">
+              {props.settingsKeys.text}
+            </span>
+          ) : null}
+        </button>
+      </div>
     </aside>
   );
 }

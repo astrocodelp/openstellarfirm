@@ -44,14 +44,20 @@ const items = paletteItems({ assistants, connections, mailAccounts });
 const labels = (list: PaletteItem[]) => list.map((i) => i.label);
 
 describe("the palette's list", () => {
-  it("shows assistants, actions and screens before anything is typed", () => {
+  it("shows assistants, actions and the Settings screens before anything is typed", () => {
     const shown = filterPalette(items, "");
     expect(new Set(shown.map((i) => i.group))).toEqual(
-      new Set(["assistants", "actions", "screens"]),
+      new Set(["assistants", "actions", "settings"]),
     );
     expect(labels(shown)).toContain("New assistant");
-    expect(labels(shown)).toContain("Move or back up");
     expect(labels(shown)).toContain("Settings");
+    // The pages that were screens of their own, and no section.
+    expect(labels(shown.filter((i) => i.group === "settings"))).toEqual([
+      "Models",
+      "Connections",
+      "Mail",
+      "Move or back up",
+    ]);
     expect(labels(shown)).not.toContain("Appearance");
   });
 
@@ -73,12 +79,12 @@ describe("the palette's list", () => {
     const github = filterPalette(items, "github");
     expect(labels(github)).toEqual(["Connections", "GitHub work"]);
     expect(github[1]?.target).toEqual({
-      kind: "screen",
-      screen: "connections",
+      kind: "settings",
+      page: "connections",
     });
     expect(filterPalette(items, "personal")[0]?.target).toEqual({
-      kind: "screen",
-      screen: "mail",
+      kind: "settings",
+      page: "mail",
     });
   });
 
@@ -96,11 +102,11 @@ describe("the palette's list", () => {
     const list: PaletteItem[] = [
       {
         id: "1",
-        group: "screens",
+        group: "settings",
         label: "Something with mail",
         target: { kind: "new" },
       },
-      { id: "2", group: "screens", label: "Mail", target: { kind: "new" } },
+      { id: "2", group: "settings", label: "Mail", target: { kind: "new" } },
       {
         id: "3",
         group: "assistants",
@@ -109,7 +115,7 @@ describe("the palette's list", () => {
       },
       {
         id: "4",
-        group: "screens",
+        group: "settings",
         label: "Mailbox rules",
         target: { kind: "new" },
       },
@@ -125,7 +131,7 @@ describe("the palette's list", () => {
   it("scores the name above the hidden words", () => {
     const item: PaletteItem = {
       id: "x",
-      group: "screens",
+      group: "settings",
       label: "Models",
       keywords: "ollama",
       target: { kind: "new" },

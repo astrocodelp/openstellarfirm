@@ -17,14 +17,10 @@ import {
   focusLost,
   refocusIfLost,
 } from "./a11y";
-import { BackupScreen } from "./Backup";
 import { api } from "./bridge";
 import type { FoundMessage } from "./ChatTools";
 import { ChatView } from "./ChatView";
 import { ComputerPanel } from "./Computer";
-import { ConnectionsScreen } from "./Connections";
-import { MailScreen } from "./Mail";
-import { ModelsScreen } from "./Models";
 import {
   findKeys,
   focusScreen,
@@ -33,8 +29,22 @@ import {
   usePaletteShortcut,
 } from "./Palette";
 import type { PaletteTarget } from "./palette-items";
-import { SettingsScreen } from "./Settings";
+import {
+  keepSettingsPage,
+  lastSettingsPage,
+  SettingsHome,
+  settingsKeys,
+  useSettingsShortcut,
+} from "./Settings";
 import { Sidebar } from "./Sidebar";
+import {
+  FIRST_SETTINGS_PAGE,
+  type SettingsPageId,
+  type SettingsSectionId,
+  sectionStandsAlone,
+  sectionTitle,
+  settingsRoute,
+} from "./settings-sections";
 import { UpdateNotice } from "./UpdateNotice";
 import { ErrorLine, message as errorText, Nova } from "./ui";
 import { Welcome } from "./Welcome";
@@ -42,10 +52,6 @@ import { Welcome } from "./Welcome";
 type View =
   | { name: "chat" }
   | { name: "assistant"; id?: string }
-  | { name: "models" }
-  | { name: "connections" }
-  | { name: "mail" }
-  | { name: "backup" }
   | { name: "settings" };
 
 function without<T>(record: Record<string, T>, key: string): Record<string, T> {
@@ -73,18 +79,56 @@ export function App() {
   /** Find anything (Ctrl or Cmd+K), and where its last pick leads. */
   const [finding, setFinding] = useState(false);
   const [found, setFound] = useState<FoundMessage | undefined>(undefined);
-  const [section, setSection] = useState<string | null>(null);
+  /** The Settings page that is open, or that Settings opens on next. */
+  const [settingsPage, setSettingsPage] = useState<SettingsPageId>(
+    () => lastSettingsPage() ?? FIRST_SETTINGS_PAGE,
+  );
+  /**
+   * Where the focus goes once a way into Settings has shown its page: the
+   * page's heading, or a section's. A new object each time, so opening the
+   * same place again still moves the focus there.
+   */
+  const [reveal, setReveal] = useState<{
+    section?: SettingsSectionId;
+  } | null>(null);
   const mac = state?.platform === "darwin";
   const toggleFind = useCallback(() => setFinding((open) => !open), []);
   usePaletteShortcut(state?.settings.onboarded === true, mac, toggleFind);
 
-  // A Settings section picked in Find anything is brought into view once shown.
+  /**
+   * Opens Settings from anywhere: on a page, at a section, or where it was
+   * left. The focus lands on the page's heading, or the section's, so a
+   * screen reader starts there.
+   */
+  const openSettings = useCallback(
+    (to: { page?: SettingsPageId; section?: SettingsSectionId } = {}) => {
+      setSettingsPage((last) => {
+        const route = settingsRoute(to, last);
+        keepSettingsPage(route.page);
+        return route.page;
+      });
+      setView({ name: "settings" });
+      setReveal(to.section ? { section: to.section } : {});
+    },
+    [],
+  );
+  useSettingsShortcut(
+    state?.settings.onboarded === true,
+    mac,
+    useCallback(() => openSettings(), [openSettings]),
+  );
+
+  // Once the page is shown, the focus goes where the way in asked.
   useEffect(() => {
-    if (view.name !== "settings" || !section) return;
-    const title = section;
-    setSection(null);
-    afterPaint(() => revealSection(title));
-  }, [view.name, section]);
+    if (view.name !== "settings" || !reveal) return;
+    const { section } = reveal;
+    setReveal(null);
+    afterPaint(() => {
+      if (section && !sectionStandsAlone(section))
+        revealSection(sectionTitle(section));
+      else focusScreen();
+    });
+  }, [view.name, reveal]);
 
   // A button that opens another screen from inside the old one (Customize,
   // Models in the chat header) is gone with it, and the focus would fall to
@@ -324,13 +368,11 @@ export function App() {
         // focus is not left on the page: it goes to the message box.
         refocusIfLost(() => document.getElementById("message-box"));
         return;
-      case "screen":
-        setView({ name: target.screen } as View);
-        afterPaint(focusScreen);
-        return;
-      case "section":
-        setView({ name: "settings" });
-        setSection(target.title);
+      case "settings":
+        openSettings({
+          ...(target.page ? { page: target.page } : {}),
+          ...(target.section ? { section: target.section } : {}),
+        });
         return;
       case "new":
         setView({ name: "assistant" });
@@ -365,10 +407,6 @@ export function App() {
         : "Your assistants"
       : {
           assistant: editing ? `Change ${editing.name}` : "New assistant",
-          models: "Your models",
-          connections: "Your connections",
-          mail: "Your mail",
-          backup: "Move or back up",
           settings: "Settings",
         }[view.name];
 
@@ -388,15 +426,7 @@ export function App() {
         waiting={new Set(Object.keys(approvals))}
         unread={new Set(unreadMain ? [unreadMain] : [])}
         showCloudCard={!state.settings.hideCloudCard}
-        current={
-          view.name === "models" ||
-          view.name === "connections" ||
-          view.name === "mail" ||
-          view.name === "backup" ||
-          view.name === "settings"
-            ? view.name
-            : undefined
-        }
+        settingsOpen={view.name === "settings"}
         notice={
           newVersion ? (
             <UpdateNotice
@@ -417,11 +447,8 @@ export function App() {
         }}
         onNew={() => setView({ name: "assistant" })}
         onImport={() => void importFile()}
-        onBackup={() => setView({ name: "backup" })}
-        onModels={() => setView({ name: "models" })}
-        onSettings={() => setView({ name: "settings" })}
-        onConnections={() => setView({ name: "connections" })}
-        onMail={() => setView({ name: "mail" })}
+        onSettings={() => openSettings()}
+        settingsKeys={settingsKeys(mac)}
         onCloud={() => void act(() => api.openCloud("home"))}
         onFind={() => setFinding(true)}
         findKeys={findKeys(mac)}
@@ -439,38 +466,22 @@ export function App() {
           </div>
         ) : null}
         {view.name === "settings" ? (
-          <SettingsScreen
+          <SettingsHome
             state={state}
+            page={settingsPage}
+            onPage={(page, how) => {
+              setSettingsPage(page);
+              keepSettingsPage(page);
+              // A button on the page that led away is gone with it; the
+              // focus goes to the new page's heading. From the list, it
+              // stays on the list.
+              if (how === "link") afterPaint(focusScreen);
+            }}
             onChanged={refresh}
             onBack={() => setView({ name: "chat" })}
-            onBackup={() => setView({ name: "backup" })}
             onChatsDeleted={() => setChats({})}
             onShortcuts={() => setShowShortcuts(true)}
-          />
-        ) : view.name === "backup" ? (
-          <BackupScreen
-            onChanged={() => void refresh()}
-            onBack={() => setView({ name: "chat" })}
             onCloud={() => void act(() => api.openCloud("home"))}
-          />
-        ) : view.name === "connections" ? (
-          <ConnectionsScreen
-            state={state}
-            onChanged={refresh}
-            onBack={() => setView({ name: "chat" })}
-            onMail={() => setView({ name: "mail" })}
-          />
-        ) : view.name === "mail" ? (
-          <MailScreen
-            state={state}
-            onChanged={refresh}
-            onBack={() => setView({ name: "chat" })}
-          />
-        ) : view.name === "models" ? (
-          <ModelsScreen
-            state={state}
-            onChanged={refresh}
-            onBack={() => setView({ name: "chat" })}
           />
         ) : view.name === "assistant" ? (
           <AssistantForm
@@ -531,7 +542,7 @@ export function App() {
                 onCustomize={() =>
                   setView({ name: "assistant", id: assistant.id })
                 }
-                onModels={() => setView({ name: "models" })}
+                onModels={() => openSettings({ page: "models" })}
                 sendWith={state.settings.sendWith}
                 mac={mac}
                 readRate={

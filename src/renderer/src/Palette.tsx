@@ -86,7 +86,7 @@ export function usePaletteShortcut(
   }, [enabled, mac, toggle]);
 }
 
-/** Jumps to one heading on the Settings screen and puts the focus on it. */
+/** Jumps to one heading on a Settings page and puts the focus on it. */
 export function revealSection(title: string) {
   const heading = [
     ...document.querySelectorAll<HTMLElement>(
@@ -345,7 +345,7 @@ export function Palette({
   })).filter((g) => g.rows.length > 0);
 
   let line = "";
-  if (!typed) line = "Find an assistant, a chat, a screen or a setting.";
+  if (!typed) line = "Find an assistant, a chat or a setting.";
   else if (rows.length === 0 && searching) line = "Looking in your chats…";
   else if (rows.length === 0)
     line = `Nothing matches “${typed}”. Try fewer words, or another spelling.`;
@@ -379,7 +379,7 @@ export function Palette({
             ref={input}
             role="combobox"
             className="palette-input"
-            aria-label="Find an assistant, a chat, a screen or a setting"
+            aria-label="Find an assistant, a chat or a setting"
             aria-expanded={rows.length > 0}
             aria-controls={listId}
             aria-autocomplete="list"
@@ -566,16 +566,14 @@ function glyphFor(
       return "sliders";
     case "save-chat":
       return "download";
-    case "section":
-      return "gear";
-    case "screen":
-      return target.screen === "models"
+    case "settings":
+      return target.page === "models"
         ? "sliders"
-        : target.screen === "connections"
+        : target.page === "connections"
           ? "link"
-          : target.screen === "mail"
+          : target.page === "mail"
             ? "mail"
-            : target.screen === "backup"
+            : target.page === "backup"
               ? "download"
               : "gear";
     default:

@@ -2,6 +2,7 @@ import { type FormEvent, useId, useState } from "react";
 import { noKeychainNote } from "../../shared/keychain";
 import type { AppState, MailAccount, MailCheck } from "../../shared/types";
 import { api } from "./bridge";
+import { pageTitle } from "./settings-sections";
 import {
   ErrorLine,
   message as errorText,
@@ -238,10 +239,9 @@ function MailForm({
 interface ScreenProps {
   state: AppState;
   onChanged(): Promise<void>;
-  onBack(): void;
 }
 
-export function MailScreen({ state, onChanged, onBack }: ScreenProps) {
+export function MailScreen({ state, onChanged }: ScreenProps) {
   const [editing, setEditing] = useState<string | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -264,7 +264,7 @@ export function MailScreen({ state, onChanged, onBack }: ScreenProps) {
   return (
     <div className="screen">
       <div className="screen-body">
-        <ScreenHead title="Your mail" onBack={onBack}>
+        <ScreenHead title={pageTitle("mail")}>
           Let an assistant read your mail, only when you approve. It can look
           through recent messages and read one at a time. It cannot send,
           answer, delete, move or mark anything, and it never opens an

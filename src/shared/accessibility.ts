@@ -176,8 +176,9 @@ export function shortcuts(
         { keys: [mod, "/"], does: "Show these shortcuts" },
         {
           keys: [mod, "K"],
-          does: "Find an assistant, a chat, a screen or a setting",
+          does: "Find an assistant, a chat or a setting",
         },
+        { keys: [mod, ","], does: "Open Settings" },
         { keys: ["Tab"], does: "Go to the next control" },
         { keys: ["Shift", "Tab"], does: "Go to the one before" },
         { keys: ["Enter"], does: "Press the button that has the focus" },
@@ -194,6 +195,10 @@ export function shortcuts(
           does: "Close a question or this list without doing anything",
         },
       ],
+    },
+    {
+      group: "Settings",
+      items: [{ keys: ["Escape"], does: "Go back to the chats" }],
     },
     {
       group: "Message box",
