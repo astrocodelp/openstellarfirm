@@ -732,15 +732,9 @@ textarea.input {
   accent-color: var(--text);
 }
 
-/* A chip with no box to tick: a persona to start from. */
+/* A chip with no box to tick, such as a gallery category. */
 .persona {
   padding: 0 1rem;
-}
-
-.persona-note {
-  min-height: 2.5rem;
-  max-width: 68ch;
-  color: var(--dim);
 }
 
 .pet-choice {
@@ -938,6 +932,191 @@ textarea.input {
   font-weight: 600;
   line-height: 1.35;
   overflow-wrap: anywhere;
+}
+
+/* The gallery of ready-made assistants, and the skills picker */
+
+.gallery-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+/* One tab stop: the arrow keys move through the cards. */
+.gallery-list {
+  flex: 1 1 15rem;
+  min-width: 0;
+  max-height: 26rem;
+  margin: 0;
+  padding: 0.375rem;
+  list-style: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.gallery-card {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 3.5rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-inset);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.gallery-card:hover {
+  background: var(--hover);
+}
+
+.gallery-card[aria-pressed="true"] {
+  border-color: var(--control-line-on);
+  background: var(--active);
+}
+
+.gallery-card .pet {
+  flex-shrink: 0;
+}
+
+.gallery-card-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.gallery-card-name {
+  font-weight: 500;
+}
+
+.gallery-card-summary {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+
+.gallery-preview {
+  flex: 1 1 18rem;
+  min-width: 0;
+}
+
+.gallery-preview-head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.gallery-preview h3,
+.gallery-preview h4,
+.skill-group-title {
+  margin: 0;
+}
+
+.gallery-brief {
+  margin: 0;
+  padding-left: 1.125rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  color: var(--dim);
+}
+
+.gallery-skills {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+.skill-chip {
+  min-height: 2rem;
+  padding: 0 0.625rem 0 0.875rem;
+  font-size: var(--text-caption);
+}
+
+.skill-search {
+  margin-top: 0.25rem;
+}
+
+.skill-list {
+  max-height: 22rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0.25rem 0.375rem 0.5rem;
+}
+
+.skill-group + .skill-group {
+  border-top: 1px solid var(--line);
+}
+
+.skill-group-title {
+  padding: 0.75rem 0.5rem 0.25rem;
+  color: var(--faint);
+  font-size: var(--text-caption);
+  font-weight: 500;
+}
+
+.skill-options {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* The whole row ticks the box, with no dead gap. */
+.skill-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.625rem;
+  padding: 0.5rem;
+  border-radius: var(--radius-inset);
+  cursor: pointer;
+}
+
+.skill-option:hover {
+  background: var(--hover);
+}
+
+.skill-option:has(input:focus-visible) {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+.skill-option:has(input:disabled) {
+  cursor: default;
+  color: var(--faint);
+}
+
+.skill-option:has(input:disabled):hover {
+  background: transparent;
+}
+
+.skill-option input {
+  width: 1rem;
+  height: 1rem;
+  margin: 0.125rem 0 0;
+  flex-shrink: 0;
+  accent-color: var(--text);
+}
+
+.skill-option-text {
+  gap: 0.125rem;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .gallery-card,
+  .skill-option {
+    transition:
+      background-color var(--dur-press) var(--ease-out),
+      border-color var(--dur-press) var(--ease-out);
+  }
 }
 
 /* Welcome */

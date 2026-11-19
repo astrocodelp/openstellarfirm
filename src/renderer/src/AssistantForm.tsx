@@ -1,5 +1,5 @@
 import { type FormEvent, useState } from "react";
-import { COLORS, PETS, SKILLS } from "../../shared/catalog";
+import { COLORS, PETS } from "../../shared/catalog";
 import { serviceLabel } from "../../shared/connection-catalog";
 import type {
   Assistant,
@@ -10,7 +10,9 @@ import type {
   PetId,
 } from "../../shared/types";
 import { api } from "./bridge";
-import { PERSONAS } from "./personas";
+import { PersonaGallery } from "./PersonaGallery";
+import type { Persona } from "./personas";
+import { SkillPicker } from "./SkillPicker";
 import {
   ErrorLine,
   message as errorText,
@@ -59,7 +61,7 @@ export function AssistantForm(props: AssistantFormProps) {
   const [removing, setRemoving] = useState(false);
   const [copying, setCopying] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [persona, setPersona] = useState("");
+  const [persona, setPersona] = useState<Persona>();
   const source = sources.find((s) => s.id === sourceId);
 
   function toggle(id: string) {
@@ -69,11 +71,9 @@ export function AssistantForm(props: AssistantFormProps) {
   }
 
   /** Fills the look, brief and skills. Nothing is saved until the person saves. */
-  function startFrom(index: number) {
-    const picked = PERSONAS[index];
-    if (!picked) return;
+  function startFrom(picked: Persona) {
     const a = picked.assistant;
-    setPersona(a.name);
+    setPersona(picked);
     setName(a.name);
     setGroup(a.group);
     setPet(a.pet);
@@ -148,27 +148,8 @@ export function AssistantForm(props: AssistantFormProps) {
             Everything here is saved on this computer.
           </ScreenHead>
 
-          {!assistant && PERSONAS.length > 0 ? (
-            <fieldset className="stack plain">
-              <legend className="field-label">Start from a persona</legend>
-              <div className="wrap">
-                {PERSONAS.map((p, index) => (
-                  <button
-                    key={p.assistant.name}
-                    type="button"
-                    className="choice persona"
-                    aria-pressed={p.assistant.name === persona}
-                    onClick={() => startFrom(index)}
-                  >
-                    {p.assistant.name}
-                  </button>
-                ))}
-              </div>
-              <p className="persona-note" aria-live="polite">
-                {PERSONAS.find((p) => p.assistant.name === persona)?.summary ||
-                  "A starting point only. Change anything below before you save."}
-              </p>
-            </fieldset>
+          {!assistant ? (
+            <PersonaGallery used={persona} onUse={startFrom} />
           ) : null}
 
           <div className="wrap" style={{ alignItems: "flex-start" }}>
@@ -245,21 +226,7 @@ export function AssistantForm(props: AssistantFormProps) {
             />
           </label>
 
-          <fieldset className="plain">
-            <legend className="field-label">Skills</legend>
-            <div className="wrap">
-              {SKILLS.map((skill) => (
-                <label key={skill.id} className="choice">
-                  <input
-                    type="checkbox"
-                    checked={skills.includes(skill.id)}
-                    onChange={() => toggle(skill.id)}
-                  />
-                  <span>{skill.name}</span>
-                </label>
-              ))}
-            </div>
-          </fieldset>
+          <SkillPicker selected={skills} onToggle={toggle} />
 
           <section className="stack" aria-labelledby="access-title">
             <div className="stack-tight">
