@@ -35,13 +35,14 @@ about 1 GB, and takes a few minutes. The progress shows as it goes.
 The app builds the image itself from the files it ships in
 `resources/computer/`:
 
-| File            | What it does                                                                                                                                     |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `Dockerfile`    | Debian 12 (`bookworm-slim`), pinned by digest. Xvfb, Openbox, xdotool, scrot, xterm, Firefox ESR, Python 3 and common tools. A user `assistant`. |
-| `start.sh`      | Starts a 1280 × 800 virtual screen and the window manager, then waits on the screen.                                                             |
-| `screenshot.sh` | Writes one picture of the screen to standard output, as PNG or JPEG.                                                                             |
-| `open-app.sh`   | Opens a program on the screen and returns, so the program stays open.                                                                            |
-| `background.py` | Draws the desktop's background, the app's mark on night, as an X bitmap; `start.sh` lays it on the screen with `xsetroot`.                       |
+| File                    | What it does                                                                                                                                                                                                  |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Dockerfile`            | Debian 12 (`bookworm-slim`), pinned by digest. Xvfb, Openbox, xdotool, scrot, xterm, Firefox ESR, Python 3, a session bus and common tools. A user `assistant`. Main windows open filling the screen.         |
+| `start.sh`              | Starts a 1280 × 800 virtual screen, a session bus inside the container, the window manager and xterm's readable font, marks itself ready, then waits on the screen. The app's first step waits for that mark. |
+| `screenshot.sh`         | Writes one picture of the screen to standard output, as PNG or JPEG.                                                                                                                                          |
+| `open-app.sh`           | Opens a program on the screen and returns once its window shows (at most 20 seconds), so the program stays open and the next picture shows it.                                                                |
+| `background.py`         | Draws the desktop's background, the app's mark on night, as an X bitmap; `start.sh` lays it on the screen with `xsetroot`.                                                                                    |
+| `firefox-policies.json` | Firefox's policies: no welcome or privacy notice tabs, no telemetry, studies, recommendations or update checks, so it opens straight to the page asked for.                                                   |
 
 The base image is pinned by its digest, so the build always starts from the
 same bytes. The Debian packages are not pinned: they come from Debian's mirror
@@ -113,15 +114,15 @@ followed.
 
 ## The tools
 
-| Tool                  | What it does                                                                                         | Asks you                            |
-| --------------------- | ---------------------------------------------------------------------------------------------------- | ----------------------------------- |
-| `computer_screenshot` | A PNG of the screen (a smaller JPEG when it is over 3 MB), sent to a model that reads pictures.      | No                                  |
-| `computer_click`      | A click at a point, with the left, right or middle button, or a double click.                        | No                                  |
-| `computer_type`       | Types up to 2,000 characters; control characters other than new lines and tabs are taken out.        | No                                  |
-| `computer_key`        | One key or combination from a fixed list (named keys, letters, digits, a few signs, four modifiers). | No                                  |
-| `computer_scroll`     | Scrolls 1 to 10 steps at a point.                                                                    | No                                  |
-| `computer_run`        | One `bash` command in its home folder, 1 to 300 seconds, output cut at 12,000 characters each.       | No                                  |
-| `computer_copy_out`   | Copies a file to the exchange folder; with `save_to`, also into one of your folders.                 | Saving into your folder, every time |
+| Tool                  | What it does                                                                                                                                                                     | Asks you                            |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
+| `computer_screenshot` | A PNG of the screen (a smaller JPEG when it is over 3 MB), sent to a model that reads pictures.                                                                                  | No                                  |
+| `computer_click`      | A click at a point, with the left, right or middle button, or a double click.                                                                                                    | No                                  |
+| `computer_type`       | Types up to 2,000 characters; control characters other than new lines and tabs are taken out.                                                                                    | No                                  |
+| `computer_key`        | One key or combination from a fixed list (named keys, letters, digits, a few signs, four modifiers).                                                                             | No                                  |
+| `computer_scroll`     | Scrolls 1 to 10 steps at a point.                                                                                                                                                | No                                  |
+| `computer_run`        | One `bash` command in its home folder, 1 to 300 seconds, output cut at 12,000 characters each. `open-app firefox-esr <address>` opens a page, in a new tab when Firefox is open. | No                                  |
+| `computer_copy_out`   | Copies a file to the exchange folder; with `save_to`, also into one of your folders.                                                                                             | Saving into your folder, every time |
 
 Every number and name a model sends is checked before it becomes one
 argument: points must be whole pixels on the screen, a key must be on the list,
@@ -130,6 +131,17 @@ a command must fit the limits.
 A model that cannot read pictures is told it took a picture it cannot see,
 and no more pictures are sent to it in that answer. A model that asks for
 tools in writing is not offered the screenshot.
+
+An answer that has its computer may take up to 24 rounds of tools, not the
+usual 8: work on a screen is one small step a round.
+
+The person's folder tools take a path that starts with one of their folders'
+names. A path for them that starts with `/`, `~` or `exchange` is turned down
+with a sentence that says to use `computer_run`: with one folder picked, a path
+without its name means that folder, so `exchange/notes.txt` or `/tmp/a.py`
+would otherwise land in the person's folder. `computer_copy_out` reads `~` as
+the home folder, and a file that is already in the exchange folder is not
+copied again beside itself.
 
 The tools are offered only in an answer to you: never in a check by the main
 assistant, which only reads, and never when another assistant asks it a

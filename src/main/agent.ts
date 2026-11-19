@@ -406,6 +406,13 @@ async function runCall(
     if (done.image) seen.picture = done.image;
     return done.text;
   }
+  // A folder tool pointed at its own computer would reach the person's
+  // folder instead; it is told which tool works there.
+  const misplaced = deps.computer?.misplaced(name, rawArguments);
+  if (misplaced) {
+    steps.push({ label: "Used a folder tool for its own computer", ok: false });
+    return misplaced;
+  }
   if (name === SCREEN_TOOL_NAME) {
     const looked = await lookAtScreen(
       Boolean(assistant.screen),

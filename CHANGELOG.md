@@ -199,6 +199,16 @@ The app is at version 0.1.0. There is no tagged release yet.
   list that was gone when nothing matched (and so did the connection search
   in an assistant's settings); and the sidebar's StellarFirm card had the same
   name as a section of Settings.
+- An assistant's computer, after a real model did real work on it: Firefox
+  opens straight to the page asked for (no welcome or privacy notice tabs),
+  and a second page opens as a tab instead of an "already running" box;
+  `open-app` returns once the window shows; main windows fill the screen and
+  the terminal's text is readable in a picture; the first step waits until the
+  window manager is up; an answer with its computer has 24 rounds of tools,
+  not 8. Keys you type on the live view while you have it arrive in order. A
+  folder tool given a path on its computer (`exchange/…`, `/tmp/…`, `~/…`) is
+  turned down instead of writing into your folder, `computer_copy_out` reads
+  `~`, and a file already in the exchange folder is not copied beside itself.
 
 ### Security
 

@@ -84,7 +84,7 @@ import {
 } from "./checks";
 import { createComputers, registerComputer } from "./computer/ipc";
 import type { ComputerService } from "./computer/service";
-import { computerGate } from "./computer/tools";
+import { computerGate, MAX_COMPUTER_TURNS } from "./computer/tools";
 import {
   ConnectionService,
   catalogInput,
@@ -507,7 +507,9 @@ async function runAssistant(spec: RunSpec): Promise<AgentResult> {
         ? { readOnly: true, maxTurns: MAX_CHECK_TURNS }
         : kind === "asked"
           ? { maxTurns: MAX_ASKED_TURNS }
-          : {}),
+          : computerTools
+            ? { maxTurns: MAX_COMPUTER_TURNS }
+            : {}),
       ask: spec.ask,
       allowSite: (site) => {
         store.addSite(assistant.id, site);

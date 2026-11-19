@@ -18,6 +18,7 @@ import {
   configKey,
   containerName,
   execArgs,
+  HOME,
   imageTag,
   inspectArgs,
   LIST_RUNNING_ARGS,
@@ -40,6 +41,8 @@ export const DEFAULT_RUN_SECONDS = 60;
 export const MAX_OUTPUT_CHARS = 12_000;
 export const MAX_COPY_BYTES = 25 * 1024 * 1024;
 export const MAX_SCROLL = 10;
+/** start.sh makes this file once the screen and its window manager are ready. */
+export const READY_FILE = "/tmp/.computer-ready";
 
 // The pointer is moved without "--sync": on a virtual screen the move and
 // the click arrive in order, and "--sync" waits a long time when the pointer
@@ -105,10 +108,13 @@ function check(value: unknown, max: number, what: string): number {
 export function insidePath(raw: unknown): string {
   if (typeof raw !== "string" || !raw.trim())
     throw new ComputerError("Name the file's path on the computer.");
-  const path = raw.trim();
-  if (path.length > 1024 || /[\0\r\n]/.test(path))
+  const typed = raw.trim();
+  if (typed.length > 1024 || /[\0\r\n]/.test(typed))
     throw new ComputerError("That is not a path on the computer.");
-  return path;
+  // No shell reads the path, so "~" is turned into the home folder here, as
+  // a model writes it the way the shell would take it.
+  if (typed === "~") return HOME;
+  return typed.startsWith("~/") ? `${HOME}/${typed.slice(2)}` : typed;
 }
 
 /** A safe name for a file in the exchange folder, from the last part of a path. */
@@ -322,12 +328,17 @@ export class ComputerService {
     await this.waitForScreen(assistant.id);
   }
 
+  /**
+   * Waits until the computer's start script has finished: the screen, the
+   * window manager and their settings. A program opened before then would
+   * get no window manager, so its window would not fill the screen.
+   */
   private async waitForScreen(assistantId: string): Promise<void> {
     const sleep =
       this.deps.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
     for (let i = 0; i < 40; i += 1) {
       const result = await this.runner()(
-        execArgs(assistantId, ["xdotool", "getdisplaygeometry"]),
+        execArgs(assistantId, ["test", "-e", READY_FILE]),
         { timeoutMs: 5000 },
       );
       if (result.code === 0) return;
@@ -526,7 +537,9 @@ export class ComputerService {
       { timeoutMs: 15_000 },
     );
     if (info.code !== 0)
-      throw new ComputerError(`There is no file at ${path} on the computer.`);
+      throw new ComputerError(
+        `There is no file at ${path} on the computer. Your home folder is ${HOME}, and a path without a leading / starts there, such as exchange/notes.txt.`,
+      );
     const [size, kind] = Buffer.from(info.stdout)
       .toString("utf8")
       .trim()

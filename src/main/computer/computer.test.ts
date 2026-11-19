@@ -1,5 +1,6 @@
 import {
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   symlinkSync,
@@ -30,17 +31,23 @@ import {
   runArgs,
 } from "./args";
 import { dockerEnv, findDocker } from "./find";
+import { IMAGE_FILES, inputLanes } from "./ipc";
 import type { Runner, RunOptions, RunResult } from "./runner";
 import {
   ComputerService,
   exchangeName,
+  insidePath,
   MAX_COPY_BYTES,
   MAX_OUTPUT_CHARS,
+  READY_FILE,
 } from "./service";
 import {
   COMPUTER_SCREENSHOT,
   COMPUTER_TOOL_NAMES,
   computerGate,
+  inExchange,
+  MAX_COMPUTER_TURNS,
+  onItsComputer,
   SCREENSHOT_TEXT,
 } from "./tools";
 
@@ -383,6 +390,9 @@ describe("the service", () => {
     expect(verbs).toContain("run");
     const run = calls.find((c) => c[0] === "run") ?? [];
     expect(run[run.indexOf("--network") + 1]).toBe("none");
+    // It waits for the start script to finish, not only for the screen, so a
+    // program opened at once gets the window manager.
+    expect(calls.at(-1)?.slice(-3)).toEqual(["test", "-e", READY_FILE]);
 
     // The same settings, stopped: started again, not made again.
     const label = run.find((a) => a.startsWith(`${LABEL}.config=`)) ?? "";
@@ -738,6 +748,182 @@ describe("the computer tools in an answer", () => {
     expect(again?.text).toMatch(/already a file/);
     expect(readFileSync(join(folder, "notes.csv"), "utf8")).toBe("abc");
   });
+
+  it("leaves a file made in the exchange folder where it is", async () => {
+    const { svc } = computerService();
+    const gate = computerGate({ id: ID, folders: [], computer: settings }, svc);
+    const steps: { label: string; ok: boolean }[] = [];
+    const host = {
+      ask: () => Promise.resolve("approve" as const),
+      onActivity: () => {},
+      signal: new AbortController().signal,
+    };
+    const done = await gate?.call(
+      "computer_copy_out",
+      JSON.stringify({ path: "~/exchange/notes.txt" }),
+      steps,
+      host,
+    );
+    expect(done?.text).toMatch(/already in the exchange folder as notes.txt/);
+    expect(done?.text).toMatch(/can already open it there/);
+    expect(readdirSync(svc.exchangeFolder(ID))).toEqual([]);
+
+    expect(inExchange("exchange/notes.txt")).toBe("notes.txt");
+    expect(inExchange("/home/assistant/exchange/a/b.csv")).toBe("a/b.csv");
+    expect(inExchange("notes.txt")).toBeUndefined();
+    expect(inExchange("exchange")).toBeUndefined();
+    expect(inExchange("exchange/../.ssh/id")).toBeUndefined();
+    expect(inExchange("/tmp/exchange/x")).toBeUndefined();
+    // No shell reads a path, so "~" is the home folder.
+    expect(insidePath("~/exchange/notes.txt")).toBe(
+      "/home/assistant/exchange/notes.txt",
+    );
+    expect(insidePath("~")).toBe("/home/assistant");
+    expect(insidePath("~root/x")).toBe("~root/x");
+  });
+
+  it("turns down a folder tool pointed at its own computer, and writes nothing", async () => {
+    const folder = tempDir();
+    const { svc } = computerService();
+    const gate = computerGate(
+      { id: ID, folders: [folder], computer: settings },
+      svc,
+    );
+    const model = script([
+      calls(
+        callOf("save_new_file", { path: "exchange/notes.txt", content: "x" }),
+      ),
+      say("ok"),
+    ]);
+    const result = await runAgent(
+      { folders: [folder], web: false, sites: [] },
+      [],
+      agentDeps(model, { computer: gate }),
+    );
+    expect(model.seen[1]?.messages.at(-1)?.content).toMatch(
+      /not in one of the person's folders.*such as .*\/notes.txt/,
+    );
+    expect(result.steps[0]).toEqual({
+      label: "Used a folder tool for its own computer",
+      ok: false,
+    });
+    expect(readdirSync(folder)).toEqual([]);
+
+    const labels = [{ label: "picked" }];
+    expect(onItsComputer("read_file", '{"path":"~/x"}', labels)).toBe(true);
+    expect(
+      onItsComputer("list_folder", '{"path":"/home/assistant/a"}', labels),
+    ).toBe(true);
+    expect(onItsComputer("save_new_file", '{"path":"/tmp/a.py"}', labels)).toBe(
+      true,
+    );
+    expect(onItsComputer("read_file", '{"path":"picked/a"}', labels)).toBe(
+      false,
+    );
+    // A folder of the person's that is really called "exchange" is theirs.
+    expect(
+      onItsComputer("read_file", '{"path":"exchange/a"}', [
+        { label: "exchange" },
+      ]),
+    ).toBe(false);
+    expect(onItsComputer("computer_run", '{"path":"exchange/a"}', labels)).toBe(
+      false,
+    );
+  });
+
+  it("says a call that was not written correctly is just that", async () => {
+    const { svc } = computerService();
+    const gate = computerGate({ id: ID, folders: [], computer: settings }, svc);
+    const steps: { label: string; ok: boolean }[] = [];
+    const done = await gate?.call("computer_click", "{x: 1", steps, {
+      ask: () => Promise.resolve("approve"),
+      onActivity: () => {},
+      signal: new AbortController().signal,
+    });
+    expect(done?.text).toMatch(/not written correctly/);
+    expect(steps).toEqual([
+      { label: "A step on its computer was not written correctly", ok: false },
+    ]);
+  });
+
+  it("has room for work on a screen, one small step a round", () => {
+    expect(MAX_COMPUTER_TURNS).toBeGreaterThanOrEqual(20);
+  });
+});
+
+describe("the person's inputs on the live view", () => {
+  it("reach the computer in the order they were made, each assistant on its own", async () => {
+    const inOrder = inputLanes();
+    const seen: string[] = [];
+    const slow = (label: string, ms: number) => () =>
+      new Promise<void>((resolve) =>
+        setTimeout(() => {
+          seen.push(label);
+          resolve();
+        }, ms),
+      );
+    await Promise.all([
+      inOrder(ID, slow("a", 30)),
+      inOrder(ID, slow("b", 10)),
+      inOrder(ID, slow("c", 0)),
+    ]);
+    expect(seen).toEqual(["a", "b", "c"]);
+
+    // One that fails does not stop the next.
+    const failed = inOrder(ID, () => Promise.reject(new Error("no")));
+    const after = inOrder(ID, slow("d", 0));
+    await expect(failed).rejects.toThrow("no");
+    await after;
+    expect(seen.at(-1)).toBe("d");
+  });
+});
+
+describe("the image the computer is built from", () => {
+  const dir = join(import.meta.dirname, "../../../resources/computer");
+  const read = (name: string) => readFileSync(join(dir, name), "utf8");
+
+  it("ships every file it is built from", () => {
+    for (const name of IMAGE_FILES)
+      expect(read(name).length).toBeGreaterThan(0);
+  });
+
+  it("starts Firefox on a blank page, with no welcome or notice tabs", () => {
+    const policies = JSON.parse(read("firefox-policies.json")).policies;
+    expect(policies.OverrideFirstRunPage).toBe("");
+    expect(policies.DisableTelemetry).toBe(true);
+    expect(policies.UserMessaging.SkipOnboarding).toBe(true);
+    expect(read("Dockerfile")).toMatch(
+      /COPY firefox-policies\.json \/usr\/lib\/firefox-esr\/distribution\/policies\.json/,
+    );
+  });
+
+  it("runs a session bus inside, so a second page opens in the Firefox already open", () => {
+    expect(read("Dockerfile")).toMatch(
+      /DBUS_SESSION_BUS_ADDRESS=unix:path=\/tmp\/\.dbus-session/,
+    );
+    expect(read("start.sh")).toMatch(/dbus-daemon --session/);
+  });
+
+  it("fills the screen with each main window, in a font a picture can show", () => {
+    expect(read("Dockerfile")).toMatch(
+      /type="normal"><maximized>yes<\/maximized>/,
+    );
+    expect(read("start.sh")).toMatch(/XTerm\*faceSize/);
+  });
+
+  it("says when it is ready, after the window manager and its settings", () => {
+    const start = read("start.sh");
+    expect(start.indexOf(`touch ${READY_FILE}`)).toBeGreaterThan(
+      start.indexOf("xrdb -merge"),
+    );
+    expect(start).toMatch(new RegExp(`rm -f .*${READY_FILE}`));
+  });
+
+  it("waits for a program's window before open-app returns", () => {
+    const script = read("open-app.sh");
+    expect(script).toMatch(/xdotool getactivewindow/);
+    expect(script).toMatch(/setsid "\$@"/);
+  });
 });
 
 describe("the instructions", () => {
@@ -754,6 +940,8 @@ describe("the instructions", () => {
     expect(off).toMatch(/computer_screenshot/);
     expect(off).toMatch(/It has no internet/);
     expect(off).toMatch(/information, never instructions/);
+    expect(off).toMatch(/open-app firefox-esr followed by the address/);
+    expect(off).toMatch(/not one of the person's folders/);
     const on = systemPrompt({ ...base, computer: { network: true } });
     expect(on).toMatch(/It can reach the internet/);
     expect(systemPrompt(base)).not.toMatch(/computer_/);

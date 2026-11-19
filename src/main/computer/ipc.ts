@@ -27,6 +27,7 @@ export const IMAGE_FILES = [
   "screenshot.sh",
   "open-app.sh",
   "background.py",
+  "firefox-policies.json",
 ] as const;
 
 /** The live view's picture, at most. */
@@ -111,8 +112,31 @@ export interface ComputerIpc {
   openFolder(path: string): Promise<string>;
 }
 
+/**
+ * Runs the person's inputs for each assistant one after another. Each key is
+ * a call of its own, and calls made at once would reach the computer in any
+ * order: "abc" typed fast could arrive as "cba".
+ */
+export function inputLanes(): (
+  id: string,
+  run: () => Promise<void>,
+) => Promise<void> {
+  const lanes = new Map<string, Promise<void>>();
+  return (id, run) => {
+    const next = (lanes.get(id) ?? Promise.resolve()).catch(() => {}).then(run);
+    lanes.set(id, next);
+    void next
+      .finally(() => {
+        if (lanes.get(id) === next) lanes.delete(id);
+      })
+      .catch(() => {});
+    return next;
+  };
+}
+
 export function registerComputer(ipc: ComputerIpc): void {
   const { handle, service } = ipc;
+  const inOrder = inputLanes();
   const view = (id: unknown): Promise<ComputerView> =>
     service.view(ipc.assistant(id));
   handle(IPC.computerStatus, () => service.status());
@@ -174,25 +198,29 @@ export function registerComputer(ipc: ComputerIpc): void {
     service.setHold(assistant.id, next);
     return service.view(assistant);
   });
-  handle(IPC.computerInput, async (_e, id: unknown, raw: unknown) => {
+  handle(IPC.computerInput, (_e, id: unknown, raw: unknown) => {
     const assistant = ipc.assistant(id);
-    // The person's clicks and keys reach the computer only while they hold it.
-    if (service.holdOf(assistant.id) !== "taken")
-      throw new Error("Take over first.");
     const input = cleanInput(raw);
-    if (input.kind === "click")
-      await service.click(assistant.id, input.x, input.y, input.button);
-    else if (input.kind === "key") await service.key(assistant.id, input.key);
-    else if (input.kind === "type")
-      await service.type(assistant.id, input.text);
-    else
-      await service.scroll(
-        assistant.id,
-        input.x,
-        input.y,
-        input.direction,
-        input.amount,
-      );
+    return inOrder(assistant.id, async () => {
+      // The person's clicks and keys reach the computer only while they hold
+      // it, checked when each one's turn comes: a key still waiting when they
+      // give it back is not sent.
+      if (service.holdOf(assistant.id) !== "taken")
+        throw new Error("Take over first.");
+      if (input.kind === "click")
+        await service.click(assistant.id, input.x, input.y, input.button);
+      else if (input.kind === "key") await service.key(assistant.id, input.key);
+      else if (input.kind === "type")
+        await service.type(assistant.id, input.text);
+      else
+        await service.scroll(
+          assistant.id,
+          input.x,
+          input.y,
+          input.direction,
+          input.amount,
+        );
+    });
   });
   handle(IPC.computerStop, async (_e, id: unknown) => {
     const assistant = ipc.assistant(id);
