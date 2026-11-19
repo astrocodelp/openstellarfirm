@@ -7,7 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-The app is at version 0.1.0. There is no tagged release yet.
+## [0.1.0] - 2026-11-19
+
+The first release. The builds are not signed yet: see the README's
+[Install a release](README.md#install-a-release) for how to open them and
+check their sums.
 
 If you ran a development build before: the app was called StellarFirm Solo,
 and a build under that name keeps its data folder and sealed keys there. This
@@ -222,3 +226,6 @@ product name was set used `~/.config/openstellarfirm`.
 - CI actions are pinned to commits, with read-only permissions. The release
   scripts pin their build images by digest, and a release build runs only in
   a Fly app named for it (there is no default).
+
+[Unreleased]: https://github.com/astrocodelp/openstellarfirm/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/astrocodelp/openstellarfirm/releases/tag/v0.1.0
