@@ -4,6 +4,7 @@
  * Authorization header.
  */
 
+import type { KeyHeader } from "../../shared/catalog";
 import {
   cleanIds,
   failure,
@@ -19,9 +20,16 @@ import {
   type WireMessage,
 } from "./common";
 
-function headers(apiKey?: string): Record<string, string> {
+/** The key goes in one header only: Authorization, or api-key (Azure). */
+export function headers(
+  apiKey?: string,
+  auth: KeyHeader = "bearer",
+): Record<string, string> {
   const base: Record<string, string> = { "content-type": "application/json" };
-  if (apiKey) base.authorization = `Bearer ${apiKey}`;
+  if (apiKey) {
+    if (auth === "api-key") base["api-key"] = apiKey;
+    else base.authorization = `Bearer ${apiKey}`;
+  }
   return base;
 }
 
@@ -107,7 +115,7 @@ export async function* streamOpenAi(
   try {
     response = await doFetch(`${call.baseUrl}/chat/completions`, {
       method: "POST",
-      headers: headers(call.apiKey),
+      headers: headers(call.apiKey, call.auth),
       body: JSON.stringify({
         model: call.model,
         messages: outgoing(call.messages),
@@ -189,7 +197,7 @@ export async function listOpenAi(input: ListInput): Promise<string[]> {
   const body = await getList(
     input,
     `${input.baseUrl}/models`,
-    headers(input.apiKey),
+    headers(input.apiKey, input.auth),
   );
   const rows = (body as { data?: unknown }).data;
   if (!Array.isArray(rows)) throw notAService();

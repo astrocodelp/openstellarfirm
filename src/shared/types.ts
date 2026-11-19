@@ -29,6 +29,21 @@ export const PRESET_IDS = [
   "openrouter",
   "mistral",
   "together",
+  "xai",
+  "deepseek",
+  "groq",
+  "cerebras",
+  "nvidia",
+  "huggingface",
+  "requesty",
+  "requesty-eu",
+  "vercel",
+  "llmapi",
+  "ironlane",
+  "orcarouter",
+  "azure",
+  "bedrock",
+  "litellm",
   "custom",
 ] as const;
 export type PresetId = (typeof PRESET_IDS)[number];
@@ -136,6 +151,11 @@ export interface ModelSourceInput {
   preset: PresetId;
   name?: string;
   baseUrl?: string;
+  /**
+   * What the person types for a cloud preset: an Azure resource name or host,
+   * or a Bedrock region. Checked in the main process, never trusted.
+   */
+  part?: string;
   model: string;
   /** Sent once, on save. Never returned. Empty keeps the saved key. */
   apiKey?: string;
@@ -310,6 +330,7 @@ export interface OpenApi {
   probeModels(input: {
     preset: PresetId;
     baseUrl?: string;
+    part?: string;
     apiKey?: string;
   }): Promise<string[]>;
   /** Lists the models of a saved source, which also proves it works. */
