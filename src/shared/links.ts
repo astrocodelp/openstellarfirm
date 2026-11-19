@@ -17,6 +17,7 @@ export const LINK_NAMES = [
   "source",
   "community",
   "release",
+  "download",
   "composio",
   "docker",
   "ollama",
@@ -33,11 +34,61 @@ export function releaseUrl(version: string): string {
   return `${REPO_URL}/releases/tag/v${clean}`;
 }
 
+/** Where this computer is: `process.platform` and `process.arch`. */
+export interface DownloadTarget {
+  platform: string;
+  arch: string;
+}
+
+/**
+ * The file a release has for this computer, by the names in
+ * electron-builder.yml, or null when it has none (Linux on arm64, say).
+ * Windows on arm64 runs the x64 build. Built from three plain numbers and a
+ * fixed table, never from text in an answer.
+ */
+export function downloadFile(
+  version: string,
+  target: DownloadTarget,
+): string | null {
+  const clean = cleanVersion(version);
+  if (!clean) return null;
+  const name = `OpenStellarFirm-${clean}`;
+  switch (target.platform) {
+    case "darwin":
+      if (target.arch === "arm64") return `${name}-mac-arm64.dmg`;
+      if (target.arch === "x64") return `${name}-mac-x64.dmg`;
+      return null;
+    case "win32":
+      return target.arch === "x64" || target.arch === "arm64"
+        ? `${name}-win-x64.exe`
+        : null;
+    case "linux":
+      return target.arch === "x64" ? `${name}-linux-x64.AppImage` : null;
+    default:
+      return null;
+  }
+}
+
+/**
+ * The address of this computer's download, or the release page when the
+ * release has no file for it.
+ */
+export function downloadUrl(version: string, target: DownloadTarget): string {
+  const file = downloadFile(version, target);
+  if (!file) return releaseUrl(version);
+  return `${REPO_URL}/releases/download/v${cleanVersion(version)}/${file}`;
+}
+
 /**
  * `newest` is the version the main process knows is available. The "release"
- * link exists only while there is one.
+ * and "download" links exist only while there is one; "download" also needs
+ * where this computer is.
  */
-export function linkUrl(name: unknown, newest: string | null = null): string {
+export function linkUrl(
+  name: unknown,
+  newest: string | null = null,
+  target: DownloadTarget | null = null,
+): string {
   // A catalog service's own page, looked up in the fixed list by its id.
   if (typeof name === "string" && name.startsWith("catalog:")) {
     const entry = catalogEntry(name.slice("catalog:".length));
@@ -61,6 +112,10 @@ export function linkUrl(name: unknown, newest: string | null = null): string {
     case "release":
       if (!newest) throw new Error("There is no newer version to show.");
       return releaseUrl(newest);
+    case "download":
+      if (!newest) throw new Error("There is no newer version to download.");
+      if (!target) throw new Error("That is not allowed.");
+      return downloadUrl(newest, target);
     default:
       throw new Error("That is not allowed.");
   }

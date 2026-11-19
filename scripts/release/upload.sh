@@ -84,7 +84,8 @@ if [ -z "$found" ]; then
   gh POST "https://api.github.com/repos/$repo/releases" -H 'Content-Type: application/json' -d "@$tmp/new.json" > "$tmp/release.json"
 fi
 
-release_id="$(node -p 'const r=require(process.argv[1]); if(!r.draft) throw new Error("release is already published"); r.id' "$tmp/release.json")" ||
+# String(): node -p colours a number when FORCE_COLOR is set (the build image sets it).
+release_id="$(node -p 'const r=require(process.argv[1]); if(!r.draft) throw new Error("release is already published"); String(r.id)' "$tmp/release.json")" ||
   die "the release for $tag is already published; refusing to touch it"
 [[ "$release_id" =~ ^[0-9]+$ ]] || die "unexpected release id"
 

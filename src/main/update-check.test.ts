@@ -4,8 +4,11 @@ import type { Settings } from "../shared/types";
 import {
   CHECK_EVERY_MS,
   isDue,
+  LAUNCH_DELAY_MS,
+  LAUNCH_GAP_MS,
   lookForUpdate,
   MAX_ANSWER_BYTES,
+  scheduleUpdateChecks,
   UpdateChecker,
 } from "./update-check";
 
@@ -26,14 +29,48 @@ function checker(
   now = new Date("2026-11-19T10:00:00Z"),
 ) {
   const record = vi.fn();
+  const notify = vi.fn();
+  const markNotified = vi.fn();
   const instance = new UpdateChecker({
     fetch: fetchFn,
     now: () => now,
     version: "0.1.0",
     settings: () => ({ ...base, ...settings }),
     record,
+    notify,
+    markNotified,
   });
-  return { instance, record };
+  return { instance, record, notify, markNotified };
+}
+
+/**
+ * A checker over settings kept the way the store keeps them, so what one
+ * check records is what the next one reads. The clock is moved by hand.
+ */
+function living(settings: Partial<Settings>, fetchFn: typeof fetch) {
+  const kept: Settings = { ...base, ...settings };
+  const clock = { now: new Date("2026-11-19T10:00:00Z") };
+  const notify = vi.fn();
+  const make = () =>
+    new UpdateChecker({
+      fetch: fetchFn,
+      now: () => clock.now,
+      version: "0.1.0",
+      settings: () => ({ ...kept }),
+      record: (at, newest) => {
+        kept.lastUpdateCheck = at.toISOString();
+        if (newest === null) delete kept.newestVersion;
+        else if (newest !== undefined) kept.newestVersion = newest;
+      },
+      markNotified: (version) => {
+        kept.notifiedVersion = version;
+      },
+      notify,
+    });
+  const later = (ms: number) => {
+    clock.now = new Date(clock.now.getTime() + ms);
+  };
+  return { kept, make, later, notify };
 }
 
 describe("the request", () => {
@@ -143,7 +180,7 @@ describe("when it runs", () => {
   it("makes no call while the switch is off", async () => {
     const fetchFn = vi.fn(async () => answer());
     const { instance, record } = checker({}, fetchFn as never);
-    expect(await instance.check(false)).toBeNull();
+    expect(await instance.check("daily")).toBeNull();
     expect(fetchFn).not.toHaveBeenCalled();
     expect(record).not.toHaveBeenCalled();
   });
@@ -152,7 +189,7 @@ describe("when it runs", () => {
     const fetchFn = vi.fn(async () => answer());
     const now = new Date("2026-11-19T10:00:00Z");
     const first = checker({ checkUpdates: true }, fetchFn as never, now);
-    expect(await first.instance.check(false)).toEqual({
+    expect(await first.instance.check("daily")).toEqual({
       status: "newer",
       version: "0.2.0",
     });
@@ -163,7 +200,7 @@ describe("when it runs", () => {
       fetchFn as never,
       new Date(now.getTime() + CHECK_EVERY_MS - 1000),
     );
-    expect(await soon.instance.check(false)).toBeNull();
+    expect(await soon.instance.check("daily")).toBeNull();
     expect(fetchFn).toHaveBeenCalledTimes(1);
 
     const later = checker(
@@ -171,7 +208,7 @@ describe("when it runs", () => {
       fetchFn as never,
       new Date(now.getTime() + CHECK_EVERY_MS),
     );
-    expect(await later.instance.check(false)).not.toBeNull();
+    expect(await later.instance.check("daily")).not.toBeNull();
     expect(fetchFn).toHaveBeenCalledTimes(2);
   });
 
@@ -183,7 +220,7 @@ describe("when it runs", () => {
       fetchFn as never,
       now,
     );
-    expect(await instance.check(true)).toEqual({
+    expect(await instance.check("manual")).toEqual({
       status: "newer",
       version: "0.2.0",
     });
@@ -194,13 +231,15 @@ describe("when it runs", () => {
     const failing = checker({ checkUpdates: true }, (async () => {
       throw new Error("offline");
     }) as never);
-    expect(await failing.instance.check(false)).toEqual({ status: "unknown" });
+    expect(await failing.instance.check("daily")).toEqual({
+      status: "unknown",
+    });
     expect(failing.record).toHaveBeenCalledWith(expect.any(Date));
     expect(failing.record.mock.calls[0]).toHaveLength(1);
 
     const current = checker({}, (async () =>
       json({ tag_name: "v0.1.0" })) as never);
-    await current.instance.check(true);
+    await current.instance.check("manual");
     expect(current.record).toHaveBeenCalledWith(expect.any(Date), null);
 
     const broken = new UpdateChecker({
@@ -212,13 +251,13 @@ describe("when it runs", () => {
         throw new Error("disk full");
       },
     });
-    expect(await broken.check(true)).toMatchObject({ status: "newer" });
+    expect(await broken.check("manual")).toMatchObject({ status: "newer" });
   });
 
   it("does not ask twice at once", async () => {
     const fetchFn = vi.fn(async () => answer());
     const { instance } = checker({}, fetchFn as never);
-    await Promise.all([instance.check(true), instance.check(true)]);
+    await Promise.all([instance.check("manual"), instance.check("manual")]);
     expect(fetchFn).toHaveBeenCalledTimes(1);
   });
 
@@ -227,5 +266,160 @@ describe("when it runs", () => {
     expect(isDue(undefined, now)).toBe(true);
     expect(isDue("garbage", now)).toBe(true);
     expect(isDue("2030-01-01T00:00:00Z", now)).toBe(true);
+  });
+});
+
+describe("at every launch", () => {
+  const answer = () => json({ tag_name: "v0.2.0" });
+
+  it("checks once after start even within a day, and only once in a run", async () => {
+    const fetchFn = vi.fn(async () => answer());
+    const { make, later } = living({ checkUpdates: true }, fetchFn as never);
+    await make().check("daily");
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+    later(2 * 60 * 60 * 1000);
+    // A new start of the app, two hours on: the day has not passed, it still asks.
+    const run = make();
+    expect(await run.check("launch")).toEqual({
+      status: "newer",
+      version: "0.2.0",
+    });
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+    later(2 * 60 * 60 * 1000);
+    expect(await run.check("launch")).toBeNull();
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+  });
+
+  it("asks nothing when the app starts again within ten minutes", async () => {
+    const fetchFn = vi.fn(async () => answer());
+    const { make, later } = living({ checkUpdates: true }, fetchFn as never);
+    await make().check("launch");
+    later(LAUNCH_GAP_MS - 1000);
+    expect(await make().check("launch")).toBeNull();
+    later(1000);
+    expect(await make().check("launch")).not.toBeNull();
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+  });
+
+  it("makes no call while the switch is off", async () => {
+    const fetchFn = vi.fn(async () => answer());
+    const { instance, record } = checker({}, fetchFn as never);
+    expect(await instance.check("launch")).toBeNull();
+    expect(fetchFn).not.toHaveBeenCalled();
+    expect(record).not.toHaveBeenCalled();
+  });
+
+  it("then checks once a day while the app stays open", async () => {
+    const fetchFn = vi.fn(async () => answer());
+    const { make, later } = living({ checkUpdates: true }, fetchFn as never);
+    const run = make();
+    await run.check("launch");
+    later(CHECK_EVERY_MS - 60 * 1000);
+    expect(await run.check("daily")).toBeNull();
+    later(60 * 1000);
+    expect(await run.check("daily")).not.toBeNull();
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+  });
+
+  it("is scheduled a few seconds after start, then looks every hour", () => {
+    vi.useFakeTimers();
+    try {
+      const check = vi.fn(async () => null);
+      scheduleUpdateChecks({ check } as unknown as UpdateChecker);
+      vi.advanceTimersByTime(LAUNCH_DELAY_MS - 1);
+      expect(check).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(1);
+      expect(check).toHaveBeenLastCalledWith("launch");
+      vi.advanceTimersByTime(60 * 60 * 1000);
+      expect(check).toHaveBeenLastCalledWith("daily");
+      expect(check).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("the notice", () => {
+  it("tells about a new version once, never again after a restart", async () => {
+    let tag = "v0.2.0";
+    const fetchFn = vi.fn(async () => json({ tag_name: tag }));
+    const { kept, make, later, notify } = living(
+      { checkUpdates: true },
+      fetchFn as never,
+    );
+    await make().check("launch");
+    expect(notify).toHaveBeenCalledTimes(1);
+    expect(notify).toHaveBeenCalledWith("0.2.0");
+    expect(kept.notifiedVersion).toBe("0.2.0");
+    later(LAUNCH_GAP_MS);
+    await make().check("launch");
+    later(CHECK_EVERY_MS);
+    await make().check("daily");
+    expect(fetchFn).toHaveBeenCalledTimes(3);
+    expect(notify).toHaveBeenCalledTimes(1);
+    // A newer one still gets its own notice.
+    tag = "v0.3.0";
+    later(CHECK_EVERY_MS);
+    await make().check("daily");
+    expect(notify).toHaveBeenCalledTimes(2);
+    expect(notify).toHaveBeenLastCalledWith("0.3.0");
+  });
+
+  it("is never shown for a click on Check now, which counts as told", async () => {
+    const fetchFn = vi.fn(async () => json({ tag_name: "v0.2.0" }));
+    const { kept, make, later, notify } = living(
+      { checkUpdates: true },
+      fetchFn as never,
+    );
+    await make().check("manual");
+    expect(notify).not.toHaveBeenCalled();
+    expect(kept.notifiedVersion).toBe("0.2.0");
+    later(LAUNCH_GAP_MS);
+    await make().check("launch");
+    expect(notify).not.toHaveBeenCalled();
+  });
+
+  it("is not shown when turned off, for a dismissed version, or for no newer one", async () => {
+    const newer = (async () => json({ tag_name: "v0.2.0" })) as never;
+    const off = checker({ checkUpdates: true, updateNotify: false }, newer);
+    await off.instance.check("launch");
+    expect(off.notify).not.toHaveBeenCalled();
+    expect(off.markNotified).not.toHaveBeenCalled();
+
+    const dismissed = checker(
+      { checkUpdates: true, dismissedVersion: "0.2.0" },
+      newer,
+    );
+    await dismissed.instance.check("launch");
+    expect(dismissed.notify).not.toHaveBeenCalled();
+
+    const told = checker(
+      { checkUpdates: true, notifiedVersion: "0.3.0" },
+      newer,
+    );
+    await told.instance.check("launch");
+    expect(told.notify).not.toHaveBeenCalled();
+
+    const current = checker({ checkUpdates: true }, (async () =>
+      json({ tag_name: "v0.1.0" })) as never);
+    await current.instance.check("launch");
+    expect(current.notify).not.toHaveBeenCalled();
+  });
+
+  it("shows nothing when the told-about version cannot be kept, so it never repeats", async () => {
+    const notify = vi.fn();
+    const instance = new UpdateChecker({
+      fetch: (async () => json({ tag_name: "v0.2.0" })) as never,
+      now: () => new Date("2026-11-19T10:00:00Z"),
+      version: "0.1.0",
+      settings: () => ({ ...base, checkUpdates: true }),
+      record: () => undefined,
+      markNotified: () => {
+        throw new Error("disk full");
+      },
+      notify,
+    });
+    expect(await instance.check("launch")).toMatchObject({ status: "newer" });
+    expect(notify).not.toHaveBeenCalled();
   });
 });
