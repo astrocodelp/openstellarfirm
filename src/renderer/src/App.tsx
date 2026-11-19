@@ -422,6 +422,7 @@ export function App() {
             state={state}
             onChanged={refresh}
             onBack={() => setView({ name: "chat" })}
+            onMail={() => setView({ name: "mail" })}
           />
         ) : view.name === "mail" ? (
           <MailScreen

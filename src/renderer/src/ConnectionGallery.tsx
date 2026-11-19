@@ -31,7 +31,13 @@ interface GalleryProps {
   renderForm(entry: CatalogEntry): ReactNode;
   onAddByAddress(): void;
   onAddComposio(): void;
+  /** Opens the Mail screen, where a mailbox is added. */
+  onMail?(): void;
 }
+
+/** Words that mean someone is looking for their own mailbox. */
+const MAIL_WORDS =
+  /\b(e-?mail|mail|inbox|gmail|outlook|imap|icloud|yahoo|proton|fastmail)/i;
 
 /** How long the typing has to rest before the count is read out. */
 const ANNOUNCE_AFTER_MS = 500;
@@ -48,6 +54,7 @@ export function ConnectionGallery({
   renderForm,
   onAddByAddress,
   onAddComposio,
+  onMail,
 }: GalleryProps) {
   const ids = useId();
   const [query, setQuery] = useState("");
@@ -144,6 +151,16 @@ export function ConnectionGallery({
       <p className="visually-hidden" role="status" aria-live="polite">
         {announced}
       </p>
+
+      {onMail && MAIL_WORDS.test(query) ? (
+        <p className="card pad gallery-mail">
+          Looking for your own mailbox? Gmail, Outlook, iCloud and any IMAP
+          mailbox are added on the Mail screen, read only.{" "}
+          <button type="button" className="link-btn" onClick={onMail}>
+            Open Mail
+          </button>
+        </p>
+      ) : null}
 
       {shown.length === 0 ? (
         <div className="card pad stack-tight gallery-empty">

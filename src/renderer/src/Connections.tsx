@@ -614,6 +614,8 @@ interface ScreenProps {
   state: AppState;
   onChanged(): Promise<void>;
   onBack(): void;
+  /** Opens the Mail screen, where the person's own mailboxes live. */
+  onMail(): void;
 }
 
 /** The one form that is open at a time, so there is one lime button. */
@@ -634,7 +636,12 @@ function freeName(base: string, taken: string[]): string {
   return base;
 }
 
-export function ConnectionsScreen({ state, onChanged, onBack }: ScreenProps) {
+export function ConnectionsScreen({
+  state,
+  onChanged,
+  onBack,
+  onMail,
+}: ScreenProps) {
   const [open, setOpen] = useState<Open | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
   const [checked, setChecked] = useState<Record<string, string>>({});
@@ -858,6 +865,22 @@ export function ConnectionsScreen({ state, onChanged, onBack }: ScreenProps) {
           <ErrorLine>{error}</ErrorLine>
         </section>
 
+        <section className="stack" aria-labelledby="your-mail-title">
+          <h2 className="section-title" id="your-mail-title">
+            Your mail
+          </h2>
+          <div className="card pad mail-card">
+            <p className="dim">
+              {state.mailAccounts.length === 0
+                ? "Gmail, Outlook, iCloud or any IMAP mailbox, with an app password. Read only: an assistant can never send, delete or move mail."
+                : `${state.mailAccounts.length === 1 ? "1 mailbox" : `${state.mailAccounts.length} mailboxes`} added. Read only: an assistant can never send, delete or move mail.`}
+            </p>
+            <button type="button" className="btn" onClick={onMail}>
+              {state.mailAccounts.length === 0 ? "Add a mailbox" : "Open Mail"}
+            </button>
+          </div>
+        </section>
+
         <section className="stack" aria-labelledby="add-service-title">
           <h2 className="section-title" id="add-service-title">
             Add a service
@@ -867,6 +890,7 @@ export function ConnectionsScreen({ state, onChanged, onBack }: ScreenProps) {
             than once if you have more than one account.
           </p>
           <ConnectionGallery
+            onMail={onMail}
             connections={state.connections}
             openId={open?.kind === "catalog" ? open.id : null}
             onToggle={(id) => setOpen(id ? { kind: "catalog", id } : null)}
