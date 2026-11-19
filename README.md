@@ -13,8 +13,9 @@ own endpoint. There is no account, no server of ours, and no fee.
 > your screen when you approve. It cannot click, type or use your apps.
 > See [What is built](#what-is-built) and the [Roadmap](#roadmap).
 
-Made by the team behind [StellarFirm](https://stellarfirm.ai), where a whole
-team of AI Agent Assistants works for your company in the cloud.
+OpenStellarFirm is the open-source sibling of
+[StellarFirm](https://stellarfirm.ai), by Astro Code. StellarFirm is where a
+whole team of AI Agent Assistants works for your company in the cloud.
 
 ## What is built
 
@@ -181,8 +182,8 @@ Open Source Initiative's sense. The source is open to read, change and share.
 The licence covers this repository only. It does not cover StellarFirm cloud
 (stellarfirm.ai), StellarFirm for Universities, for Scientists or for Course
 Creators, or any other Astro Code software. "StellarFirm" and the pet
-characters are marks of Astro Code L.P.: if you share a changed version, give
-it its own name and look.
+characters are marks of Astro Code L.P. OpenStellarFirm includes that mark.
+If you share a changed version, give it its own name and look.
 
 Other people's work inside a built app is listed in
 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).

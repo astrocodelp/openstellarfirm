@@ -1,5 +1,5 @@
 name: Propose a persona
-description: A starter persona for everyone, before you send the file.
+description: A starter persona for OpenStellarFirm, before you send the file.
 labels: ["persona", "needs-triage"]
 body:
   - type: input

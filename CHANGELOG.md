@@ -72,11 +72,18 @@ The app is at version 0.1.0. There is no tagged release yet.
 
 ### Changed
 
+- The app is named OpenStellarFirm. It was StellarFirm Solo. The package name
+  is `openstellarfirm` and the application id is
+  `ai.stellarfirm.openstellarfirm`. An install that already ran keeps its
+  data folder and its sealed keys under the old name; this name starts a new
+  folder. Assistant files and backups keep the `stellarfirm-open.assistant`
+  and `stellarfirm-open.backup` formats, so a file you already have still
+  opens, and Copy to StellarFirm cloud still matches what stellarfirm.ai
+  reads.
 - The licence is now the Apache License 2.0 with the Commons Clause: free to
   use, change and share, not to sell. Selling needs a commercial licence
   ([COMMERCIAL.md](COMMERCIAL.md)). [NOTICE](NOTICE) says what the licence
   covers.
-- The app is named OpenStellarFirm.
 - Motion and interactions: screens and new messages fade in; the chat follows
   an answer only while you are at the end, with a "Jump to latest" button;
   the approval card never takes focus while you type, and turns into its

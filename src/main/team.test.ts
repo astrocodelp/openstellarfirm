@@ -67,7 +67,7 @@ const tax: Peer = { id: "tax", name: "Tax", brief: "" };
 
 let base: string;
 beforeEach(() => {
-  base = realpathSync(mkdtempSync(join(tmpdir(), "stellarfirm-open-team-")));
+  base = realpathSync(mkdtempSync(join(tmpdir(), "openstellarfirm-team-")));
 });
 afterEach(() => {
   rmSync(base, { recursive: true, force: true });
@@ -627,7 +627,7 @@ describe("what is stored about who may ask whom", () => {
   let dir: string;
   let store: Store;
   beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "stellarfirm-open-ask-"));
+    dir = mkdtempSync(join(tmpdir(), "openstellarfirm-ask-"));
     store = new Store(dir);
   });
   afterEach(() => rmSync(dir, { recursive: true, force: true }));

@@ -5,7 +5,7 @@ contact_links:
     about: Setting up a model, a persona or a folder. Questions go to Discussions.
   - name: Share an idea
     url: https://github.com/astrocodelp/worker-bot-open-source/discussions/categories/ideas
-    about: What the app should do next. An idea becomes an issue once it is agreed.
+    about: What OpenStellarFirm should do next. An idea becomes an issue once it is agreed.
   - name: Report a security problem
     url: https://github.com/astrocodelp/worker-bot-open-source/security/advisories/new
     about: Privately, never in a public issue.
