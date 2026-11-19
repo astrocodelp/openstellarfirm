@@ -1,5 +1,7 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { linkUrl, releaseUrl } from "./links";
+import { linkUrl, REPO, releaseUrl } from "./links";
 import {
   cleanSendKey,
   cleanTextSize,
@@ -86,6 +88,17 @@ describe("fixed links", () => {
     );
     expect(linkUrl("ollama")).toBe("https://ollama.com/download");
     expect(linkUrl("lmstudio")).toBe("https://lmstudio.ai");
+  });
+
+  it("names the same repository as package.json", () => {
+    // package.json is where the repository's address is changed; the app's
+    // links (and the release scripts, which read package.json) follow it.
+    const pkg = JSON.parse(
+      readFileSync(join(import.meta.dirname, "../../package.json"), "utf8"),
+    );
+    expect(pkg.repository.url).toBe(`git+https://github.com/${REPO}.git`);
+    expect(pkg.bugs.url).toBe(`https://github.com/${REPO}/issues`);
+    expect(pkg.homepage).toBe(`https://github.com/${REPO}`);
   });
 
   it("refuses a name it does not know, and an address", () => {

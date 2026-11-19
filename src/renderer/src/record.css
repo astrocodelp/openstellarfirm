@@ -25,6 +25,25 @@
   padding: 1.5rem;
 }
 
+/* The licence texts: long, so they scroll in their own box. */
+.licences-text {
+  max-height: 60dvh;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-field);
+  background: var(--sunken);
+}
+
+.licences-text pre {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: var(--text-caption);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .modal-head {
   display: flex;
   align-items: center;

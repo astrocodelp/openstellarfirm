@@ -9,7 +9,8 @@ import { cleanVersion } from "./update";
 
 // The repository's name is part of an address, not product copy. It is written
 // in parts so the copy test, which reads every source file for a certain
-// word a person must never read, keeps checking real copy.
+// word a person must never read, keeps checking real copy. It must match
+// "repository" in package.json, where a rename starts (a test checks).
 export const REPO = `astrocodelp/${["worker-b", "ot-open-source"].join("")}`;
 const REPO_URL = `https://github.com/${REPO}`;
 

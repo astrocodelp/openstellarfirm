@@ -1,17 +1,25 @@
 {
   "name": "openstellarfirm",
+  "productName": "OpenStellarFirm",
   "version": "0.1.0",
   "private": true,
   "description": "OpenStellarFirm, a desktop app for personal AI assistants that run on your own computer, on your own model. Nothing is saved in a cloud.",
   "license": "SEE LICENSE IN LICENSE",
   "author": "Vasileios Drosatos and Astro Code L.P.",
   "homepage": "https://github.com/astrocodelp/worker-bot-open-source",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/astrocodelp/worker-bot-open-source.git"
+  },
+  "bugs": {
+    "url": "https://github.com/astrocodelp/worker-bot-open-source/issues"
+  },
   "type": "module",
   "main": "dist/main/index.cjs",
   "desktopName": "openstellarfirm.desktop",
   "packageManager": "pnpm@10.33.3",
   "engines": {
-    "node": ">=22"
+    "node": "^22.13.0 || >=24"
   },
   "scripts": {
     "dev": "node scripts/dev.mjs",
@@ -23,8 +31,8 @@
     "lint": "biome check .",
     "format": "biome check --write .",
     "icon": "electron scripts/icon.mjs",
-    "package": "pnpm build && electron-builder --publish never",
-    "package:mac": "pnpm build && electron-builder --mac --publish never",
+    "package": "pnpm build && electron-builder --publish never -c.mac.identity=null",
+    "package:mac": "pnpm build && electron-builder --mac --publish never -c.mac.identity=null",
     "package:win": "pnpm build && electron-builder --win --x64 --publish never",
     "package:linux": "pnpm build && electron-builder --linux --x64 --publish never",
     "ci": "bash scripts/ci.sh",
@@ -37,7 +45,8 @@
       "esbuild"
     ],
     "ignoredBuiltDependencies": [
-      "electron-winstaller"
+      "electron-winstaller",
+      "tesseract.js"
     ]
   },
   "devDependencies": {
