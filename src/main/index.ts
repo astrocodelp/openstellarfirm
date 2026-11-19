@@ -9,6 +9,7 @@ import {
   dialog,
   type IpcMainInvokeEvent,
   ipcMain,
+  Menu,
   Notification,
   nativeTheme,
   safeStorage,
@@ -46,7 +47,9 @@ import {
   type Settings,
 } from "../shared/types";
 import { availableUpdate } from "../shared/update";
+import { cardText } from "../shared/visible-text";
 import { type AgentDeps, type AgentResult, runAgent } from "./agent";
+import { menuTemplate, refusedLaunch } from "./app-menu";
 import {
   type FileReaders,
   filesToText,
@@ -382,7 +385,7 @@ function askPerson(
   return new Promise((resolve, reject) => {
     const { remember, ...shown } = ask;
     const card: ApprovalCard = {
-      ...shown,
+      ...cardText(shown),
       ...(remember ? { canAlways: true } : {}),
       id: randomUUID(),
       assistantId,
@@ -1476,6 +1479,11 @@ function createWindow(): BrowserWindow {
       contextIsolation: true,
       sandbox: true,
       nodeIntegration: false,
+      // The developer tools could press Approve for the person: an installed
+      // app has none. No spelling check either: on Linux Chromium would
+      // download its dictionaries from Google for it.
+      devTools: !app.isPackaged,
+      spellcheck: false,
     },
   });
   window.once("ready-to-show", () => window.show());
@@ -1497,10 +1505,17 @@ function createWindow(): BrowserWindow {
 // The reader's scheme has to be known before the app is ready.
 registerReaderScheme();
 
-// An installed app is never driven from outside: a debugging port would let
-// another program on this computer press Approve for the person.
-if (app.isPackaged && app.commandLine.hasSwitch("remote-debugging-port")) {
-  app.quit();
+// An installed app is never driven from outside: a debugging port or pipe,
+// or an inspector, would let another program on this computer press Approve
+// for the person.
+if (
+  refusedLaunch(
+    app.isPackaged,
+    (name) => app.commandLine.hasSwitch(name),
+    process.argv,
+  )
+) {
+  app.exit(1);
 }
 
 app.whenReady().then(() => {
@@ -1569,6 +1584,11 @@ app.whenReady().then(() => {
   if (process.platform === "darwin") app.dock?.setIcon(windowIcon);
   session.defaultSession.setPermissionRequestHandler(
     (_contents, _permission, done) => done(false),
+  );
+  // The app's own menu: edit, zoom and window items, and no developer tools
+  // in an installed app.
+  Menu.setApplicationMenu(
+    Menu.buildFromTemplate(menuTemplate(process.platform, app.isPackaged)),
   );
   const window = createWindow();
   // The hidden reader is a window too; it must not keep the app open.
