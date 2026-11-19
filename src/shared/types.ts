@@ -798,6 +798,25 @@ export interface OpenApi {
   /** Which assistant a pet talks to, its voice and whether it speaks answers. */
   petsSetConfig(id: string, config: DeskPetConfig): Promise<DeskPetsStatus>;
   petsDiscardDraft(id: string): Promise<DeskPetsStatus>;
+  /**
+   * The USB chooser. While the page asks the browser for a serial port, the
+   * app tells it which desk pet boards it found when there is more than one;
+   * the page answers with the pick, or null to cancel. Nothing else is asked.
+   */
+  onSerialChoose(listener: (request: SerialChoice) => void): () => void;
+  serialChosen(requestId: string, portId: string | null): Promise<void>;
+}
+
+/** One board the app found while the page asked for a USB port. */
+export interface SerialChoiceItem {
+  readonly portId: string;
+  /** What to show: the system's name for the port. */
+  readonly name: string;
+}
+
+export interface SerialChoice {
+  readonly requestId: string;
+  readonly ports: readonly SerialChoiceItem[];
 }
 
 export const IPC = {
@@ -915,6 +934,8 @@ export const IPC = {
   petsClearVoiceKey: "pets:voice-key-clear",
   petsSetConfig: "pets:config",
   petsDiscardDraft: "pets:discard-draft",
+  serialChoose: "serial:choose",
+  serialChosen: "serial:chosen",
 } as const;
 
 /** Every answer over IPC, so an error arrives as a plain sentence. */

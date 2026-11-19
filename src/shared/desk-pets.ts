@@ -55,8 +55,10 @@ export interface DeskPetsStatus {
   /** `osf-<label>.local`, the one name the app answers. */
   readonly mdnsName: string;
   readonly mdnsRunning: boolean;
-  /** SHA-256 of the certificate, 64 lowercase hex characters, or null before the first. */
+  /** SHA-256 of the certificate, 64 lowercase hex characters, or null before the first. Not a secret. */
   readonly fingerprint: string | null;
+  /** This computer's private network addresses (no link-local), for the pet to try first. */
+  readonly addresses: readonly string[];
   readonly pets: readonly DeskPetView[];
   readonly pending: DeskPetPending | null;
   readonly drafts: readonly DeskPetDraft[];

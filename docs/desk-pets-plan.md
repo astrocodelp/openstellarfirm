@@ -51,6 +51,16 @@ in the app, and the pet makes its one-time claim for its token. The app keeps
 only SHA-256 digests of the setup code, the confirm code and the token. A pet
 with older firmware says it needs an update.
 
+pet-usb v2 keeps v1's framing and adds three ops: `server <address or -> <port>
+<fingerprint> <name>` (the address, port, certificate SHA-256 and `osf-<label>.local`
+name; no secret), `wifi <ssidHex> <passwordHex or ->` and `start <setupCode>`. The
+first two only stage values on the pet; `start` begins the try, so the password and
+the setup code never share a line. The page asks `hello` first; a pet that answers
+version 1 is told to update and is sent nothing else. The exact byte layouts are in
+`src/shared/pets/usb.ts`, and the golden lines in `usb-vectors.ts` and
+`firmware/pet/include/generated/usb2_vectors.h`. The window may use only Web
+Serial, only for the app's own page, and only for the Arduino Nano ESP32's USB id.
+
 The setup network (pairing from a phone) is left out of the first version: a
 phone cannot carry the fingerprint safely.
 
@@ -120,7 +130,7 @@ own. The firmware's third-party libraries are listed in
 | P1    | The firmware and print files copied in as they are (not working with the app yet), and the shared protocol code in `src/shared/pets/` with no new dependency | The protocol, audio and spoken-line tests pass here                                                         |
 | P2    | Certificate, the server, the saved state, pairing, the mDNS answer (built, `src/main/pets/`)                                                                 | Tests drive every route over TLS; a public address is refused; no route can decide an approval              |
 | P3    | ElevenLabs, turns, inbox and notices (built, `src/main/pets/`: the voice client, turns, the inbox, spoken notices and the voice pack)                        | A stub voice passes; a refused key says so; a waiting step reaches the pet only as "needs you"              |
-| P4    | Settings: Desk pets, the USB chooser, pet-usb v2                                                                                                             | The Wi-Fi password reaches only the cable; an old pet is told to update                                     |
+| P4    | Settings: Desk pets, the USB chooser, pet-usb v2 (built: `Settings, Desk pets`, `src/renderer/src/pet-usb-driver.ts`, `src/main/serial-*.ts`)                | The Wi-Fi password reaches only the cable; an old pet is told to update                                     |
 | P5    | Firmware: the computer's address and pin kept on the pet, the pin check, the mDNS fallback, the key line                                                     | Native tests for parsing and the pin; the simulator covers the whole server path; a real board for the rest |
 | P6    | Install and firewall guide, the macOS network prompt                                                                                                         | Checked by hand on macOS and Windows                                                                        |
 

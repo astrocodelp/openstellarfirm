@@ -5,9 +5,14 @@ import { CODE_ALPHABET } from "./codes";
 import { PET_KINDS } from "./kinds";
 import {
   createPetUsbLineSplitter,
+  decodePetUsb2Reply,
   decodePetUsbReply,
+  encodePetUsb2Reply,
+  encodePetUsb2Request,
   encodePetUsbReply,
   encodePetUsbRequest,
+  isPetUsbIpv4,
+  isPetUsbIpv6,
   isPetUsbPassword,
   isPetUsbSsid,
   PET_USB_BAUD,
@@ -23,17 +28,27 @@ import {
   PET_USB_STATES,
   PET_USB_VENDOR_ID,
   PET_USB_VERSION,
+  PET_USB2_OPS,
+  PET_USB2_REFUSALS,
+  PET_USB2_VERSION,
   PetUsbFormatError,
   type PetUsbReply,
   type PetUsbSplit,
+  parsePetUsb2Request,
   parsePetUsbRequest,
   petUsbFromHex,
   petUsbRefusal,
   petUsbSetupCode,
+  petUsbSpeaksV2,
   petUsbToHex,
   petUsbWire,
 } from "./usb";
-import { PET_USB_REPLY_VECTORS, PET_USB_REQUEST_VECTORS } from "./usb-vectors";
+import {
+  PET_USB_REPLY_VECTORS,
+  PET_USB_REQUEST_VECTORS,
+  PET_USB2_REPLY_VECTORS,
+  PET_USB2_REQUEST_VECTORS,
+} from "./usb-vectors";
 
 const P = "@pet1 ";
 const HOME_HEX = "486f6d652057692d4669";
@@ -1019,5 +1034,258 @@ describe("the pet never echoes a secret", () => {
     expect(half).not.toMatch(
       /password|setupCode|confirmCode|\btoken\b|secret|deviceId|requestId|passphrase/i,
     );
+  });
+});
+
+describe("pet-usb v2", () => {
+  const FP = "a1b2c3d4e5f60718".repeat(4);
+  const NAME = "osf-3fa91c0d.local";
+  const server = {
+    op: "server",
+    address: "192.168.1.20",
+    port: 4801,
+    fingerprint: FP,
+    name: NAME,
+  } as const;
+
+  it("keeps v1 as it was: the prefix, the ops and the refusals", () => {
+    expect(PET_USB_VERSION).toBe(1);
+    expect(PET_USB_PREFIX).toBe("@pet1 ");
+    expect(PET_USB_OPS).toEqual(["hello", "scan", "join", "status", "cancel"]);
+    expect(PET_USB2_VERSION).toBe(2);
+    expect(PET_USB2_OPS).toEqual(["server", "wifi", "start"]);
+    expect(PET_USB2_REFUSALS).toEqual([...PET_USB_REFUSALS, "not_ready"]);
+  });
+
+  it("tells a v1 pet from a v2 one by its hello", () => {
+    expect(petUsbSpeaksV2({ version: 1 })).toBe(false);
+    expect(petUsbSpeaksV2({ version: 2 })).toBe(true);
+    expect(petUsbSpeaksV2({ version: 3 })).toBe(true);
+  });
+
+  it("reads every golden request vector", () => {
+    for (const vector of PET_USB2_REQUEST_VECTORS) {
+      const state = {
+        paired: vector.paired === true,
+        busy: vector.busy === true,
+        hasServer: vector.hasServer === true,
+        hasWifi: vector.hasWifi === true,
+      };
+      const got = parsePetUsb2Request(vector.line, state);
+      const { expect: want } = vector;
+      if (want.outcome === "ignored") {
+        expect(got, vector.name).toEqual({ outcome: "ignored" });
+      } else if (want.outcome === "refused") {
+        expect(got, vector.name).toEqual({
+          outcome: "refused",
+          reason: want.reason,
+        });
+      } else if (want.op === "server") {
+        expect(got, vector.name).toEqual({
+          outcome: "ok",
+          request: {
+            op: "server",
+            address: want.address === "" ? null : want.address,
+            port: want.port,
+            fingerprint: want.fingerprint,
+            name: want.serverName,
+          },
+        });
+      } else if (want.op === "wifi") {
+        expect(got, vector.name).toEqual({
+          outcome: "ok",
+          request: {
+            op: "wifi",
+            ssid: Uint8Array.from(want.ssid),
+            password: want.password,
+          },
+        });
+      } else if (want.op === "start") {
+        expect(got, vector.name).toEqual({
+          outcome: "ok",
+          request: { op: "start", setupCode: want.setupCode },
+        });
+      } else {
+        expect(got, vector.name).toEqual({
+          outcome: "ok",
+          request: { op: want.op },
+        });
+      }
+    }
+  });
+
+  it("builds and reads every golden reply vector", () => {
+    for (const vector of PET_USB2_REPLY_VECTORS) {
+      expect(encodePetUsb2Reply(vector.reply), vector.name).toBe(vector.line);
+      expect(decodePetUsb2Reply(vector.line), vector.name).toEqual(
+        vector.reply,
+      );
+    }
+  });
+
+  it("round trips what the page encodes through what the pet parses", () => {
+    const ready = {
+      paired: false,
+      busy: false,
+      hasServer: true,
+      hasWifi: true,
+    };
+    const wifi = {
+      op: "wifi",
+      ssid: "Home Wi-Fi",
+      password: "correct horse",
+    } as const;
+    expect(parsePetUsb2Request(encodePetUsb2Request(server), ready)).toEqual({
+      outcome: "ok",
+      request: {
+        op: "server",
+        address: "192.168.1.20",
+        port: 4801,
+        fingerprint: FP,
+        name: NAME,
+      },
+    });
+    expect(
+      parsePetUsb2Request(
+        encodePetUsb2Request({ ...server, address: null }),
+        ready,
+      ),
+    ).toMatchObject({ request: { address: null } });
+    expect(parsePetUsb2Request(encodePetUsb2Request(wifi), ready)).toEqual({
+      outcome: "ok",
+      request: {
+        op: "wifi",
+        ssid: new TextEncoder().encode("Home Wi-Fi"),
+        password: "correct horse",
+      },
+    });
+    expect(
+      parsePetUsb2Request(
+        encodePetUsb2Request({ op: "wifi", ssid: "Cafe", password: "" }),
+        ready,
+      ),
+    ).toMatchObject({ request: { password: "" } });
+    expect(
+      parsePetUsb2Request(
+        encodePetUsb2Request({ op: "start", setupCode: "K7QXM-2PA9T" }),
+        ready,
+      ),
+    ).toEqual({
+      outcome: "ok",
+      request: { op: "start", setupCode: "K7QXM2PA9T" },
+    });
+  });
+
+  it("writes the exact bytes the firmware will read", () => {
+    expect(encodePetUsb2Request(server)).toBe(
+      `@pet1 server 192.168.1.20 4801 ${FP} ${NAME}`,
+    );
+    expect(encodePetUsb2Request({ ...server, address: null, port: 1 })).toBe(
+      `@pet1 server - 1 ${FP} ${NAME}`,
+    );
+    expect(
+      encodePetUsb2Request({
+        op: "wifi",
+        ssid: "Home Wi-Fi",
+        password: "correct horse",
+      }),
+    ).toBe(`@pet1 wifi ${HOME_HEX} ${CORRECT_HORSE_HEX}`);
+    expect(
+      encodePetUsb2Request({ op: "wifi", ssid: "Cafe Guest", password: "" }),
+    ).toBe(`@pet1 wifi ${petUsbToHex(bytes("Cafe Guest"))} -`);
+    expect(
+      encodePetUsb2Request({ op: "start", setupCode: "k7qxm-2pa9t" }),
+    ).toBe("@pet1 start K7QXM2PA9T");
+    expect(encodePetUsb2Request({ op: "hello" })).toBe("@pet1 hello");
+  });
+
+  it("refuses to encode a value the pet would refuse, naming the field only", () => {
+    const bad = (input: Parameters<typeof encodePetUsb2Request>[0]) => {
+      try {
+        encodePetUsb2Request(input);
+      } catch (e) {
+        return e as PetUsbFormatError;
+      }
+      throw new Error("did not throw");
+    };
+    expect(bad({ ...server, port: 0 }).field).toBe("server");
+    expect(bad({ ...server, address: "192.168.1" }).field).toBe("server");
+    expect(bad({ ...server, fingerprint: FP.toUpperCase() }).field).toBe(
+      "server",
+    );
+    expect(bad({ ...server, name: "pet.local" }).field).toBe("server");
+    const short = bad({ op: "wifi", ssid: "Home", password: "hunter2" });
+    expect(short.field).toBe("password");
+    expect(short.message).not.toContain("hunter2");
+    expect(bad({ op: "wifi", ssid: "", password: "" }).field).toBe("ssid");
+    expect(bad({ op: "start", setupCode: "nope" }).field).toBe("setupCode");
+  });
+
+  it("keeps every request line within the pet's line limit", () => {
+    const longest = encodePetUsb2Request({
+      op: "wifi",
+      ssid: new Uint8Array(32).fill(0x41),
+      password: "p".repeat(63),
+    });
+    expect(longest.length).toBeLessThanOrEqual(PET_USB_MAX_LINE);
+    expect(encodePetUsb2Request(server).length).toBeLessThanOrEqual(
+      PET_USB_MAX_LINE,
+    );
+  });
+
+  it("never lets a reply carry a password, a code or a token", () => {
+    for (const vector of PET_USB2_REPLY_VECTORS) {
+      expect(vector.line).not.toMatch(/[0-9a-f]{20,}/);
+    }
+    expect(() =>
+      encodePetUsb2Reply({ type: "ok", op: "join" } as never),
+    ).toThrow(PetUsbFormatError);
+    expect(decodePetUsb2Reply("@pet1 ok start K7QXM2PA9T")).toBeNull();
+    expect(decodePetUsb2Reply("@pet1 refused not_ready extra")).toBeNull();
+  });
+
+  it("is read as v1 reads a v1 line, and a v1 reader drops what is new", () => {
+    for (const vector of PET_USB_REQUEST_VECTORS) {
+      expect(
+        parsePetUsb2Request(vector.line, {
+          paired: vector.paired === true,
+          busy: vector.busy === true,
+          hasServer: false,
+          hasWifi: false,
+        }),
+        vector.name,
+      ).toEqual(
+        parsePetUsbRequest(vector.line, {
+          paired: vector.paired === true,
+          busy: vector.busy === true,
+        }),
+      );
+    }
+    for (const vector of PET_USB_REPLY_VECTORS) {
+      expect(decodePetUsb2Reply(`${P}${vector.line.slice(P.length)}`)).toEqual(
+        decodePetUsbReply(vector.line),
+      );
+    }
+    // A v1 pet's reader ignores the new replies: they are not in its lists.
+    expect(decodePetUsbReply("@pet1 ok server")).toBeNull();
+    expect(decodePetUsbReply("@pet1 refused not_ready")).toBeNull();
+    // A v1 pet turns the new ops away without reading their values.
+    expect(parsePetUsbRequest(encodePetUsb2Request(server))).toEqual({
+      outcome: "refused",
+      reason: "unknown_op",
+    });
+  });
+
+  it("checks addresses strictly", () => {
+    expect(isPetUsbIpv4("10.0.0.1")).toBe(true);
+    expect(isPetUsbIpv4("10.0.0.256")).toBe(false);
+    expect(isPetUsbIpv4("10.0.00.1")).toBe(false);
+    expect(isPetUsbIpv6("fd00::1")).toBe(true);
+    expect(isPetUsbIpv6("::1")).toBe(true);
+    expect(isPetUsbIpv6("fd00::1::2")).toBe(false);
+    expect(isPetUsbIpv6("fd00:1")).toBe(false);
+    expect(isPetUsbIpv6("::ffff:10.0.0.1")).toBe(false);
+    expect(isPetUsbIpv6("fd00::g")).toBe(false);
+    expect(isPetUsbIpv6("1:2:3:4:5:6:7:8:9")).toBe(false);
   });
 });

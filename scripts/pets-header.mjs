@@ -1,5 +1,5 @@
-// Writes the three C++ headers the desk pet firmware shares with the app:
-// protocol.h, adpcm_vectors.h and usb_vectors.h in firmware/pet/include/generated.
+// Writes the four C++ headers the desk pet firmware shares with the app:
+// protocol.h, adpcm_vectors.h, usb_vectors.h and usb2_vectors.h in firmware/pet/include/generated.
 // Run it with `pnpm pets:header` after a change in src/shared/pets. A test
 // (src/shared/pets/header.test.ts) fails when the committed headers differ from
 // what this writes, so they are never edited by hand.
@@ -12,7 +12,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const target = join(root, "firmware/pet/include/generated");
 
 // header.ts is TypeScript with extensionless imports, so it is bundled in
-// memory and loaded from there. Nothing is written but the three headers.
+// memory and loaded from there. Nothing is written but the four headers.
 const bundled = await build({
   entryPoints: [join(root, "src/shared/pets/header.ts")],
   bundle: true,
@@ -26,6 +26,7 @@ const source = bundled.outputFiles[0].text;
 const {
   renderAdpcmVectorsHeader,
   renderProtocolHeader,
+  renderUsb2VectorsHeader,
   renderUsbVectorsHeader,
 } = await import(
   `data:text/javascript;base64,${Buffer.from(source).toString("base64")}`
@@ -35,4 +36,7 @@ mkdirSync(target, { recursive: true });
 writeFileSync(join(target, "protocol.h"), renderProtocolHeader());
 writeFileSync(join(target, "adpcm_vectors.h"), renderAdpcmVectorsHeader());
 writeFileSync(join(target, "usb_vectors.h"), renderUsbVectorsHeader());
-console.log(`Wrote protocol.h, adpcm_vectors.h and usb_vectors.h to ${target}`);
+writeFileSync(join(target, "usb2_vectors.h"), renderUsb2VectorsHeader());
+console.log(
+  `Wrote protocol.h, adpcm_vectors.h, usb_vectors.h and usb2_vectors.h to ${target}`,
+);

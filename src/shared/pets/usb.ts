@@ -128,7 +128,7 @@ export const PET_USB_WORDS = {
 } as const;
 
 /** Which input a rejected value came from, so a form can flag the right box. */
-export type PetUsbField = "ssid" | "password" | "setupCode" | "line";
+export type PetUsbField = "ssid" | "password" | "setupCode" | "server" | "line";
 
 /**
  * A value or line that pet-usb does not allow. The message names the field,
@@ -771,4 +771,398 @@ export function createPetUsbLineSplitter(): PetUsbLineSplitter {
       prefixed = false;
     },
   };
+}
+
+// -- pet-usb v2 --------------------------------------------------------------------
+//
+// Version 2 adds what pairing needs once the pet pins the computer's own
+// certificate (docs/desk-pets-plan.md, "Pairing over the USB cable"). Framing,
+// hex, limits, the rate limit and everything above stay exactly as in v1: the
+// prefix is still `@pet1 ` (the version is negotiated by the pet's `hello`
+// reply, not by the prefix, so an old pet still reads `hello` and ignores
+// nothing it is sent), and v1 pets are never sent anything but `hello`.
+//
+//     page to pet:  server <address> <port> <fingerprint> <name>
+//                   wifi <ssidHex> <passwordHex or ->
+//                   start <setupCode>
+//     pet to page:  ok server|wifi|start
+//                   refused not_ready
+//
+// `server` and `wifi` only stage values in the pet's memory; `start` begins
+// the try with what is staged, so the Wi-Fi password and the setup code never
+// share a line with the address and the pin. A paired pet answers only
+// `hello`, a try that is running turns `server`, `wifi` and `start` away as
+// `busy`, and `cancel` forgets what was staged. The pet checks a line in the
+// v1 order (prefix, rate limit, shape, op, state, values) and `start` then
+// needs both stages (`not_ready`). The token and the confirm code never cross
+// the cable in v2 either, and no reply carries the password or the code.
+
+/** The first pet-usb version that speaks `server`, `wifi` and `start`. */
+export const PET_USB2_VERSION = 2;
+
+/** The ops v2 adds. The v1 ops (`hello`, `scan`, `status`, `cancel`) stay. */
+export const PET_USB2_OPS = ["server", "wifi", "start"] as const;
+export type PetUsb2Op = (typeof PET_USB2_OPS)[number];
+
+/** The v1 refusals and the one v2 adds: `start` before `server` and `wifi`. */
+export const PET_USB2_REFUSALS = [...PET_USB_REFUSALS, "not_ready"] as const;
+export type PetUsb2Refusal = (typeof PET_USB2_REFUSALS)[number];
+
+/** The address token that says the computer has no private address to give. */
+export const PET_USB2_NO_ADDRESS = "-";
+/** The most characters of an IPv6 address (`ffff:ffff:...`, no zone, no tail). */
+export const PET_USB2_ADDRESS_MAX_CHARS = 39;
+/** The certificate's SHA-256 as lowercase hex. */
+export const PET_USB2_FINGERPRINT_CHARS = 64;
+/** The computer's one mDNS name is `osf-` and 8 hex digits, then `.local`. */
+export const PET_USB2_NAME_PREFIX = "osf-";
+export const PET_USB2_NAME_SUFFIX = ".local";
+export const PET_USB2_NAME_LABEL_CHARS = 8;
+export const PET_USB2_MAX_PORT = 65_535;
+
+const SERVER_NAME = /^osf-[0-9a-f]{8}\.local$/;
+const FINGERPRINT = /^[0-9a-f]{64}$/;
+
+export function isPetUsb2Op(value: unknown): value is PetUsb2Op {
+  return isOneOf(PET_USB2_OPS, value);
+}
+
+/** Four decimal numbers 0 to 255 with no leading zero. */
+export function isPetUsbIpv4(address: string): boolean {
+  const parts = address.split(".");
+  return (
+    parts.length === 4 &&
+    parts.every(
+      (part) => /^(?:0|[1-9][0-9]{0,2})$/.test(part) && Number(part) <= 255,
+    )
+  );
+}
+
+/**
+ * A lowercase IPv6 address: groups of 1 to 4 hex digits, one `::` at most,
+ * eight groups in all (fewer with `::`). No zone, no dotted tail, no brackets.
+ */
+export function isPetUsbIpv6(address: string): boolean {
+  if (address.length < 2 || address.length > PET_USB2_ADDRESS_MAX_CHARS) {
+    return false;
+  }
+  if (!/^[0-9a-f:]+$/.test(address) || address.includes(":::")) {
+    return false;
+  }
+  const halves = address.split("::");
+  if (halves.length > 2) {
+    return false;
+  }
+  const groups = (part: string): string[] | null => {
+    if (part === "") {
+      return [];
+    }
+    const list = part.split(":");
+    return list.every((g) => /^[0-9a-f]{1,4}$/.test(g)) ? list : null;
+  };
+  const head = groups(halves[0] ?? "");
+  if (head === null) {
+    return false;
+  }
+  if (halves.length === 1) {
+    return head.length === 8;
+  }
+  const tail = groups(halves[1] ?? "");
+  return tail !== null && head.length + tail.length <= 7;
+}
+
+/** `osf-` and eight lowercase hex digits, then `.local`. */
+export function isPetUsbServerName(name: string): boolean {
+  return SERVER_NAME.test(name);
+}
+
+export function isPetUsbPort(port: unknown): port is number {
+  return (
+    typeof port === "number" &&
+    Number.isInteger(port) &&
+    port >= 1 &&
+    port <= PET_USB2_MAX_PORT
+  );
+}
+
+export function isPetUsbFingerprint(fingerprint: string): boolean {
+  return FINGERPRINT.test(fingerprint);
+}
+
+/** The computer, as the pet is told to find and pin it. */
+export interface PetUsbServer {
+  /** An IPv4 or IPv6 address, or null when the computer has none to give. */
+  readonly address: string | null;
+  readonly port: number;
+  /** SHA-256 of the certificate, 64 lowercase hex characters. Not a secret. */
+  readonly fingerprint: string;
+  /** `osf-<8 hex>.local`, the name to ask mDNS for when the address fails. */
+  readonly name: string;
+}
+
+export type PetUsb2Request =
+  | { readonly op: "hello" | "scan" | "status" | "cancel" }
+  | ({ readonly op: "server" } & PetUsbServer)
+  | {
+      readonly op: "wifi";
+      /** The raw bytes of the name, not necessarily UTF-8. */
+      readonly ssid: Uint8Array;
+      /** Empty for an open network. */
+      readonly password: string;
+    }
+  | { readonly op: "start"; readonly setupCode: string };
+
+export type PetUsb2RequestInput =
+  | { readonly op: "hello" | "scan" | "status" | "cancel" }
+  | ({ readonly op: "server" } & PetUsbServer)
+  | {
+      readonly op: "wifi";
+      readonly ssid: Uint8Array | string;
+      readonly password: string;
+    }
+  | { readonly op: "start"; readonly setupCode: string };
+
+function encodeServerToken(server: PetUsbServer): string {
+  if (
+    server.address !== null &&
+    !isPetUsbIpv4(server.address) &&
+    !isPetUsbIpv6(server.address)
+  ) {
+    throw new PetUsbFormatError(
+      "server",
+      "the computer's address is not an IPv4 or IPv6 address",
+    );
+  }
+  if (!isPetUsbPort(server.port)) {
+    throw new PetUsbFormatError("server", "the port is not 1 to 65535");
+  }
+  if (!isPetUsbFingerprint(server.fingerprint)) {
+    throw new PetUsbFormatError(
+      "server",
+      "the fingerprint is not 64 lowercase hex digits",
+    );
+  }
+  if (!isPetUsbServerName(server.name)) {
+    throw new PetUsbFormatError("server", "the name is not osf-<8 hex>.local");
+  }
+  return `${server.address ?? PET_USB2_NO_ADDRESS} ${server.port} ${server.fingerprint} ${server.name}`;
+}
+
+/**
+ * The line for a v2 request, without its newline. Every value is checked
+ * before a line is made, so a page that builds all three lines first never
+ * stages half of a setup. The messages name the field, never the value.
+ */
+export function encodePetUsb2Request(request: PetUsb2RequestInput): string {
+  switch (request.op) {
+    case "server":
+      return `${PET_USB_PREFIX}server ${encodeServerToken(request)}`;
+    case "wifi": {
+      const ssid =
+        typeof request.ssid === "string"
+          ? new TextEncoder().encode(request.ssid)
+          : request.ssid;
+      if (!isPetUsbSsid(ssid)) {
+        throw new PetUsbFormatError(
+          "ssid",
+          "the Wi-Fi name must be 1 to 32 bytes with no control character",
+        );
+      }
+      if (!isPetUsbPassword(request.password)) {
+        throw new PetUsbFormatError(
+          "password",
+          "the Wi-Fi password must be 8 to 63 printable ASCII characters, 64 hex digits, or empty",
+        );
+      }
+      const password =
+        request.password === ""
+          ? PET_USB_OPEN_PASSWORD
+          : petUsbToHex(
+              Uint8Array.from(request.password, (c) => c.charCodeAt(0)),
+            );
+      return `${PET_USB_PREFIX}wifi ${petUsbToHex(ssid)} ${password}`;
+    }
+    case "start": {
+      const setupCode = petUsbSetupCode(request.setupCode);
+      if (setupCode === null) {
+        throw new PetUsbFormatError(
+          "setupCode",
+          "the setup code is not a setup code",
+        );
+      }
+      return `${PET_USB_PREFIX}start ${setupCode}`;
+    }
+    default:
+      return encodePetUsbRequest(request);
+  }
+}
+
+/** The pet's own state, which decides what a v2 op is allowed to do. */
+export interface PetUsb2PolicyState extends PetUsbPolicyState {
+  /** `server` was accepted and is staged. */
+  readonly hasServer: boolean;
+  /** `wifi` was accepted and is staged. */
+  readonly hasWifi: boolean;
+}
+
+/** Why the pet would turn a v2 op away before looking at its values, or null. */
+export function petUsb2Refusal(
+  op: PetUsbOp | PetUsb2Op,
+  state: PetUsbPolicyState,
+): "paired" | "busy" | null {
+  if (state.paired) {
+    return op === "hello" ? null : "paired";
+  }
+  if (state.busy && op !== "hello" && op !== "status" && op !== "cancel") {
+    return "busy";
+  }
+  return null;
+}
+
+export type PetUsb2Parse =
+  | PetUsbParse
+  | { readonly outcome: "ok"; readonly request: PetUsb2Request }
+  | { readonly outcome: "refused"; readonly reason: "not_ready" };
+
+const IDLE2: PetUsb2PolicyState = {
+  paired: false,
+  busy: false,
+  hasServer: false,
+  hasWifi: false,
+};
+
+/**
+ * What a v2 pet makes of a line (the page never needs this; the vectors, the
+ * simulator and the tests do). A v1 op is read exactly as `parsePetUsbRequest`
+ * reads it. The order of the checks is the v1 one, and `start` then needs
+ * both stages.
+ */
+export function parsePetUsb2Request(
+  line: string,
+  state: PetUsb2PolicyState = IDLE2,
+): PetUsb2Parse {
+  const parts = split(line);
+  if (parts.kind === "ignored") {
+    return { outcome: "ignored" };
+  }
+  if (parts.kind === "bad") {
+    return refused("bad_line");
+  }
+  const { tokens } = parts;
+  const op = tokens[0];
+  if (!isPetUsb2Op(op)) {
+    return parsePetUsbRequest(line, state);
+  }
+  const wanted = op === "server" ? 5 : op === "wifi" ? 3 : 2;
+  if (tokens.length !== wanted) {
+    return refused("bad_line");
+  }
+  const turnedAway = petUsb2Refusal(op, state);
+  if (turnedAway !== null) {
+    return refused(turnedAway);
+  }
+  if (op === "server") {
+    const [, addressToken, portToken, fingerprint, name] = tokens;
+    const noAddress = addressToken === PET_USB2_NO_ADDRESS;
+    if (
+      addressToken === undefined ||
+      (!noAddress && !isPetUsbIpv4(addressToken) && !isPetUsbIpv6(addressToken))
+    ) {
+      return refused("bad_value");
+    }
+    const port =
+      portToken !== undefined && /^[1-9][0-9]{0,4}$/.test(portToken)
+        ? Number(portToken)
+        : null;
+    if (
+      port === null ||
+      !isPetUsbPort(port) ||
+      fingerprint === undefined ||
+      !isPetUsbFingerprint(fingerprint) ||
+      name === undefined ||
+      !isPetUsbServerName(name)
+    ) {
+      return refused("bad_value");
+    }
+    return {
+      outcome: "ok",
+      request: {
+        op,
+        address: noAddress ? null : addressToken,
+        port,
+        fingerprint,
+        name,
+      },
+    };
+  }
+  if (op === "wifi") {
+    const ssid = petUsbFromHex(tokens[1] ?? "");
+    if (ssid === null || !isPetUsbSsid(ssid)) {
+      return refused("bad_value");
+    }
+    let password = "";
+    if (tokens[2] !== PET_USB_OPEN_PASSWORD) {
+      const raw = petUsbFromHex(tokens[2] ?? "");
+      if (raw === null) {
+        return refused("bad_value");
+      }
+      password = String.fromCharCode(...raw);
+      if (password === "" || !isPetUsbPassword(password)) {
+        return refused("bad_value");
+      }
+    }
+    return { outcome: "ok", request: { op, ssid, password } };
+  }
+  const setupCode = petUsbSetupCode(tokens[1] ?? "");
+  if (setupCode === null) {
+    return refused("bad_value");
+  }
+  if (!state.hasServer || !state.hasWifi) {
+    return { outcome: "refused", reason: "not_ready" };
+  }
+  return { outcome: "ok", request: { op, setupCode } };
+}
+
+/** What the pet says besides the v1 replies: it staged or began something. */
+export type PetUsb2Reply =
+  | PetUsbReply
+  | { readonly type: "ok"; readonly op: PetUsb2Op }
+  | { readonly type: "refused"; readonly reason: "not_ready" };
+
+/** The line for a v2 reply, without its newline. v1 replies are v1's. */
+export function encodePetUsb2Reply(reply: PetUsb2Reply): string {
+  if (reply.type === "ok") {
+    if (!isPetUsb2Op(reply.op)) {
+      throw new PetUsbFormatError("line", "a reply with an op not in the list");
+    }
+    return `${PET_USB_PREFIX}ok ${reply.op}`;
+  }
+  if (reply.type === "refused" && reply.reason === "not_ready") {
+    return `${PET_USB_PREFIX}refused not_ready`;
+  }
+  return encodePetUsbReply(reply as PetUsbReply);
+}
+
+/** What the page makes of a line from a v2 pet; null for what it should drop. */
+export function decodePetUsb2Reply(line: string): PetUsb2Reply | null {
+  const parts = split(line);
+  if (parts.kind !== "tokens") {
+    return null;
+  }
+  const { tokens } = parts;
+  if (tokens[0] === "ok") {
+    const op = tokens[1];
+    return tokens.length === 2 && isPetUsb2Op(op) ? { type: "ok", op } : null;
+  }
+  if (tokens[0] === "refused" && tokens[1] === "not_ready") {
+    return tokens.length === 2
+      ? { type: "refused", reason: "not_ready" }
+      : null;
+  }
+  return decodePetUsbReply(line);
+}
+
+/** Whether a pet's `hello` says it speaks v2. A v1 pet is told to update. */
+export function petUsbSpeaksV2(hello: { readonly version: number }): boolean {
+  return hello.version >= PET_USB2_VERSION;
 }

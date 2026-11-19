@@ -483,6 +483,7 @@ export class PetService {
       mdnsName: mdnsNameOf(state.label),
       mdnsRunning: this.mdns?.listening === true,
       fingerprint: cert?.fingerprint ?? null,
+      addresses: this.addresses(),
       pets: state.pets.map((pet) => ({
         id: pet.id,
         name: pet.name,

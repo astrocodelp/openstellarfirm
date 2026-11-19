@@ -6,6 +6,7 @@ import {
   ADPCM_VECTOR_SAMPLES,
   renderAdpcmVectorsHeader,
   renderProtocolHeader,
+  renderUsb2VectorsHeader,
   renderUsbVectorsHeader,
 } from "./header";
 import { PET_LIMITS } from "./limits";
@@ -57,6 +58,21 @@ describe("the committed headers have not drifted", () => {
       committed("usb_vectors.h") === renderUsbVectorsHeader(),
       "firmware/pet/include/generated/usb_vectors.h is out of date. Run: pnpm pets:header",
     ).toBe(true);
+  });
+});
+
+describe("the pet-usb v2 header", () => {
+  it("usb2_vectors.h is what the package renders", () => {
+    expect(
+      committed("usb2_vectors.h") === renderUsb2VectorsHeader(),
+      "firmware/pet/include/generated/usb2_vectors.h is out of date. Run: pnpm pets:header",
+    ).toBe(true);
+  });
+
+  it("is plain ASCII with no tabs or trailing spaces", () => {
+    const text = renderUsb2VectorsHeader();
+    expect(text).toMatch(/^[\x20-\x7e\n]*$/);
+    expect(text).not.toMatch(/ +\n/);
   });
 });
 

@@ -124,6 +124,12 @@ import { electronScreen } from "./screen-capture";
 import { searchQuery, searchStore } from "./search";
 import { keychainUsable, Secrets } from "./secrets";
 import { newSeen, type Seen } from "./seen";
+import { SerialChooser } from "./serial-chooser";
+import {
+  isPetBoard,
+  serialDeviceAllowed,
+  serialPermissionAllowed,
+} from "./serial-rules";
 import { modelsOf } from "./source-models";
 import { Store } from "./store";
 import {
@@ -262,6 +268,8 @@ const petHost: PetTurnHost = {
   },
 };
 let mainWindow: BrowserWindow | undefined;
+/** Answers the page's USB requests, once the session is set up. */
+let serialChooser: SerialChooser | undefined;
 
 /** How an answer ended, for the desk pets' notices. */
 type AnswerEnd =
@@ -1765,6 +1773,9 @@ app.whenReady().then(() => {
   handle(IPC.petsDiscardDraft, (_event, id: unknown) =>
     pets().discardDraft(str(id, 200)),
   );
+  handle(IPC.serialChosen, (_event, requestId: unknown, portId: unknown) => {
+    serialChooser?.answer(requestId, portId);
+  });
   // Left on at the last quit: start again. With the switch off nothing is
   // built and no port is opened.
   if (PetService.savedOn(join(dir, "desk-pets.json"))) void pets().resume();
@@ -1787,10 +1798,65 @@ app.whenReady().then(() => {
   applyTheme(store.settings().theme);
   nativeTheme.on("updated", paintWindows);
   if (process.platform === "darwin") app.dock?.setIcon(windowIcon);
+  // The one thing it may use is Web Serial, to set a desk pet up over its USB
+  // cable: the `serial` permission for the app's own page in the main window,
+  // and only the Arduino Nano ESP32's own USB identity as a device. Every other
+  // ask is refused.
+  const pageRules = { pageUrl, devUrl, packaged: app.isPackaged };
+  const fromMain = (contents: Electron.WebContents | null) =>
+    contents !== null && contents === mainWindow?.webContents;
   session.defaultSession.setPermissionRequestHandler(
-    (_contents, _permission, done) => done(false),
+    (contents, permission, done, details) =>
+      done(
+        serialPermissionAllowed(
+          {
+            permission,
+            requestingUrl: details.requestingUrl,
+            isMainFrame: details.isMainFrame,
+            fromMainWindow: fromMain(contents),
+          },
+          pageRules,
+        ),
+      ),
   );
-  session.defaultSession.setPermissionCheckHandler(() => false);
+  session.defaultSession.setPermissionCheckHandler(
+    (contents, permission, _origin, details) =>
+      serialPermissionAllowed(
+        {
+          permission,
+          requestingUrl: details.requestingUrl,
+          isMainFrame: details.isMainFrame,
+          fromMainWindow: fromMain(contents),
+        },
+        pageRules,
+      ),
+  );
+  session.defaultSession.setDevicePermissionHandler((details) =>
+    serialDeviceAllowed(details),
+  );
+  // The USB chooser: Chromium lists the serial ports and the app answers. Only
+  // desk pet boards count; with several, the page asks the person.
+  const chooser = new SerialChooser({
+    newId: randomUUID,
+    ask: (choice) => {
+      const window = mainWindow;
+      if (!window || window.isDestroyed()) return false;
+      tell(window, IPC.serialChoose, choice);
+      return true;
+    },
+  });
+  serialChooser = chooser;
+  session.defaultSession.on(
+    "select-serial-port",
+    (event, portList, contents, callback) => {
+      event.preventDefault();
+      if (!fromMain(contents)) return callback("");
+      chooser.select(
+        portList.filter((port) => isPetBoard(port)),
+        callback,
+      );
+    },
+  );
   // The window's page makes no network request of its own (it talks to the
   // app through the bridge), so anything but the app's own files is
   // cancelled, as in the reader. The dev server is allowed only from source.

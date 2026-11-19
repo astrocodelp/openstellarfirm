@@ -714,6 +714,8 @@ function deskPetsPreview(): Pick<
   | "petsClearVoiceKey"
   | "petsSetConfig"
   | "petsDiscardDraft"
+  | "onSerialChoose"
+  | "serialChosen"
 > {
   const off: DeskPetsStatus = {
     enabled: false,
@@ -722,6 +724,7 @@ function deskPetsPreview(): Pick<
     mdnsName: "osf-preview.local",
     mdnsRunning: false,
     fingerprint: null,
+    addresses: [],
     pets: [],
     pending: null,
     drafts: [],
@@ -746,5 +749,7 @@ function deskPetsPreview(): Pick<
     petsClearVoiceKey: async () => off,
     petsSetConfig: unavailable,
     petsDiscardDraft: async () => off,
+    onSerialChoose: () => () => undefined,
+    serialChosen: async () => undefined,
   };
 }

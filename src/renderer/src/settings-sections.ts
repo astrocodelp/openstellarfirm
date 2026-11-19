@@ -83,6 +83,14 @@ export const SETTINGS_PAGES = [
     sections: [],
   },
   {
+    id: "deskpets",
+    title: "Desk pets",
+    group: 2,
+    keywords:
+      "pet desk figure nova zib comet usb cable wifi voice elevenlabs speak microphone arduino",
+    sections: [],
+  },
+  {
     id: "accessibility",
     title: "Accessibility",
     group: 3,

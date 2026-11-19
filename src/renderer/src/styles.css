@@ -2312,6 +2312,12 @@ h4.field-label {
   background: var(--ok);
 }
 
+.from-note {
+  margin: 0;
+  color: var(--faint);
+  font-size: var(--text-caption);
+}
+
 .check-note {
   display: flex;
   align-items: center;

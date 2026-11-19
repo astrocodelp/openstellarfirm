@@ -144,6 +144,9 @@ const api: OpenApi = {
   petsClearVoiceKey: () => call(IPC.petsClearVoiceKey),
   petsSetConfig: (id, config) => call(IPC.petsSetConfig, id, config),
   petsDiscardDraft: (id) => call(IPC.petsDiscardDraft, id),
+  onSerialChoose: (listener) => listen(IPC.serialChoose, listener),
+  serialChosen: (requestId, portId) =>
+    call(IPC.serialChosen, requestId, portId),
   onComputerState: (listener) => listen(IPC.computerState, listener),
 };
 

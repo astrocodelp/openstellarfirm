@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Desk pets, phase 4: Settings now has a Desk pets page (`src/renderer/src/DeskPets.tsx`):
+  the switch with the firewall note for your system, your pets (rename, which
+  assistant each talks to, its voice, Speak answers, Forget), adding a pet over
+  its USB cable, the ElevenLabs key (write only), the notes pets kept, and a new
+  certificate. Pairing speaks pet-usb version 2 (`src/shared/pets/usb.ts`): the
+  app tells the pet this computer's address, port, name and certificate
+  fingerprint, and your Wi-Fi name and password, and the password goes only over
+  the cable, never to the app's main process (a test pins it). A pet with older
+  firmware is told it needs an update and is sent nothing. The window may now use
+  Web Serial, only for the app's own page and only for the Arduino Nano ESP32,
+  with a small chooser when several are plugged in; every other permission stays
+  refused. Messages a pet sent are marked "From a desk pet" in the chat.
 - Desk pets, phase 3: a pet can now talk and be told things (`src/main/pets/`).
   What you say is heard with ElevenLabs Scribe on your own key, sent to the
   assistant you chose as your own message (marked as from a desk pet, through

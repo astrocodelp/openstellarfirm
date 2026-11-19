@@ -147,6 +147,46 @@ static const char* const PET_USB_REFUSAL_IDS[PET_USB_REFUSAL_COUNT] = {
   "bad_value",
 };
 
+// Set up over USB, version 2 (pet-usb v2, src/usb.ts)
+#define PET_USB2_VERSION 2 // the first version that speaks server, wifi and start
+#define PET_USB2_NO_ADDRESS "-" // the address token of a computer with none to give
+#define PET_USB2_ADDRESS_MAX_CHARS 39
+#define PET_USB2_FINGERPRINT_CHARS 64
+#define PET_USB2_MAX_PORT 65535
+#define PET_USB2_NAME_PREFIX "osf-"
+#define PET_USB2_NAME_SUFFIX ".local"
+#define PET_USB2_NAME_LABEL_CHARS 8
+enum PetUsb2Op {
+  PET_USB2_OP_SERVER = 0,
+  PET_USB2_OP_WIFI = 1,
+  PET_USB2_OP_START = 2,
+};
+#define PET_USB2_OP_COUNT 3
+static const char* const PET_USB2_OP_IDS[PET_USB2_OP_COUNT] = {
+  "server",
+  "wifi",
+  "start",
+};
+enum PetUsb2Refusal {
+  PET_USB2_REFUSAL_PAIRED = 0,
+  PET_USB2_REFUSAL_BUSY = 1,
+  PET_USB2_REFUSAL_BAD_LINE = 2,
+  PET_USB2_REFUSAL_UNKNOWN_OP = 3,
+  PET_USB2_REFUSAL_RATE_LIMITED = 4,
+  PET_USB2_REFUSAL_BAD_VALUE = 5,
+  PET_USB2_REFUSAL_NOT_READY = 6,
+};
+#define PET_USB2_REFUSAL_COUNT 7
+static const char* const PET_USB2_REFUSAL_IDS[PET_USB2_REFUSAL_COUNT] = {
+  "paired",
+  "busy",
+  "bad_line",
+  "unknown_op",
+  "rate_limited",
+  "bad_value",
+  "not_ready",
+};
+
 // Figures
 enum PetKind {
   PET_KIND_ASTRONAUT = 0,

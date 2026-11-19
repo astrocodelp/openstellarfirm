@@ -39,10 +39,24 @@ import {
   PET_USB_VENDOR_ID,
   PET_USB_VERSION,
   PET_USB_WORDS,
+  PET_USB2_ADDRESS_MAX_CHARS,
+  PET_USB2_FINGERPRINT_CHARS,
+  PET_USB2_MAX_PORT,
+  PET_USB2_NAME_LABEL_CHARS,
+  PET_USB2_NAME_PREFIX,
+  PET_USB2_NAME_SUFFIX,
+  PET_USB2_NO_ADDRESS,
+  PET_USB2_OPS,
+  PET_USB2_REFUSALS,
+  PET_USB2_VERSION,
 } from "./usb";
 import {
   PET_USB_REPLY_VECTORS,
   PET_USB_REQUEST_VECTORS,
+  PET_USB2_REPLY_VECTORS,
+  PET_USB2_REQUEST_VECTORS,
+  type PetUsb2ReplyVector,
+  type PetUsb2RequestVector,
   type PetUsbReplyVector,
   type PetUsbRequestVector,
 } from "./usb-vectors";
@@ -254,6 +268,23 @@ export function renderProtocolHeader(): string {
   idList(out, "PetUsbState", "PET_USB_STATE", PET_USB_STATES);
   idList(out, "PetUsbError", "PET_USB_ERROR", PET_USB_ERRORS);
   idList(out, "PetUsbRefusal", "PET_USB_REFUSAL", PET_USB_REFUSALS);
+  out.push("");
+
+  section("Set up over USB, version 2 (pet-usb v2, src/usb.ts)");
+  out.push(
+    `#define PET_USB2_VERSION ${PET_USB2_VERSION} // the first version that speaks server, wifi and start`,
+  );
+  out.push(
+    `#define PET_USB2_NO_ADDRESS ${cString(PET_USB2_NO_ADDRESS)} // the address token of a computer with none to give`,
+  );
+  out.push(`#define PET_USB2_ADDRESS_MAX_CHARS ${PET_USB2_ADDRESS_MAX_CHARS}`);
+  out.push(`#define PET_USB2_FINGERPRINT_CHARS ${PET_USB2_FINGERPRINT_CHARS}`);
+  out.push(`#define PET_USB2_MAX_PORT ${PET_USB2_MAX_PORT}`);
+  out.push(`#define PET_USB2_NAME_PREFIX ${cString(PET_USB2_NAME_PREFIX)}`);
+  out.push(`#define PET_USB2_NAME_SUFFIX ${cString(PET_USB2_NAME_SUFFIX)}`);
+  out.push(`#define PET_USB2_NAME_LABEL_CHARS ${PET_USB2_NAME_LABEL_CHARS}`);
+  idList(out, "PetUsb2Op", "PET_USB2_OP", PET_USB2_OPS);
+  idList(out, "PetUsb2Refusal", "PET_USB2_REFUSAL", PET_USB2_REFUSALS);
   out.push("");
 
   section("Figures");
@@ -564,6 +595,133 @@ export function renderUsbVectorsHeader(): string {
     `static const PetUsbRequestVector PET_USB_REQUEST_VECTORS[PET_USB_REQUEST_VECTOR_COUNT] = {\n${requests}\n};`,
     "",
     `static const PetUsbReplyVector PET_USB_REPLY_VECTORS[PET_USB_REPLY_VECTOR_COUNT] = {\n${replies}\n};`,
+    "",
+  ].join("\n");
+}
+
+function request2VectorRow(vector: PetUsb2RequestVector): string {
+  const { expect } = vector;
+  const server =
+    expect.outcome === "ok" && expect.op === "server" ? expect : null;
+  const wifi = expect.outcome === "ok" && expect.op === "wifi" ? expect : null;
+  const start =
+    expect.outcome === "ok" && expect.op === "start" ? expect : null;
+  const ssid = wifi?.ssid ?? [];
+  return [
+    cBytes(vector.name),
+    cBool(vector.paired),
+    cBool(vector.busy),
+    cBool(vector.hasServer),
+    cBool(vector.hasWifi),
+    cBytes(vector.line),
+    cBytes(expect.outcome),
+    cBytes(expect.outcome === "ok" ? expect.op : ""),
+    cBytes(server?.address ?? ""),
+    String(server?.port ?? 0),
+    cBytes(server?.fingerprint ?? ""),
+    cBytes(server?.serverName ?? ""),
+    cByteList(ssid),
+    String(ssid.length),
+    cBytes(wifi?.password ?? ""),
+    cBytes(start?.setupCode ?? ""),
+    cBytes(expect.outcome === "refused" ? expect.reason : ""),
+  ].join(", ");
+}
+
+function reply2VectorRow(vector: PetUsb2ReplyVector): string {
+  const { reply } = vector;
+  const hello = reply.type === "hello" ? reply : null;
+  const state = reply.type === "state" ? reply : null;
+  return [
+    cBytes(vector.name),
+    cBytes(reply.type),
+    String(hello?.version ?? 0),
+    cBytes(hello?.kind ?? ""),
+    cBytes(hello?.firmware ?? ""),
+    cBool(hello?.paired),
+    cBool(hello?.setupOpen),
+    cBytes(reply.type === "ok" ? reply.op : ""),
+    cBytes(state?.state ?? ""),
+    cBytes(reply.type === "refused" ? reply.reason : ""),
+    cBytes(vector.line),
+  ].join(", ");
+}
+
+/**
+ * The text of `firmware/pet/include/generated/usb2_vectors.h`: the golden
+ * request and reply lines of pet-usb v2, in a header of its own so the v1
+ * vectors, and the firmware tests that walk them, stay exactly as they were.
+ * The rows are `usb-vectors.ts`, written by hand.
+ */
+export function renderUsb2VectorsHeader(): string {
+  const requests = PET_USB2_REQUEST_VECTORS.map(
+    (vector) => `  {${request2VectorRow(vector)}},`,
+  ).join("\n");
+  const replies = PET_USB2_REPLY_VECTORS.map(
+    (vector) => `  {${reply2VectorRow(vector)}},`,
+  ).join("\n");
+  return [
+    BANNER,
+    "#pragma once",
+    "",
+    "#include <stdint.h>",
+    "",
+    '#include "generated/protocol.h"',
+    "",
+    "// Golden vectors for pet-usb v2 (src/shared/pets/usb.ts).",
+    "//",
+    "// A request row: feed `line` and a newline to the pet's line assembler while the pet",
+    "// is in the state (paired, busy, hasServer, hasWifi); hasServer and hasWifi say what",
+    '// `server` and `wifi` have staged. `outcome` is "ignored" (no reply), "ok" with `op`',
+    "// and the decoded values of that op (a `server` row has address (empty for none),",
+    "// port, fingerprint and serverName; a `wifi` row the name bytes and the password,",
+    '// empty for an open network; a `start` row the normalized setupCode), or "refused"',
+    "// with the reason the pet replies. Order of checks: no prefix, shape, op, state",
+    "// (paired, busy), the values, then for `start` that both stages are there",
+    "// (not_ready). The v1 ops are read as v1 reads them.",
+    "struct PetUsb2RequestVector {",
+    "  const char* name;",
+    "  bool paired;",
+    "  bool busy;",
+    "  bool hasServer;",
+    "  bool hasWifi;",
+    "  const char* line;",
+    "  const char* outcome;",
+    "  const char* op;",
+    "  const char* address;",
+    "  int port;",
+    "  const char* fingerprint;",
+    "  const char* serverName;",
+    "  uint8_t ssid[PET_USB_SSID_MAX_BYTES];",
+    "  uint8_t ssidLength;",
+    "  const char* password;",
+    "  const char* setupCode;",
+    "  const char* refusal;",
+    "};",
+    "",
+    "// A reply row: building the reply from these fixed inputs gives exactly `line`. Only",
+    "// the fields of the row's `type` mean anything (hello, ok, state or refused). No",
+    "// reply has a field for a password, a setup code, a confirm code, a token or an id.",
+    "struct PetUsb2ReplyVector {",
+    "  const char* name;",
+    "  const char* type;",
+    "  int version;",
+    "  const char* kind;",
+    "  const char* firmware;",
+    "  bool paired;",
+    "  bool setupOpen;",
+    "  const char* op;",
+    "  const char* state;",
+    "  const char* reason;",
+    "  const char* line;",
+    "};",
+    "",
+    `#define PET_USB2_REQUEST_VECTOR_COUNT ${PET_USB2_REQUEST_VECTORS.length}`,
+    `#define PET_USB2_REPLY_VECTOR_COUNT ${PET_USB2_REPLY_VECTORS.length}`,
+    "",
+    `static const PetUsb2RequestVector PET_USB2_REQUEST_VECTORS[PET_USB2_REQUEST_VECTOR_COUNT] = {\n${requests}\n};`,
+    "",
+    `static const PetUsb2ReplyVector PET_USB2_REPLY_VECTORS[PET_USB2_REPLY_VECTOR_COUNT] = {\n${replies}\n};`,
     "",
   ].join("\n");
 }
