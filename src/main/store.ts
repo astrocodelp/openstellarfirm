@@ -165,12 +165,18 @@ function cleanSettings(raw: Partial<Settings> | undefined): Settings {
   const checked = cleanTime(base.lastUpdateCheck);
   const newest = cleanVersion(base.newestVersion);
   const dismissed = cleanVersion(base.dismissedVersion);
+  const notified = cleanVersion(base.notifiedVersion);
   delete settings.lastUpdateCheck;
   delete settings.newestVersion;
   delete settings.dismissedVersion;
+  delete settings.notifiedVersion;
+  delete settings.updateNotify;
   if (checked) settings.lastUpdateCheck = checked;
   if (newest) settings.newestVersion = newest;
   if (dismissed) settings.dismissedVersion = dismissed;
+  if (notified) settings.notifiedVersion = notified;
+  // On unless the person turned it off, so only the off is kept.
+  if (base.updateNotify === false) settings.updateNotify = false;
   // The person's own skills: each checked again, and a bad one dropped.
   delete settings.ownSkills;
   const own = readOwnSkills(base.ownSkills);
@@ -740,7 +746,11 @@ export class Store {
       throw new Error("That is not allowed.");
     if (patch.checkEvery !== undefined && !isCheckEvery(patch.checkEvery))
       throw new Error("That is not a time between checks.");
-    for (const key of ["checkOnItsOwn", "checkNotify"] as const) {
+    for (const key of [
+      "checkOnItsOwn",
+      "checkNotify",
+      "updateNotify",
+    ] as const) {
       if (patch[key] !== undefined && typeof patch[key] !== "boolean")
         throw new Error("That is not allowed.");
     }
@@ -804,6 +814,8 @@ export class Store {
       });
     if (patch.checkUpdates !== undefined)
       state.settings.checkUpdates = patch.checkUpdates;
+    if (patch.updateNotify === true) delete state.settings.updateNotify;
+    else if (patch.updateNotify === false) state.settings.updateNotify = false;
     if (typeof patch.onboarded === "boolean")
       state.settings.onboarded = patch.onboarded;
     if (typeof patch.hideCloudCard === "boolean")
@@ -832,6 +844,19 @@ export class Store {
       if (!clean) throw new Error("That is not a version.");
       state.settings.newestVersion = clean;
     }
+    this.write(state);
+    return state.settings;
+  }
+
+  /**
+   * Keeps the newest version the person was told about, so no later check
+   * tells them again. Only the update check calls this; the page cannot.
+   */
+  markUpdateNotified(version: string): Settings {
+    const clean = cleanVersion(version);
+    if (!clean) throw new Error("That is not a version.");
+    const state = this.read();
+    state.settings.notifiedVersion = clean;
     this.write(state);
     return state.settings;
   }

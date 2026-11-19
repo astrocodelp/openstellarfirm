@@ -118,6 +118,7 @@ const api: OpenApi = {
   onDone: (listener) => listen(IPC.done, listener),
   onActivity: (listener) => listen(IPC.activity, listener),
   onApproval: (listener) => listen(IPC.approval, listener),
+  onUpdateNews: (listener) => listen(IPC.updateNews, listener),
   computerStatus: () => call(IPC.computerStatus),
   computerSetup: () => call(IPC.computerSetup),
   computerView: (id) => call(IPC.computerView, id),

@@ -49,7 +49,7 @@ import {
   type PresetId,
   type Settings,
 } from "../shared/types";
-import { availableUpdate } from "../shared/update";
+import { availableUpdate, updateOutNotice } from "../shared/update";
 import { cardText } from "../shared/visible-text";
 import { type AgentDeps, type AgentResult, runAgent } from "./agent";
 import { menuTemplate, refusedLaunch } from "./app-menu";
@@ -182,6 +182,13 @@ let memory: MemoryStore;
 /** The newest message forgotten in each chat, so Undo can put it back. */
 const forgotten = new Map<string, { message: ChatMessage; index: number }>();
 let updates: UpdateChecker;
+/** The app's one window (the hidden reader is a window too, never this one). */
+let appWindow: BrowserWindow | undefined;
+/**
+ * The last system notice for a new version, held so it is not collected
+ * before the person clicks it (a collected notice loses its click).
+ */
+let updateNoticeShown: Notification | undefined;
 let checker: CheckScheduler;
 let attachments: Attachments;
 let reader: Reader;
@@ -230,6 +237,7 @@ async function state(): Promise<AppState> {
     settings: store.settings(),
     keychain: await secrets.available(),
     platform: process.platform,
+    arch: process.arch,
     version: app.getVersion(),
     dataDir: store.folder,
   };
@@ -1199,7 +1207,32 @@ async function openCloud(target: unknown, assistantId: unknown): Promise<void> {
  */
 function openLink(name: unknown): Promise<void> {
   const newest = availableUpdate(store.settings(), app.getVersion());
-  return shell.openExternal(linkUrl(name, newest));
+  return shell.openExternal(
+    linkUrl(name, newest, { platform: process.platform, arch: process.arch }),
+  );
+}
+
+/**
+ * The system notice that a new version is out. Clicking it brings the window
+ * forward on Settings, Updates, where Download is. Built from the clean
+ * version only.
+ */
+function notifyUpdate(version: string): void {
+  if (!Notification.isSupported()) return;
+  const notice = new Notification(updateOutNotice(version));
+  notice.on("click", () => {
+    const window = appWindow;
+    if (!window || window.isDestroyed()) return;
+    if (window.isMinimized()) window.restore();
+    window.show();
+    window.focus();
+    tell(window, IPC.updateNews, { open: true });
+  });
+  notice.on("close", () => {
+    if (updateNoticeShown === notice) updateNoticeShown = undefined;
+  });
+  updateNoticeShown = notice;
+  notice.show();
 }
 
 /** The app's own data folder, opened by the system. The page names no path. */
@@ -1377,8 +1410,13 @@ function register(window: BrowserWindow): void {
   );
   handle(IPC.detectLocal, () => detectLocal());
   handle(IPC.setSettings, (_e, patch: Partial<Settings>) => {
+    const wasChecking = store.settings().checkUpdates;
     const next = store.setSettings(patch);
     applyTheme(next.theme);
+    // Just turned on: the first look need not wait for the next hour. The
+    // daily limit still applies, so a check made a moment ago is not repeated.
+    if (next.checkUpdates && !wasChecking)
+      void updates.check("daily").catch(() => undefined);
     return next;
   });
   handle(IPC.openCloud, (_e, target: unknown, assistantId: unknown) =>
@@ -1390,7 +1428,7 @@ function register(window: BrowserWindow): void {
   handle(IPC.deleteAllChats, () => deleteAllChats());
   handle(
     IPC.checkForUpdate,
-    async () => (await updates.check(true)) ?? { status: "unknown" },
+    async () => (await updates.check("manual")) ?? { status: "unknown" },
   );
   handle(IPC.dismissUpdate, () => store.dismissUpdate());
   handle(IPC.checkNow, () => checker.start());
@@ -1617,7 +1655,13 @@ app.whenReady().then(() => {
     settings: () => store.settings(),
     record: (at, newest) => {
       store.recordUpdateCheck(at, newest);
+      // The page reads the state again, so the notice in the sidebar shows.
+      if (appWindow) tell(appWindow, IPC.updateNews, { open: false });
     },
+    markNotified: (version) => {
+      store.markUpdateNotified(version);
+    },
+    notify: notifyUpdate,
   });
   scheduleUpdateChecks(updates);
   // The page asks for no camera, microphone or location, so every ask is refused.
@@ -1646,6 +1690,7 @@ app.whenReady().then(() => {
     Menu.buildFromTemplate(menuTemplate(process.platform, app.isPackaged)),
   );
   const window = createWindow();
+  appWindow = window;
   // The hidden reader is a window too; it must not keep the app open.
   window.on("closed", () => reader.dispose());
   register(window);

@@ -13,6 +13,9 @@ import { Icon, Nova, OkLine } from "./ui";
 
 interface WelcomeProps {
   keychain: boolean;
+  /** The update check's switch: off until the person ticks it here or in Settings. */
+  checkUpdates: boolean;
+  onCheckUpdates(on: boolean): void;
   onDone(source: ModelSource | null): void;
   onCloud(): void;
 }
@@ -25,7 +28,14 @@ const POINTS = [
 ];
 
 /** The first run: pick the model the assistants think with. */
-export function Welcome({ keychain, onDone, onCloud }: WelcomeProps) {
+export function Welcome({
+  keychain,
+  checkUpdates,
+  onCheckUpdates,
+  onDone,
+  onCloud,
+}: WelcomeProps) {
+  const updateNote = useId();
   const [local, setLocal] = useState<LocalModels | null>(null);
   // Each look has a number, so an answer to an older look is dropped.
   const looks = useRef(0);
@@ -102,6 +112,22 @@ export function Welcome({ keychain, onDone, onCloud }: WelcomeProps) {
             </li>
           ))}
         </ul>
+        {/* Asked once, here: the app sends nothing until the person ticks it. */}
+        <div className="stack-tight">
+          <label className="choice" style={{ alignSelf: "flex-start" }}>
+            <input
+              type="checkbox"
+              aria-describedby={updateNote}
+              checked={checkUpdates}
+              onChange={(event) => onCheckUpdates(event.target.checked)}
+            />
+            <span>Tell me when a new version is out</span>
+          </label>
+          <p className="faint" id={updateNote}>
+            It asks GitHub at launch and once a day, and sends nothing about
+            you.
+          </p>
+        </div>
         <p className="faint">
           Need a whole team that works in the cloud?{" "}
           <button type="button" className="link" onClick={onCloud}>

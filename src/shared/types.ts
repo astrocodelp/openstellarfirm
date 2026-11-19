@@ -389,13 +389,20 @@ export interface Settings {
   sendWith: SendKey;
   /** Contrast, motion, focus, reading space, target size and read aloud. Missing means the defaults. */
   accessibility?: AccessibilityPrefs;
-  /** Off until the person turns it on: a once-a-day look at the newest version. */
+  /**
+   * Off until the person turns it on: a look at the newest version when the
+   * app starts, and once a day while it stays open.
+   */
   checkUpdates: boolean;
   /** When the update check last ran, and the newest version it found. */
   lastUpdateCheck?: string;
   newestVersion?: string;
   /** The version whose notice the person closed. */
   dismissedVersion?: string;
+  /** False once the person turned off the system notice for a new version. Missing means on. */
+  updateNotify?: boolean;
+  /** The newest version the person was already told about, so it is told once. */
+  notifiedVersion?: string;
   /** The one assistant that may check on its own. Missing means none. */
   mainAssistantId?: string;
   /** Off until the person turns it on: checks run only while the app is open. */
@@ -424,6 +431,8 @@ export interface AppState {
   /** False when this computer has no keychain to keep a key in. */
   keychain: boolean;
   platform: string;
+  /** The processor this app was built for, such as "arm64", to pick its download. */
+  arch: string;
   /** This app's own version, such as "0.1.0". */
   version: string;
   /** The folder the app keeps everything in, shown as plain text. */
@@ -741,6 +750,12 @@ export interface OpenApi {
   onDone(listener: (done: ChatDone) => void): () => void;
   onActivity(listener: (activity: ChatActivity) => void): () => void;
   onApproval(listener: (change: ApprovalChange) => void): () => void;
+  /**
+   * An update check found something (`open: false`, read the state again), or
+   * the person clicked the system notice for a new version (`open: true`,
+   * show Settings, Updates).
+   */
+  onUpdateNews(listener: (news: { open: boolean }) => void): () => void;
   /** Whether Docker is there and running, and whether the computer is set up. */
   computerStatus(): Promise<ComputerStatus>;
   /** Builds the computer's image, on the person's click. Progress arrives as events. */
@@ -825,6 +840,7 @@ export const IPC = {
   checkNow: "checks:now",
   checkForUpdate: "update:check",
   dismissUpdate: "update:dismiss",
+  updateNews: "update:news",
   searchChats: "chat:search",
   exportChat: "chat:export",
   copyMessage: "chat:copy",

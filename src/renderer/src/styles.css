@@ -2380,6 +2380,22 @@ h4.field-label {
   align-self: flex-start;
 }
 
+/*
+ * Download, then the release page as a quiet link under it. The link reaches a
+ * little less far than elsewhere, so the two never share a pixel of reach.
+ */
+.update-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.75rem;
+  font-size: var(--text-caption);
+}
+
+.update-actions .link-btn::after {
+  inset: -0.5rem -0.25rem;
+}
+
 .cloud-head {
   display: flex;
   align-items: center;

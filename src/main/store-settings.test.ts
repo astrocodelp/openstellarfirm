@@ -71,6 +71,8 @@ describe("text size, sending and updates", () => {
           lastUpdateCheck: "yesterday",
           newestVersion: "v1.0.0/../../x",
           dismissedVersion: { a: 1 },
+          notifiedVersion: "9.9.9 https://evil.example",
+          updateNotify: "no",
         },
       }),
     );
@@ -92,6 +94,26 @@ describe("text size, sending and updates", () => {
     expect(store.settings().newestVersion).toBeUndefined();
     expect(store.settings().dismissedVersion).toBeUndefined();
     expect(store.settings().lastUpdateCheck).toBeUndefined();
+  });
+
+  it("cannot have the told-about version set through setSettings, and keeps it from the check", () => {
+    store.setSettings({ notifiedVersion: "9.9.9" });
+    expect(store.settings().notifiedVersion).toBeUndefined();
+    store.markUpdateNotified("0.2.0");
+    expect(store.settings().notifiedVersion).toBe("0.2.0");
+    expect(() => store.markUpdateNotified("0.2.0/../x")).toThrow();
+    expect(() => store.markUpdateNotified("v0.3.0")).toThrow();
+    expect(store.settings().notifiedVersion).toBe("0.2.0");
+  });
+
+  it("keep the system notice on unless turned off, and refuse a value that is not yes or no", () => {
+    expect(store.settings().updateNotify).toBeUndefined();
+    expect(store.setSettings({ updateNotify: false }).updateNotify).toBe(false);
+    expect(() => store.setSettings({ updateNotify: "off" as never })).toThrow();
+    expect(store.settings().updateNotify).toBe(false);
+    expect(store.setSettings({ updateNotify: true }).updateNotify).toBe(
+      undefined,
+    );
   });
 
   it("remember a check, forget a version, and dismiss only what is shown", () => {

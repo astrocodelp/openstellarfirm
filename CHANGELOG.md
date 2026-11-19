@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- The first run asks whether to be told about new versions. With the update
+  check on, the app looks each time it starts (at most once every ten
+  minutes) and once a day while it stays open, shows one system notice for
+  each new version (you can turn the notice off), and its Download button
+  opens the file for your computer on GitHub. You install it as you did the
+  first time; nothing is installed by itself.
+
 ### Security
 
 - The release scripts take the GitHub token and the signing variables out of
