@@ -71,6 +71,7 @@ const api: OpenApi = {
   removeSource: (id) => call(IPC.removeSource, id),
   probeModels: (input) => call(IPC.probeModels, input),
   checkSource: (id) => call(IPC.checkSource, id),
+  setSourceModel: (id, model) => call(IPC.setSourceModel, id, model),
   detectLocal: () => call(IPC.detectLocal),
   setSettings: (patch) => call(IPC.setSettings, patch),
   openCloud: (target, assistantId) => call(IPC.openCloud, target, assistantId),

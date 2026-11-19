@@ -1,5 +1,5 @@
 import { LIBRARY_SKILLS, type Skill } from "./skill-library";
-import type { PetColor, PetId, PresetId, Wire } from "./types";
+import type { ModelInfo, PetColor, PetId, PresetId, Wire } from "./types";
 
 /** A pet is one filled shape and two eyes, on a 48 by 48 canvas. */
 export interface PetShape {
@@ -166,6 +166,16 @@ export interface Preset {
   header: KeyHeader;
   /** True when the service lists its models, so the person can pick one. */
   lists: boolean;
+  /**
+   * For a service with no list to ask: a few model ids its own documentation
+   * names, offered as suggestions. Any other id can still be typed.
+   */
+  suggested?: ModelInfo[];
+  /**
+   * True when a call names a deployment the person made, not a model, so the
+   * list (of models the account can deploy) may not hold the name to use.
+   */
+  deployments?: boolean;
   /** One plain line: where to get a key, and anything to know. */
   note: string;
 }
@@ -324,36 +334,69 @@ export const PRESETS: Preset[] = [
     "Your own AI Gateway key. Models are named like anthropic/claude-opus-5.",
     { lists: true },
   ),
-  hosted("llmapi", "LLM API", "routers", "https://api.llmapi.ai/v1", KEY),
+  // GET /v1/models "lists the catalog", with the key as a bearer token:
+  // https://docs.llmapi.ai/api/v1/models.md (read 19 November 2026).
+  hosted("llmapi", "LLM API", "routers", "https://api.llmapi.ai/v1", KEY, {
+    lists: true,
+  }),
+  // GET /v1/models lists the models the key can call, ids only:
+  // https://ironlane.ai/llms-full.txt (read 19 November 2026).
   hosted(
     "ironlane",
     "Ironlane",
     "routers",
     "https://api.ironlane.ai/v1",
     "Your own key. Models are named like openai/gpt-4o-mini.",
+    { lists: true },
   ),
+  // GET https://api.orcarouter.ai/v1/models, bearer key: docs.orcarouter.ai,
+  // API reference, Models, "List available models" (read 19 November 2026).
   hosted(
     "orcarouter",
     "OrcaRouter",
     "routers",
     "https://api.orcarouter.ai/v1",
     "Your own key. Models are named like openai/gpt-4o-mini.",
+    { lists: true },
   ),
+  // The v1 API's GET {endpoint}/openai/v1/models (operation listModels, key
+  // in api-key) lists the models the resource can use, not its deployments:
+  // learn.microsoft.com/azure/foundry/openai/api-version-lifecycle and the v1
+  // OpenAPI spec, azure-rest-api-specs specification/ai/data-plane/OpenAI.v1
+  // (read 19 November 2026).
   hosted(
     "azure",
     "Azure OpenAI",
     "clouds",
     "",
     "Your resource's key. Type the resource name, and the name you gave the deployment as the model.",
-    { address: "azure", header: "api-key" },
+    { address: "azure", header: "api-key", lists: true, deployments: true },
   ),
+  // bedrock-runtime "doesn't implement the OpenAI-compatible GET /models
+  // operation"; listing needs AWS-signed ListFoundationModels, which this app
+  // does not do. The suggestions are ids from Bedrock's model cards for Chat
+  // Completions on bedrock-runtime: docs.aws.amazon.com/bedrock/latest/
+  // userguide/inference-chat-completions.html and model-card-*.html (read
+  // 19 November 2026).
   hosted(
     "bedrock",
     "Amazon Bedrock",
     "clouds",
     "",
     "A Bedrock API key, and the region it was made in. You name the model.",
-    { address: "bedrock" },
+    {
+      address: "bedrock",
+      suggested: [
+        { id: "openai.gpt-oss-120b-1:0", context: 128_000 },
+        { id: "openai.gpt-oss-20b-1:0" },
+        { id: "deepseek.v3.2", context: 164_000 },
+        {
+          id: "mistral.mistral-large-3-675b-instruct",
+          context: 256_000,
+          pictures: true,
+        },
+      ],
+    },
   ),
   hosted(
     "litellm",

@@ -569,8 +569,21 @@ function preview(): OpenApi {
     removeSource: async (sourceId) => {
       state.sources = state.sources.filter((s) => s.id !== sourceId);
     },
-    probeModels: async () => ["example-model"],
-    checkSource: async () => ["example-model"],
+    probeModels: async () => ({
+      models: [{ id: "example-model" }],
+      from: "listed",
+    }),
+    checkSource: async () => ({
+      models: [{ id: "example-model" }],
+      from: "listed",
+    }),
+    setSourceModel: async (sourceId, model) => {
+      const found = state.sources.find((s) => s.id === sourceId);
+      if (!found) throw new Error("That model source is no longer here.");
+      const next = { ...found, model };
+      state.sources = state.sources.map((s) => (s.id === sourceId ? next : s));
+      return next;
+    },
     detectLocal: async () => ({ ollama: null, lmstudio: null }),
     setSettings: async (patch) => {
       state.settings = { ...state.settings, ...patch };

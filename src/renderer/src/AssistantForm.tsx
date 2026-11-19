@@ -1,4 +1,4 @@
-import { type FormEvent, useId, useState } from "react";
+import { type FormEvent, useId, useRef, useState } from "react";
 import { COLORS, PETS } from "../../shared/catalog";
 import { type ComputerSettings, defaultComputer } from "../../shared/computer";
 import type { OwnSkill } from "../../shared/own-skills";
@@ -6,6 +6,7 @@ import type {
   Assistant,
   Connection,
   MailAccount,
+  ModelList,
   ModelSource,
   PetColor,
   PetId,
@@ -14,6 +15,7 @@ import { api } from "./bridge";
 import { ComputerChoice } from "./Computer";
 import { ConnectionPicker } from "./ConnectionPicker";
 import { MemorySection } from "./Memory";
+import { ModelPicker } from "./ModelPicker";
 import { PersonaGallery } from "./PersonaGallery";
 import type { Persona } from "./personas";
 import { RecordSkill } from "./RecordSkill";
@@ -67,6 +69,10 @@ export function AssistantForm(props: AssistantFormProps) {
   const [canAsk, setCanAsk] = useState<string[]>(assistant?.canAsk ?? []);
   const [sourceId, setSourceId] = useState(assistant?.sourceId ?? "");
   const [model, setModel] = useState(assistant?.model ?? "");
+  /** The chosen source's own list of models, once looked for. */
+  const [sourceModels, setSourceModels] = useState<ModelList | null>(null);
+  const [lookingModels, setLookingModels] = useState(false);
+  const [modelsError, setModelsError] = useState("");
   const [error, setError] = useState("");
   const [note, setNote] = useState("");
   const [removing, setRemoving] = useState(false);
@@ -75,6 +81,28 @@ export function AssistantForm(props: AssistantFormProps) {
   const [persona, setPersona] = useState<Persona>();
   const ids = useId();
   const source = sources.find((s) => s.id === sourceId);
+  const sourceRef = useRef(sourceId);
+  sourceRef.current = sourceId;
+
+  /** Asks the chosen source for its models, so its own model is a pick. */
+  async function lookForModels(id: string) {
+    setLookingModels(true);
+    setModelsError("");
+    try {
+      const found = await api.checkSource(id);
+      // An answer for a source no longer chosen is dropped.
+      if (id !== sourceRef.current) return;
+      setSourceModels(found);
+      if (found.models.length === 0)
+        setModelsError(
+          "It answered, but listed no models. Type the model's name.",
+        );
+    } catch (e) {
+      if (id === sourceRef.current) setModelsError(errorText(e));
+    } finally {
+      setLookingModels(false);
+    }
+  }
 
   function toggle(id: string) {
     setSkills((current) =>
@@ -257,7 +285,11 @@ export function AssistantForm(props: AssistantFormProps) {
                 <select
                   className="input"
                   value={sourceId}
-                  onChange={(event) => setSourceId(event.target.value)}
+                  onChange={(event) => {
+                    setSourceId(event.target.value);
+                    setSourceModels(null);
+                    setModelsError("");
+                  }}
                 >
                   <option value="">Use the default</option>
                   {sources.map((s) => (
@@ -271,24 +303,32 @@ export function AssistantForm(props: AssistantFormProps) {
                 </select>
               </label>
               {source ? (
-                <label className="field grow">
-                  <span className="field-label" id={`${ids}-model`}>
+                <div className="field grow">
+                  <label className="field-label" htmlFor={`${ids}-model`}>
                     A model of its own
-                  </span>
-                  <input
-                    aria-labelledby={`${ids}-model`}
-                    aria-describedby={`${ids}-model-hint`}
-                    className="input mono"
+                  </label>
+                  <ModelPicker
+                    id={`${ids}-model`}
                     value={model}
+                    onChange={setModel}
+                    models={sourceModels?.models ?? []}
+                    from={sourceModels?.from ?? null}
+                    looking={lookingModels}
+                    error={modelsError}
+                    onLook={() => void lookForModels(source.id)}
+                    openWhenFound
                     placeholder={source.model}
-                    spellCheck={false}
-                    autoComplete="off"
-                    onChange={(event) => setModel(event.target.value)}
+                    describedBy={[
+                      `${ids}-model-hint`,
+                      modelsError ? `${ids}-model-error` : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
                   />
                   <span className="faint" id={`${ids}-model-hint`}>
                     Leave empty to use {source.model}.
                   </span>
-                </label>
+                </div>
               ) : null}
             </div>
           </section>

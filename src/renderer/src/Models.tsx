@@ -1,14 +1,17 @@
-import { type FormEvent, useId, useState } from "react";
+import { type FormEvent, useEffect, useId, useState } from "react";
 import { BEDROCK_REGIONS } from "../../shared/address";
 import { PRESET_GROUPS, PRESETS, presetOf } from "../../shared/catalog";
 import { noKeychainNote } from "../../shared/keychain";
 import type {
   AppState,
+  ModelInfo,
+  ModelList,
   ModelPick,
   ModelSource,
   PresetId,
 } from "../../shared/types";
 import { api } from "./bridge";
+import { ModelPicker } from "./ModelPicker";
 import { pageTitle } from "./settings-sections";
 import {
   ErrorLine,
@@ -20,12 +23,18 @@ import {
 
 interface SourceFormProps {
   initialPreset?: PresetId;
-  initialModels?: string[];
+  initialModels?: ModelInfo[];
   /** The model to start with, and why: said under the field while it is chosen. */
   initialPick?: ModelPick;
   submitLabel: string;
   keychain: boolean;
   onSaved(source: ModelSource): void;
+}
+
+/** The models a service with no list to ask suggests, written in the catalog. */
+function suggestionsFor(id: PresetId): ModelList | null {
+  const suggested = presetOf(id).suggested;
+  return suggested?.length ? { models: suggested, from: "suggested" } : null;
 }
 
 /** Adds a place a model runs: this computer, a key, or an address. */
@@ -43,15 +52,19 @@ export function SourceForm({
   const [part, setPart] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [model, setModel] = useState(
-    initialPick?.model ?? initialModels[0] ?? "",
+    initialPick?.model ?? initialModels[0]?.id ?? "",
   );
-  const [models, setModels] = useState<string[]>(initialModels);
+  const [list, setList] = useState<ModelList | null>(() =>
+    initialModels.length > 0
+      ? { models: initialModels, from: "listed" }
+      : suggestionsFor(initialPreset),
+  );
   /** True once Look for models ran here; models handed in were already told. */
   const [looked, setLooked] = useState(false);
   const [busy, setBusy] = useState<"" | "look" | "save">("");
   const [error, setError] = useState("");
-  /** True when the error is about the model's name, so it is tied to that field. */
-  const [modelError, setModelError] = useState(false);
+  /** Why the last look for models failed, said under the model's box. */
+  const [lookError, setLookError] = useState("");
   const preset = presetOf(presetId);
   const own = preset.address === "own";
   /** The model picked to start with, while it is still the one chosen. */
@@ -60,21 +73,22 @@ export function SourceForm({
       ? initialPick
       : undefined;
   const takesKey = !preset.local;
+  const models = list?.models ?? [];
 
   function pick(next: PresetId) {
     setPresetId(next);
     setPart("");
-    setModels([]);
+    setList(suggestionsFor(next));
     setLooked(false);
     setModel("");
     setError("");
-    setModelError(false);
+    setLookError("");
   }
 
   async function look() {
     setBusy("look");
     setError("");
-    setModelError(false);
+    setLookError("");
     try {
       const found = await api.probeModels({
         preset: presetId,
@@ -82,14 +96,15 @@ export function SourceForm({
         part,
         apiKey,
       });
-      setModels(found);
+      setList(found);
       setLooked(true);
-      if (found.length === 0) {
-        setError("It answered, but listed no models. Type the model's name.");
-        setModelError(true);
-      } else if (!found.includes(model)) setModel(found[0] ?? "");
+      if (found.models.length === 0) {
+        setLookError(
+          "It answered, but listed no models. Type the model's name.",
+        );
+      }
     } catch (e) {
-      setError(errorText(e));
+      setLookError(errorText(e));
     } finally {
       setBusy("");
     }
@@ -99,7 +114,6 @@ export function SourceForm({
     event.preventDefault();
     setBusy("save");
     setError("");
-    setModelError(false);
     try {
       onSaved(
         await api.saveSource({
@@ -229,47 +243,37 @@ export function SourceForm({
         <label className="field-label" htmlFor={`${ids}-model`}>
           Model
         </label>
-        <div className="wrap">
-          <input
-            id={`${ids}-model`}
-            className="input mono grow"
-            value={model}
-            list={`${ids}-models`}
-            aria-invalid={modelError || undefined}
-            aria-describedby={
-              [
-                preset.lists ? "" : `${ids}-model-note`,
-                picked ? `${ids}-pick` : "",
-                modelError ? `${ids}-error` : "",
-              ]
-                .filter(Boolean)
-                .join(" ") || undefined
-            }
-            placeholder="The model's name, as its maker writes it"
-            spellCheck={false}
-            autoComplete="off"
-            onChange={(event) => setModel(event.target.value)}
-          />
-          <datalist id={`${ids}-models`}>
-            {models.map((m) => (
-              <option key={m} value={m} />
-            ))}
-          </datalist>
-          {preset.lists ? (
-            <button
-              type="button"
-              className="btn"
-              disabled={busy !== ""}
-              onClick={() => void look()}
-            >
-              {busy === "look" ? "Looking…" : "Look for models"}
-            </button>
-          ) : null}
-        </div>
-        {preset.lists ? null : (
+        <ModelPicker
+          id={`${ids}-model`}
+          value={model}
+          onChange={setModel}
+          models={models}
+          from={list?.from ?? null}
+          looking={busy === "look"}
+          error={lookError}
+          {...(preset.lists ? { onLook: () => void look() } : {})}
+          {...(picked ? { recommended: picked.model } : {})}
+          openWhenFound
+          invalid={Boolean(lookError) && models.length === 0}
+          describedBy={
+            [
+              preset.lists && !preset.deployments ? "" : `${ids}-model-note`,
+              picked ? `${ids}-pick` : "",
+              lookError ? `${ids}-model-error` : "",
+            ]
+              .filter(Boolean)
+              .join(" ") || undefined
+          }
+        />
+        {preset.deployments ? (
           <span className="faint" id={`${ids}-model-note`}>
-            {preset.id === "azure"
-              ? "Azure does not list models. Type the name you gave the deployment."
+            These are the models your resource can use. Type your deployment's
+            name if it is different.
+          </span>
+        ) : preset.lists ? null : (
+          <span className="faint" id={`${ids}-model-note`}>
+            {list?.from === "suggested" && models.length > 0
+              ? "Suggestions only: this service does not list its models, so you can type any other id."
               : "This service does not list its models here. Type the model's name."}
           </span>
         )}
@@ -301,6 +305,128 @@ export function SourceForm({
   );
 }
 
+/**
+ * Changes a saved source's model by picking it from the source's own list,
+ * asked for as soon as this opens. Only the model changes.
+ */
+function SourceModelEdit({
+  source,
+  onClose,
+  onSaved,
+}: {
+  source: ModelSource;
+  onClose(): void;
+  onSaved(): Promise<void>;
+}) {
+  const ids = useId();
+  const preset = presetOf(source.preset);
+  const [model, setModel] = useState(source.model);
+  const [list, setList] = useState<ModelList | null>(null);
+  const [looking, setLooking] = useState(false);
+  const [lookError, setLookError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  async function look() {
+    setLooking(true);
+    setLookError("");
+    try {
+      const found = await api.checkSource(source.id);
+      setList(found);
+      if (found.models.length === 0)
+        setLookError(
+          "It answered, but listed no models. Type the model's name.",
+        );
+    } catch (e) {
+      setLookError(errorText(e));
+    } finally {
+      setLooking(false);
+    }
+  }
+
+  // The list is asked for once, when this opens.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: once, on open
+  useEffect(() => {
+    void look();
+  }, []);
+
+  async function save(event: FormEvent) {
+    event.preventDefault();
+    setSaving(true);
+    setError("");
+    try {
+      await api.setSourceModel(source.id, model);
+      await onSaved();
+    } catch (e) {
+      setError(errorText(e));
+      setSaving(false);
+    }
+  }
+
+  return (
+    <form
+      className="source-edit stack"
+      aria-label={`Change the model for ${source.name}`}
+      onSubmit={save}
+      onKeyDown={(event) => {
+        // Esc with the list closed puts the row back as it was.
+        if (event.key === "Escape" && !event.defaultPrevented) onClose();
+      }}
+    >
+      <div className="field">
+        <label className="field-label" htmlFor={`${ids}-model`}>
+          Model
+        </label>
+        <ModelPicker
+          id={`${ids}-model`}
+          value={model}
+          onChange={setModel}
+          models={list?.models ?? []}
+          from={list?.from ?? null}
+          looking={looking}
+          error={lookError}
+          {...(preset.lists ? { onLook: () => void look() } : {})}
+          openWhenFound
+          describedBy={
+            [
+              list?.from === "suggested" || preset.deployments
+                ? `${ids}-note`
+                : "",
+              lookError ? `${ids}-model-error` : "",
+            ]
+              .filter(Boolean)
+              .join(" ") || undefined
+          }
+        />
+        {preset.deployments ? (
+          <span className="faint" id={`${ids}-note`}>
+            These are the models your resource can use. Type your deployment's
+            name if it is different.
+          </span>
+        ) : list?.from === "suggested" ? (
+          <span className="faint" id={`${ids}-note`}>
+            Suggestions only: this service does not list its models, so you can
+            type any other id.
+          </span>
+        ) : null}
+      </div>
+      <ErrorLine>{error}</ErrorLine>
+      <div className="wrap">
+        <button
+          type="submit"
+          className="btn"
+          disabled={saving || !model.trim() || model.trim() === source.model}
+        >
+          {saving ? "Saving…" : "Use this model"}
+        </button>
+        <button type="button" className="btn" onClick={onClose}>
+          Cancel
+        </button>
+      </div>
+    </form>
+  );
+}
+
 function host(baseUrl: string): string {
   try {
     return new URL(baseUrl).host;
@@ -320,12 +446,26 @@ export function ModelsScreen({ state, onChanged }: ModelsScreenProps) {
   >({});
   const [error, setError] = useState("");
   const [removing, setRemoving] = useState<string | null>(null);
+  /** The source whose model is being changed, under its row. */
+  const [editing, setEditing] = useState<string | null>(null);
+
+  /** Closes a model change and puts the focus back on the button that opened it. */
+  function closeEdit(sourceId: string) {
+    setEditing(null);
+    requestAnimationFrame(() =>
+      document.getElementById(`look-${sourceId}`)?.focus(),
+    );
+  }
 
   async function check(source: ModelSource) {
     setChecks((c) => ({ ...c, [source.id]: { ok: true, text: "Checking…" } }));
     try {
       const found = await api.checkSource(source.id);
-      const listed = found.includes(source.model);
+      // A call to Azure names a deployment, which its list does not show:
+      // that it answered with the key is the check.
+      const listed =
+        presetOf(source.preset).deployments ||
+        found.models.some((m) => m.id === source.model);
       setChecks((c) => ({
         ...c,
         [source.id]: listed
@@ -414,6 +554,20 @@ export function ModelsScreen({ state, onChanged }: ModelsScreenProps) {
                         Make default
                       </button>
                     )}
+                    <button
+                      type="button"
+                      className="btn"
+                      id={`look-${source.id}`}
+                      aria-label={`Look for models for ${source.name}`}
+                      aria-expanded={editing === source.id}
+                      onClick={() =>
+                        setEditing((open) =>
+                          open === source.id ? null : source.id,
+                        )
+                      }
+                    >
+                      Look for models
+                    </button>
                     {presetOf(source.preset).lists ? (
                       <button
                         type="button"
@@ -423,6 +577,20 @@ export function ModelsScreen({ state, onChanged }: ModelsScreenProps) {
                       >
                         Check
                       </button>
+                    ) : null}
+                    {editing === source.id ? (
+                      <SourceModelEdit
+                        source={source}
+                        onClose={() => closeEdit(source.id)}
+                        onSaved={async () => {
+                          closeEdit(source.id);
+                          setChecks((c) => {
+                            const { [source.id]: _, ...rest } = c;
+                            return rest;
+                          });
+                          await onChanged();
+                        }}
+                      />
                     ) : null}
                     {removing === source.id ? (
                       <InlineConfirm

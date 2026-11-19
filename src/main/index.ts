@@ -39,10 +39,13 @@ import {
   IPC,
   type IpcResult,
   type LocalModels,
+  type ModelInfo,
+  type ModelPick,
   type ModelSource,
   type ModelSourceInput,
   type PendingAttachment,
   type PickedAttachments,
+  PRESET_IDS,
   type PresetId,
   type Settings,
 } from "../shared/types";
@@ -100,8 +103,13 @@ import { cannotRead, rememberCannotRead } from "./file-modes";
 import { folderLabels } from "./folders";
 import { MailService, mailInput } from "./mail";
 import { MemoryStore, rememberGate } from "./memory";
-import { pickLocalModel } from "./model-pick";
-import { listModels, ModelError, streamTurn, type WireMessage } from "./models";
+import { describeLocalModels } from "./model-pick";
+import {
+  listModelInfo,
+  ModelError,
+  streamTurn,
+  type WireMessage,
+} from "./models";
 import { OcrLanguages } from "./ocr-languages";
 import { modelPicture, previewOf } from "./picture";
 import { lookupCompany } from "./poppy";
@@ -111,6 +119,7 @@ import { electronScreen } from "./screen-capture";
 import { searchQuery, searchStore } from "./search";
 import { keychainUsable, Secrets } from "./secrets";
 import { newSeen, type Seen } from "./seen";
+import { modelsOf } from "./source-models";
 import { Store } from "./store";
 import {
   askedMessage,
@@ -137,6 +146,31 @@ function str(value: unknown, max = 4096): string {
     throw new Error("That is not allowed.");
   }
   return value;
+}
+
+/** What the page may send to list a source's models before it is saved. */
+function probeInput(value: unknown): {
+  preset: PresetId;
+  baseUrl?: string;
+  part?: string;
+  apiKey?: string;
+} {
+  if (typeof value !== "object" || value === null) {
+    throw new Error("That is not allowed.");
+  }
+  const v = value as Record<string, unknown>;
+  const preset = str(v.preset, 40);
+  if (!(PRESET_IDS as readonly string[]).includes(preset)) {
+    throw new Error("That model source is not known.");
+  }
+  const optional = (field: unknown, max: number) =>
+    field === undefined ? undefined : str(field, max);
+  return {
+    preset: preset as PresetId,
+    baseUrl: optional(v.baseUrl, 2048),
+    part: optional(v.part, 300),
+    apiKey: optional(v.apiKey, 8192),
+  };
 }
 
 let store: Store;
@@ -223,28 +257,34 @@ async function saveSource(input: ModelSourceInput): Promise<ModelSource> {
 }
 
 async function detectLocal(): Promise<LocalModels> {
-  const look = (preset: PresetId) =>
-    listModels({ baseUrl: presetOf(preset).baseUrl, timeoutMs: 1200 }).catch(
-      () => null,
-    );
+  const look = async (preset: "ollama" | "lmstudio") => {
+    const baseUrl = presetOf(preset).baseUrl;
+    let models: ModelInfo[];
+    try {
+      models = await listModelInfo({ baseUrl, timeoutMs: 1200 });
+    } catch {
+      return null;
+    }
+    return models.length > 0
+      ? describeLocalModels(preset, baseUrl, models)
+      : { models, pick: undefined as ModelPick | undefined };
+  };
   const [ollama, lmstudio] = await Promise.all([
     look("ollama"),
     look("lmstudio"),
   ]);
-  const pick = (preset: "ollama" | "lmstudio", names: string[] | null) =>
-    names?.length
-      ? pickLocalModel(preset, presetOf(preset).baseUrl, names)
-      : Promise.resolve(undefined);
-  const [ollamaPick, lmstudioPick] = await Promise.all([
-    pick("ollama", ollama),
-    pick("lmstudio", lmstudio),
-  ]);
+  const names = (found: { models: ModelInfo[] } | null) =>
+    found ? found.models.map((m) => m.id) : null;
   return {
-    ollama,
-    lmstudio,
+    ollama: names(ollama),
+    lmstudio: names(lmstudio),
     picks: {
-      ...(ollamaPick ? { ollama: ollamaPick } : {}),
-      ...(lmstudioPick ? { lmstudio: lmstudioPick } : {}),
+      ...(ollama?.pick ? { ollama: ollama.pick } : {}),
+      ...(lmstudio?.pick ? { lmstudio: lmstudio.pick } : {}),
+    },
+    details: {
+      ...(ollama ? { ollama: ollama.models } : {}),
+      ...(lmstudio ? { lmstudio: lmstudio.models } : {}),
     },
   };
 }
@@ -1314,49 +1354,26 @@ function register(window: BrowserWindow): void {
     store.removeSource(id);
     secrets.remove(id);
   });
-  handle(
-    IPC.probeModels,
-    (
-      _e,
-      input: {
-        preset: PresetId;
-        baseUrl?: string;
-        part?: string;
-        apiKey?: string;
-      },
-    ) => {
-      const key = input.apiKey?.trim();
-      const preset = presetOf(input.preset);
-      const baseUrl = resolveAddress(input.preset, input);
-      // A service with no model list is not asked: the person names the model.
-      if (!preset.lists) return Promise.resolve([]);
-      return listModels({
-        baseUrl,
-        wire: preset.wire,
-        auth: preset.header,
-        ...(key ? { apiKey: key } : {}),
-      });
-    },
-  );
-  handle(IPC.checkSource, async (_e, id: string) => {
-    const source = store.source(id);
-    const key = await secrets.get(id);
+  handle(IPC.probeModels, (_e, input: unknown) => {
+    const probe = probeInput(input);
+    const preset = presetOf(probe.preset);
+    const baseUrl = resolveAddress(probe.preset, probe);
+    return modelsOf(preset, baseUrl, probe.apiKey?.trim() || undefined);
+  });
+  handle(IPC.checkSource, async (_e, id: unknown) => {
+    const source = store.source(str(id, 100));
     const preset = presetOf(source.preset);
+    // Suggestions need no key and send nothing.
+    if (!preset.lists) return modelsOf(preset, source.baseUrl, undefined);
+    const key = await secrets.get(source.id);
     if (!key && !isLocalEndpoint(source.baseUrl) && preset.needsKey) {
       throw new Error("This source has no key saved. Add it again.");
     }
-    if (!preset.lists) {
-      throw new Error(
-        "This service has no list of models to check. Send it a message to try it.",
-      );
-    }
-    return listModels({
-      baseUrl: source.baseUrl,
-      wire: source.wire,
-      auth: preset.header,
-      ...(key ? { apiKey: key } : {}),
-    });
+    return modelsOf(preset, source.baseUrl, key ?? undefined);
   });
+  handle(IPC.setSourceModel, async (_e, id: unknown, model: unknown) =>
+    withKey(store.setSourceModel(str(id, 100), str(model, 200))),
+  );
   handle(IPC.detectLocal, () => detectLocal());
   handle(IPC.setSettings, (_e, patch: Partial<Settings>) => {
     const next = store.setSettings(patch);

@@ -5,8 +5,9 @@
  */
 
 import type { KeyHeader } from "../../shared/catalog";
+import type { ModelInfo } from "../../shared/types";
 import {
-  cleanIds,
+  cleanModels,
   type FilePart,
   failure,
   fileLabel,
@@ -18,8 +19,10 @@ import {
   SseParser,
   type ToolCall,
   type TurnEvent,
+  tokens,
   unreachable,
   type WireMessage,
+  when,
 } from "./common";
 
 /**
@@ -238,14 +241,92 @@ export async function* streamOpenAi(
   if (last) yield last;
 }
 
-/** Lists the models an OpenAI-compatible address serves. */
-export async function listOpenAi(input: ListInput): Promise<string[]> {
+/**
+ * The kinds a list may give a model that no chat can use. LLM API says it in
+ * "kind" (chat, embedding, image, video, tts, stt and more, docs.llmapi.ai/
+ * api/v1/models.md); Together AI and LM Studio say it in "type".
+ */
+const NOT_CHAT = new Set([
+  "audio",
+  "decision",
+  "embedding",
+  "embeddings",
+  "image",
+  "live",
+  "moderation",
+  "ocr",
+  "rerank",
+  "stt",
+  "streaming_stt",
+  "transcribe",
+  "transcription",
+  "tts",
+  "video",
+]);
+
+function strings(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((v): v is string => typeof v === "string")
+    : [];
+}
+
+/**
+ * One row of an OpenAI-shaped model list. Every service gives "id"; the
+ * rest is read only where a service's own list documents it:
+ * - "name" (OpenRouter, LLM API) or "display_name" (Together AI);
+ * - "context_length" (OpenRouter, LLM API, OrcaRouter, Together AI),
+ *   "context_window" (Groq) or "max_context_length" (Mistral);
+ * - pictures from "architecture.input_modalities" (OpenRouter, LLM API,
+ *   OrcaRouter) or "capabilities.vision" (Mistral);
+ * - tools from "supported_parameters" (OpenRouter, LLM API) or
+ *   "capabilities.function_calling" (Mistral);
+ * - "created" in Unix seconds (OpenAI's own shape, which they all copy).
+ * A row a list marks as not a chat model is left out.
+ */
+export function openAiModel(row: unknown): Partial<ModelInfo> | undefined {
+  if (typeof row !== "object" || row === null) return undefined;
+  const r = row as Record<string, unknown>;
+  const kind = r.kind ?? r.type;
+  if (typeof kind === "string" && NOT_CHAT.has(kind.toLowerCase()))
+    return undefined;
+  const caps =
+    typeof r.capabilities === "object" && r.capabilities !== null
+      ? (r.capabilities as Record<string, unknown>)
+      : {};
+  if (caps.completion_chat === false || caps.chat_completion === false)
+    return undefined;
+  const arch =
+    typeof r.architecture === "object" && r.architecture !== null
+      ? (r.architecture as Record<string, unknown>)
+      : {};
+  const inputs = strings(arch.input_modalities);
+  const params = strings(r.supported_parameters);
+  const name = typeof r.name === "string" ? r.name : r.display_name;
+  return {
+    id: r.id as string,
+    name: typeof name === "string" ? name : undefined,
+    context:
+      tokens(r.context_length) ??
+      tokens(r.context_window) ??
+      tokens(r.max_context_length),
+    pictures: inputs.includes("image") || caps.vision === true,
+    tools: params.includes("tools") || caps.function_calling === true,
+    created: when(r.created),
+  };
+}
+
+/**
+ * Lists the models an OpenAI-compatible address serves. The answer is
+ * `{ data: [...] }`, or a bare array, which Together AI and Mistral's own
+ * example give.
+ */
+export async function listOpenAi(input: ListInput): Promise<ModelInfo[]> {
   const body = await getList(
     input,
     `${input.baseUrl}/models`,
     headers(input.apiKey, input.auth),
   );
-  const rows = (body as { data?: unknown }).data;
+  const rows = Array.isArray(body) ? body : (body as { data?: unknown }).data;
   if (!Array.isArray(rows)) throw notAService();
-  return cleanIds(rows.map((row) => (row as { id?: unknown }).id));
+  return cleanModels(rows.map(openAiModel));
 }
