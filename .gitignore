@@ -1,6 +1,9 @@
 node_modules/
 dist/
 /release/
+# Written by scripts/release.mjs while the release workflow runs.
+/electron-builder.signed.json
+/signing-status-*.json
 *.tsbuildinfo
 .DS_Store
 .env
