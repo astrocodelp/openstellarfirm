@@ -7,6 +7,8 @@
 
 import {
   cleanIds,
+  type FilePart,
+  fileLabel,
   getList,
   type ListInput,
   type ModelCall,
@@ -34,6 +36,15 @@ function headers(apiKey?: string): Record<string, string> {
 
 type Block =
   | { type: "text"; text: string }
+  | {
+      type: "image";
+      source: { type: "base64"; media_type: string; data: string };
+    }
+  | {
+      type: "document";
+      source: { type: "base64"; media_type: "application/pdf"; data: string };
+      title: string;
+    }
   | { type: "tool_use"; id: string; name: string; input: unknown }
   | {
       type: "tool_result";
@@ -63,6 +74,38 @@ function inputOf(raw: string): Record<string, unknown> {
   } catch {
     return {};
   }
+}
+
+/** A user message's text, then each file after the line that introduces it. */
+function userBlocks(content: string, files: FilePart[] = []): Block[] {
+  const blocks: Block[] = [];
+  // The service refuses an empty text block.
+  if (content.trim() || files.length === 0)
+    blocks.push({ type: "text", text: content });
+  for (const file of files) {
+    blocks.push({ type: "text", text: fileLabel(file) });
+    blocks.push(
+      file.type === "image"
+        ? {
+            type: "image",
+            source: {
+              type: "base64",
+              media_type: file.mediaType,
+              data: file.data,
+            },
+          }
+        : {
+            type: "document",
+            source: {
+              type: "base64",
+              media_type: "application/pdf",
+              data: file.data,
+            },
+            title: file.name,
+          },
+    );
+  }
+  return blocks;
 }
 
 /** Maps the neutral list to Anthropic's system text and alternating turns. */
@@ -118,7 +161,7 @@ export function toAnthropic(messages: WireMessage[]): {
     } else if (message.role === "system") {
       system.push(message.content);
     } else {
-      push("user", [{ type: "text", text: message.content }]);
+      push("user", userBlocks(message.content, message.files));
     }
   }
   // The conversation has to open with the person.

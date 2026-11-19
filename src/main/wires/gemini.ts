@@ -13,6 +13,7 @@
 import { randomUUID } from "node:crypto";
 import {
   cleanIds,
+  fileLabel,
   getList,
   type ListInput,
   type ModelCall,
@@ -126,7 +127,19 @@ export function toGemini(messages: WireMessage[]): {
     } else if (message.role === "system") {
       system.push(message.content);
     } else {
-      push("user", [{ text: message.content }]);
+      const parts: Part[] = [];
+      if (message.content.trim() || !message.files?.length)
+        parts.push({ text: message.content });
+      for (const file of message.files ?? []) {
+        parts.push({ text: fileLabel(file) });
+        parts.push({
+          inlineData: {
+            mimeType: file.type === "pdf" ? "application/pdf" : file.mediaType,
+            data: file.data,
+          },
+        });
+      }
+      push("user", parts);
     }
   }
   flush();

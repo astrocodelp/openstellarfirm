@@ -203,8 +203,8 @@ export function App() {
     return source ? `${a.model ?? source.model} · ${source.name}` : null;
   }
 
-  async function send(a: Assistant, text: string) {
-    const sent = await api.send(a.id, text);
+  async function send(a: Assistant, text: string, attachmentIds: string[]) {
+    const sent = await api.send(a.id, text, attachmentIds);
     setChats((c) => ({ ...c, [a.id]: [...(c[a.id] ?? []), sent] }));
     setStreams((s) => ({ ...s, [a.id]: s[a.id] ?? "" }));
   }
@@ -343,7 +343,7 @@ export function App() {
             streaming={streams[assistant.id]}
             activity={activity[assistant.id]}
             approval={approvals[assistant.id]}
-            onSend={(text) => send(assistant, text)}
+            onSend={(text, ids) => send(assistant, text, ids)}
             onStop={() => void api.stop(assistant.id)}
             onDecide={decide}
             onCustomize={() => setView({ name: "assistant", id: assistant.id })}

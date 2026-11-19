@@ -32,7 +32,18 @@ const api: OpenApi = {
   removeFolder: (id, folder) => call(IPC.removeFolder, id, folder),
   removeSite: (id, site) => call(IPC.removeSite, id, site),
   messages: (id) => call(IPC.messages, id),
-  send: (id, text) => call(IPC.send, id, text),
+  send: (id, text, attachmentIds) =>
+    call(IPC.send, id, text, attachmentIds ?? []),
+  pickAttachments: (id) => call(IPC.pickAttachments, id),
+  addAttachment: (id, name, bytes) => call(IPC.addAttachment, id, name, bytes),
+  removeAttachment: (id, attachmentId) =>
+    call(IPC.removeAttachment, id, attachmentId),
+  pendingAttachments: (id) => call(IPC.pendingAttachments, id),
+  openAttachment: (id, attachmentId) =>
+    call(IPC.openAttachment, id, attachmentId),
+  ocrLanguages: () => call(IPC.ocrLanguages),
+  downloadOcrLanguage: (code) => call(IPC.downloadOcrLanguage, code),
+  removeOcrLanguage: (code) => call(IPC.removeOcrLanguage, code),
   stop: (id) => call(IPC.stop, id),
   pending: (id) => call(IPC.pending, id),
   decide: (id, approvalId, decision) =>

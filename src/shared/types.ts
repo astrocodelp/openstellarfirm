@@ -132,6 +132,46 @@ export interface ChatStep {
   ok: boolean;
 }
 
+/** What a file a person attached turned out to be, from its own bytes. */
+export type AttachmentKind = "png" | "jpeg" | "webp" | "gif" | "pdf" | "text";
+
+/** A file on a sent message. The bytes stay in the app's data folder. */
+export interface AttachmentRef {
+  id: string;
+  /** The file's own name, cleaned. */
+  name: string;
+  kind: AttachmentKind;
+  /** Bytes. */
+  size: number;
+  /** Set for a PDF. */
+  pages?: number;
+  /** The SHA-256 of the stored bytes, kept with a sent file. */
+  sha256?: string;
+}
+
+/** A file waiting in the message box, before it is sent. */
+export interface PendingAttachment extends AttachmentRef {
+  /** A small picture made by the main process from the checked bytes. */
+  preview?: string;
+}
+
+/** What picking files did: the files added, and a line for each one refused. */
+export interface PickedAttachments {
+  added: PendingAttachment[];
+  problems: string[];
+}
+
+/** A language the reader on this computer can learn. */
+export interface OcrLanguage {
+  code: string;
+  name: string;
+  /** Bytes to download. */
+  size: number;
+  /** True for English, which comes with the app. */
+  builtIn: boolean;
+  installed: boolean;
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
@@ -145,6 +185,8 @@ export interface ChatMessage {
    * the app started (not something the person typed), "update" is the reply.
    */
   check?: "request" | "update";
+  /** The files the person sent with this message. */
+  attachments?: AttachmentRef[];
 }
 
 /** A step that waits for the person. Built by the main process, in plain words. */
@@ -389,7 +431,37 @@ export interface OpenApi {
   removeFolder(assistantId: string, folder: string): Promise<Assistant>;
   removeSite(assistantId: string, site: string): Promise<Assistant>;
   messages(assistantId: string): Promise<ChatMessage[]>;
-  send(assistantId: string, text: string): Promise<ChatMessage>;
+  /**
+   * Sends a message, with the files waiting in the box whose ids are given.
+   * The files were checked when they were added; the page never names a path.
+   */
+  send(
+    assistantId: string,
+    text: string,
+    attachmentIds?: string[],
+  ): Promise<ChatMessage>;
+  /** Opens the system's file picker, opened by the main process, to add files. */
+  pickAttachments(assistantId: string): Promise<PickedAttachments>;
+  /**
+   * Adds a file the person dropped or pasted, as bytes the page read. Its kind
+   * is decided from the bytes in the main process.
+   */
+  addAttachment(
+    assistantId: string,
+    name: string,
+    bytes: Uint8Array,
+  ): Promise<PendingAttachment>;
+  /** Takes a waiting file out of the box. */
+  removeAttachment(assistantId: string, attachmentId: string): Promise<void>;
+  /** The files waiting in this assistant's box. */
+  pendingAttachments(assistantId: string): Promise<PendingAttachment[]>;
+  /** Opens a sent file with the system's default app, by id, on the person's click. */
+  openAttachment(assistantId: string, attachmentId: string): Promise<void>;
+  /** The languages the reader on this computer knows or can learn. */
+  ocrLanguages(): Promise<OcrLanguage[]>;
+  /** Downloads one language, on the person's click, and checks it. */
+  downloadOcrLanguage(code: string): Promise<OcrLanguage[]>;
+  removeOcrLanguage(code: string): Promise<OcrLanguage[]>;
   stop(assistantId: string): Promise<void>;
   /** The step that waits for the person in this chat, if any. */
   pending(assistantId: string): Promise<ApprovalCard | null>;
@@ -485,6 +557,14 @@ export const IPC = {
   removeSite: "assistant:site:remove",
   messages: "chat:messages",
   send: "chat:send",
+  pickAttachments: "attachment:pick",
+  addAttachment: "attachment:add",
+  removeAttachment: "attachment:remove",
+  pendingAttachments: "attachment:pending",
+  openAttachment: "attachment:open",
+  ocrLanguages: "ocr:languages",
+  downloadOcrLanguage: "ocr:download",
+  removeOcrLanguage: "ocr:remove",
   stop: "chat:stop",
   pending: "chat:pending",
   decide: "chat:decide",
