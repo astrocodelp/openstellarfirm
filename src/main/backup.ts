@@ -3,15 +3,16 @@ import {
   cleanMessages,
   readAssistantFile,
 } from "../shared/assistant-file";
+import type { OwnSkill } from "../shared/own-skills";
 import type { BackupResult } from "../shared/types";
 import type { MemoryStore } from "./memory";
 import type { Store } from "./store";
 
 /**
  * Moving everything to another computer. The file holds assistants (name,
- * look, brief and skills) and, only when the person asks, their chats and the
- * notes in their memory. It never holds a key, a model source, a model, a
- * folder, a site or a setting.
+ * look, brief and skills), the person's own skills as text, and, only when
+ * the person asks, their chats and the notes in their memory. It never holds a
+ * key, a model source, a model, a folder, a site or any other setting.
  */
 
 export const MAX_BACKUP_BYTES = 50 * 1024 * 1024;
@@ -23,6 +24,11 @@ export interface BackupFile {
   version: 1;
   exportedAt: string;
   assistants: AssistantFile[];
+  /**
+   * The person's own skills, as text. Added before the assistants on restore,
+   * so the skills they have ticked are there. An older file has none.
+   */
+  ownSkills?: OwnSkill[];
   /** Messages by position in `assistants`, as a string such as "0". */
   chats?: Record<
     string,
@@ -48,6 +54,8 @@ export function buildBackup(
     exportedAt: now.toISOString(),
     assistants: list.map((a) => store.exportFile(a.id)),
   };
+  const own = store.ownSkills();
+  if (own.length > 0) file.ownSkills = own;
   if (includeChats) {
     const chats: NonNullable<BackupFile["chats"]> = {};
     list.forEach((a, index) => {
@@ -120,6 +128,7 @@ export function restoreBackup(
     throw new Error("That file is not a backup from this app.");
   }
   const entries = file.assistants;
+  const ownSkills = store.addOwnSkills(file.ownSkills);
   const chats =
     typeof file.chats === "object" &&
     file.chats !== null &&
@@ -166,5 +175,11 @@ export function restoreBackup(
         full = true;
     }
   });
-  return { added, skipped, chats: chatCount, full };
+  return {
+    added,
+    skipped,
+    chats: chatCount,
+    full,
+    ...(ownSkills > 0 ? { ownSkills } : {}),
+  };
 }

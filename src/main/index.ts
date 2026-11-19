@@ -101,6 +101,7 @@ import { OcrLanguages } from "./ocr-languages";
 import { modelPicture, previewOf } from "./picture";
 import { lookupCompany } from "./poppy";
 import { Reader, ReaderError, registerReaderScheme } from "./reader";
+import { type DraftModel, registerRecording } from "./recording/service";
 import { electronScreen } from "./screen-capture";
 import { searchQuery, searchStore } from "./search";
 import { Secrets } from "./secrets";
@@ -460,6 +461,7 @@ async function runAssistant(spec: RunSpec): Promise<AgentResult> {
     ...(notes?.on ? { notes: notes.notes.map((n) => n.text) } : {}),
     ...(remember ? { canRemember: true } : {}),
     ...(spec.attachments ? { attachments: true } : {}),
+    ownSkills: store.ownSkills(),
   });
   return runAgent(
     assistant,
@@ -507,6 +509,48 @@ async function runAssistant(spec: RunSpec): Promise<AgentResult> {
         : {}),
     },
   );
+}
+
+/**
+ * The model a recording's draft goes to: the assistant's own, as an answer
+ * would use it, or another saved source the person picked after a model could
+ * not read the pictures. Never a silent fallback to another model.
+ */
+async function draftModel(
+  assistantId: string,
+  pickedSourceId?: string,
+): Promise<DraftModel> {
+  const assistant = store.assistant(assistantId);
+  const sourceId =
+    pickedSourceId ?? assistant.sourceId ?? store.settings().defaultSourceId;
+  const source = sourceId
+    ? store.sources().find((s) => s.id === sourceId)
+    : undefined;
+  if (!source) throw new Error("No model is set up yet. Add one in Models.");
+  const apiKey = await secrets.get(source.id);
+  const model =
+    pickedSourceId === undefined
+      ? (assistant.model ?? source.model)
+      : source.model;
+  const local = isLocalEndpoint(source.baseUrl);
+  return {
+    plan: {
+      model: `${source.name} · ${model}`,
+      where: local ? "on this computer" : source.name,
+      local,
+      sourceId: source.id,
+    },
+    turn: (messages, signal) =>
+      streamTurn({
+        baseUrl: source.baseUrl,
+        wire: source.wire,
+        auth: headerOf(source.preset),
+        ...(apiKey ? { apiKey } : {}),
+        model,
+        messages,
+        signal,
+      }),
+  };
 }
 
 /**
@@ -1229,6 +1273,7 @@ function register(window: BrowserWindow): void {
     progress: (payload) => tell(window, IPC.computerProgress, payload),
     openFolder: (path) => shell.openPath(path),
   });
+  registerRecording({ handle, window, store, model: draftModel });
   registerMemory();
 }
 

@@ -454,6 +454,7 @@ export function App() {
             connections={state.connections}
             mailAccounts={state.mailAccounts}
             assistants={state.assistants}
+            ownSkills={state.settings.ownSkills}
             onSaved={(saved) => {
               void refresh().then(() => {
                 setSelected(saved.id);

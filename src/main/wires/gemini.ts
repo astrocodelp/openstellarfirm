@@ -127,6 +127,18 @@ export function toGemini(messages: WireMessage[]): {
     } else if (message.role === "system") {
       system.push(message.content);
     } else {
+      if (message.images?.length) {
+        // Pictures from a recording come alone, beside the text.
+        push("user", [
+          { text: message.content },
+          ...(message.images ?? []).map(
+            (image): Part => ({
+              inlineData: { mimeType: image.mediaType, data: image.data },
+            }),
+          ),
+        ]);
+        continue;
+      }
       const parts: Part[] = [];
       if (message.content.trim() || !message.files?.length)
         parts.push({ text: message.content });

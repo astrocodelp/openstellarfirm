@@ -14,6 +14,9 @@ function contentSecurityPolicy(): Plugin {
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data:",
     "font-src 'self'",
+    // A video the person picks for "Record how you work" plays from a blob
+    // address made in the page, never from the network.
+    "media-src blob:",
     "connect-src 'none'",
     "object-src 'none'",
     "base-uri 'none'",

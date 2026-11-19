@@ -120,6 +120,17 @@ function outgoing(messages: WireMessage[]): unknown[] {
         role: "user",
         content: userContent(message.content, message.files),
       });
+    } else if (message.role === "user" && message.images?.length) {
+      out.push({
+        role: "user",
+        content: [
+          { type: "text", text: message.content },
+          ...message.images.map((image) => ({
+            type: "image_url",
+            image_url: { url: `data:${image.mediaType};base64,${image.data}` },
+          })),
+        ],
+      });
     } else if (message.role === "user") {
       out.push({ role: "user", content: message.content });
     } else if (message.role === "assistant" && message.tool_calls) {

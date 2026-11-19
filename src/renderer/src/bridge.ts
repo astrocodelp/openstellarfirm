@@ -18,6 +18,7 @@ import type {
   ModelSource,
   OpenApi,
 } from "../../shared/types";
+import { recordPreview } from "./record-preview";
 
 type MemoryApi = Pick<
   OpenApi,
@@ -580,6 +581,7 @@ function preview(): OpenApi {
       progressListeners.add(listener);
       return () => progressListeners.delete(listener);
     },
+    ...recordPreview(state),
   };
 }
 

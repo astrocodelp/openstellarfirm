@@ -54,6 +54,8 @@ export type WireMessage =
       content: string;
       /** Files sent natively with this message, after its text. */
       files?: FilePart[];
+      /** Pictures beside the text, such as the ones a recording kept. */
+      images?: ImagePart[];
     }
   | { role: "assistant"; content: string; tool_calls?: WireToolCall[] }
   | {

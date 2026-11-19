@@ -27,6 +27,14 @@ import { cleanComputer } from "../shared/computer";
 import { connectionPresetOf } from "../shared/connection-catalog";
 import { checkEndpoint } from "../shared/endpoint";
 import {
+  checkOwnSkillInput,
+  MAX_OWN_SKILLS,
+  newOwnSkillId,
+  type OwnSkill,
+  type OwnSkillInput,
+  readOwnSkills,
+} from "../shared/own-skills";
+import {
   cleanSendKey,
   cleanTextSize,
   DEFAULT_SEND_KEY,
@@ -163,6 +171,10 @@ function cleanSettings(raw: Partial<Settings> | undefined): Settings {
   if (checked) settings.lastUpdateCheck = checked;
   if (newest) settings.newestVersion = newest;
   if (dismissed) settings.dismissedVersion = dismissed;
+  // The person's own skills: each checked again, and a bad one dropped.
+  delete settings.ownSkills;
+  const own = readOwnSkills(base.ownSkills);
+  if (own.length > 0) settings.ownSkills = own;
   return settings;
 }
 
@@ -927,6 +939,76 @@ export class Store {
       }));
     }
     return this.assistant(saved.id);
+  }
+
+  ownSkills(): OwnSkill[] {
+    return this.read().settings.ownSkills ?? [];
+  }
+
+  /** Saves one of the person's own skills. Only their own Save calls this. */
+  saveOwnSkill(input: OwnSkillInput, now: Date = new Date()): OwnSkill {
+    const checked = checkOwnSkillInput(input);
+    const state = this.read();
+    const list = state.settings.ownSkills ?? [];
+    const before = input.id ? list.find((s) => s.id === input.id) : undefined;
+    if (input.id && !before) throw new Error("That skill is no longer here.");
+    if (!before && list.length >= MAX_OWN_SKILLS)
+      throw new Error(
+        `You can keep up to ${MAX_OWN_SKILLS} skills of your own. Delete one first.`,
+      );
+    const saved: OwnSkill = before
+      ? { ...before, ...checked, updatedAt: now.toISOString() }
+      : {
+          ...checked,
+          id: newOwnSkillId(checked.name, randomUUID()),
+          source: input.source === "typed" ? "typed" : "recording",
+          createdAt: now.toISOString(),
+        };
+    state.settings.ownSkills = before
+      ? list.map((s) => (s.id === saved.id ? saved : s))
+      : [...list, saved];
+    this.write(state);
+    return saved;
+  }
+
+  /** Deletes one, and takes it off every assistant that had it ticked. */
+  removeOwnSkill(id: string): void {
+    const state = this.read();
+    const list = state.settings.ownSkills ?? [];
+    if (!list.some((s) => s.id === id))
+      throw new Error("That skill is no longer here.");
+    const rest = list.filter((s) => s.id !== id);
+    if (rest.length > 0) state.settings.ownSkills = rest;
+    else delete state.settings.ownSkills;
+    state.assistants = state.assistants.map((a) =>
+      a.skills.includes(id)
+        ? { ...a, skills: a.skills.filter((s) => s !== id) }
+        : a,
+    );
+    this.write(state);
+  }
+
+  /**
+   * Adds own skills from a backup. One already here (by id) is kept as it is,
+   * and nothing past the limit is added. Returns how many were added.
+   */
+  addOwnSkills(raw: unknown): number {
+    const incoming = readOwnSkills(raw);
+    if (incoming.length === 0) return 0;
+    const state = this.read();
+    const list = state.settings.ownSkills ?? [];
+    let added = 0;
+    for (const skill of incoming) {
+      if (list.length >= MAX_OWN_SKILLS) break;
+      if (list.some((s) => s.id === skill.id)) continue;
+      list.push(skill);
+      added += 1;
+    }
+    if (added > 0) {
+      state.settings.ownSkills = list;
+      this.write(state);
+    }
+    return added;
   }
 }
 

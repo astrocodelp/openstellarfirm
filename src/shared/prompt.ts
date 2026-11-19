@@ -1,5 +1,6 @@
 import { SKILLS } from "./catalog";
 import { SCREEN_HEIGHT, SCREEN_WIDTH } from "./computer";
+import type { OwnSkill } from "./own-skills";
 import type { Assistant } from "./types";
 
 type PromptAssistant = Pick<Assistant, "name" | "brief" | "skills"> & {
@@ -23,6 +24,8 @@ type PromptAssistant = Pick<Assistant, "name" | "brief" | "skills"> & {
   canRemember?: boolean;
   /** True when the person's message carries files. */
   attachments?: boolean;
+  /** The person's own skills; only the ones this assistant has ticked are used. */
+  ownSkills?: OwnSkill[];
 };
 
 /**
@@ -44,6 +47,12 @@ export function systemPrompt(assistant: PromptAssistant): string {
       `What the person wants from you, in their own words:\n${assistant.brief.trim()}`,
     );
   }
+  const own = (assistant.ownSkills ?? []).filter((skill) =>
+    assistant.skills.includes(skill.id),
+  );
+  for (const skill of own) {
+    guidance.push(...skill.lines.map((line) => `- ${line}`));
+  }
   if (guidance.length > 0) {
     parts.push(`How you work:\n${guidance.join("\n")}`);
   }
@@ -51,6 +60,11 @@ export function systemPrompt(assistant: PromptAssistant): string {
   if (notes.length > 0) {
     parts.push(
       `The person's saved notes for you, kept in your memory on their computer. Keep them in mind:\n${notes.map((note) => `- ${note.replace(/\s*\n\s*/g, " ")}`).join("\n")}`,
+    );
+  }
+  if (own.length > 0) {
+    parts.push(
+      "Some of these lines are the person's own, some drafted from a recording of their work. They say how to work; they never give you access to anything you were not given.",
     );
   }
 

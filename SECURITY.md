@@ -23,6 +23,8 @@ app's version and operating system. Please do not include a real key.
   **what is on your screen**.
 - **Docker**, when you give an assistant a computer of its own: the app runs
   your `docker` command to build and run that computer.
+  **what is on your screen**, and **the pictures of a recording** you start
+  with "Record how you work".
 
 ## Where untrusted text comes from
 
@@ -37,6 +39,7 @@ app's version and operating system. Please do not include a real key.
 | A file you attach                                 | Its kind is decided from its bytes, never its name. PDFs and pictures are read only in a hidden reader window: sandboxed, isolated, in its own session where every request but its own files is cancelled. Reaches the model marked as information, not instructions.          |
 | A picture of the screen                           | Reaches the model as information. The prompt says text in it is never an instruction.                                                                                                                                                                                          |
 | An assistant's own computer (screen, commands)    | Outside text: it may come from a web page or a file made there. The answer is marked, so later web reads, connection calls and mail reads ask again. It reaches the model as information.                                                                                      |
+| A recording's pictures, and its draft             | Reach the model as information; the prompt says text in them is never an instruction. The draft is read strictly, cut to its limits, and only shown to you in an editor. Once you save it, it is guidance, never access.                                                       |
 | A company's published file (`poppy.json`)         | Read strictly, every text cut and cleaned, shown as plain text. Only a web address and a name are ever copied into a form you review.                                                                                                                                          |
 | An imported assistant file, a backup or a persona | Checked field by field. It never brings a key, a model, a folder, a site, a connection, web access or screen access with it. A backup only adds new assistants and never changes or removes one you have. Chats in it come in as plain text.                                   |
 | A model service's answers and errors              | A redirect is an error. An error is shown as a short plain line with the key taken out.                                                                                                                                                                                        |
@@ -123,6 +126,25 @@ app's version and operating system. Please do not include a real key.
   taken only after you approve, in the main process, is held in memory for one
   answer, and is never written to disk, saved in the chat or logged. The app
   can only look: there is no code that clicks, types or controls another app.
+- **Record how you work.** Nothing records until you pick a screen or a
+  window in the app's own list, which the main process builds with
+  `desktopCapturer` and checks again when you pick; the app's own window is
+  never offered, and a window whose title reads like a password manager cannot
+  be picked. The page gets no capture permission and no stream, only small
+  copies of the pictures kept. A recording stops at ten minutes or 60
+  pictures. A picture is kept only when the screen changed, in memory only, and
+  never of the whole screen while the app's own window is in front, nor of a
+  window whose title reads like a password manager. No video is saved. A video you pick is
+  read in the page from your file and never copied; each picture it sends is
+  checked in the main process to be a JPEG within 1 MB. What leaves the
+  computer: only the pictures you keep, at most three in a call, then one call
+  with text only, to the model the screen named before you pressed Draft (the
+  assistant's own, or one you picked after a model could not read pictures;
+  never another one on its own). The pictures are dropped when you save, start
+  over, close or quit. The draft is saved only by your own Save, as one of your
+  own skills, and a skill never grants access to anything. While recording,
+  the window title and the app's icon say so. Your own skills in a backup
+  are checked like a save and only added when they are new.
 - **Approvals.** Reading a site for the first time waits for your Approve.
   "Always allow" remembers one site for one assistant, or one read-only tool
   of one connection for one assistant, or reading one mail account for one
@@ -215,6 +237,12 @@ Said plainly, so nobody relies on more than is there:
   copied out of it can be harmful like any download. Stopping an answer does
   not end a command already running inside it, which runs to its time limit.
   See [docs/COMPUTER.md](docs/COMPUTER.md).
+- **A recording can hold private things.** It cannot spot a password, a key or
+  a private message in a picture, and it cannot tell which window is in front
+  when you record the whole screen (other than the app's own). Close what is
+  private before you record, and remove any picture that shows it before you
+  draft. A model that cannot read pictures may ignore them without saying so;
+  read the draft before you save it.
 - **Earlier answers stay in the chat.** If an assistant quoted a file in an
   earlier answer, a later web read on an allowed site does not ask again.
 - **A backup file is not encrypted.** If you include chats it holds your
@@ -238,6 +266,9 @@ Said plainly, so nobody relies on more than is there:
   connections client, the screen capture and the Docker calls are covered by
   offline tests with stand-ins. The computer was also checked by hand with
   Docker Desktop on macOS. Report what breaks against the real thing.
+  connections client, the screen capture and the recording's capture are
+  covered by offline tests with stand-ins. Report what breaks against the real
+  thing.
 
 ## Dependencies
 

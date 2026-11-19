@@ -109,6 +109,15 @@ team of AI Agent Assistants works for your company in the cloud.
   file from it into one of your folders asks every time. You watch it beside
   the chat, and can pause it or take over. Needs Docker Desktop, Docker
   Engine, OrbStack, Colima or Podman. See [docs/COMPUTER.md](docs/COMPUTER.md).
+- **Record how you work.** On an assistant's page, show it a task once:
+  record your whole screen or one window (up to ten minutes), or pick a video
+  you already have. A picture is kept every two seconds only when the screen
+  changed, in memory, and no video is saved. Remove any picture, say what you
+  were doing, and see how many pictures go to which model before anything is
+  sent. Its own model drafts a skill (a name, a line and a few lines of
+  guidance); you read and edit it, and only your Save keeps it, in a new "My
+  skills" group you can edit, delete and tick for any assistant. A skill is
+  guidance, never access. Your own skills travel in a backup, as text.
 - **Tools on small models too.** A model that cannot call tools asks for them
   in writing, through the same approvals.
 - **Move or back up.** One file with all your assistants, and your chats only
@@ -153,7 +162,8 @@ team of AI Agent Assistants works for your company in the cloud.
   saved with, never to the page, and never shown again. With no keychain, a
   key is refused rather than saved in the clear.
 - What an assistant reads is sent to the model you chose. With a model on this
-  computer, it stays here.
+  computer, it stays here. The same goes for the pictures you keep from a
+  recording, and the screen says how many go to which model first.
 - A remote model address must be `https`. Plain `http` is allowed only for a
   model on this computer. A model call never follows a redirect.
 - The app has no telemetry and loads nothing from a CDN. It talks to the model

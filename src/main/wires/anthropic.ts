@@ -161,7 +161,25 @@ export function toAnthropic(messages: WireMessage[]): {
     } else if (message.role === "system") {
       system.push(message.content);
     } else {
-      push("user", userBlocks(message.content, message.files));
+      // Pictures from a recording come alone; attached files come as files.
+      push(
+        "user",
+        message.images?.length
+          ? [
+              { type: "text", text: message.content },
+              ...(message.images ?? []).map(
+                (image): Block => ({
+                  type: "image",
+                  source: {
+                    type: "base64",
+                    media_type: image.mediaType,
+                    data: image.data,
+                  },
+                }),
+              ),
+            ]
+          : userBlocks(message.content, message.files),
+      );
     }
   }
   // The conversation has to open with the person.
