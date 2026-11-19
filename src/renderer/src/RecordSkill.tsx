@@ -196,7 +196,8 @@ function RecordDialog({
     void run(async () => {
       setList(null);
       setStep("pick");
-      setList(await api.recordSources());
+      // Never left on "Finding your screens and windows…" when it fails.
+      setList(await api.recordSources().catch(() => []));
     });
   }
 

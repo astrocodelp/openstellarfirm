@@ -286,11 +286,15 @@ export function ChatView(props: ChatViewProps) {
         {m.check ? <p className="check-note">Check update</p> : null}
         {m.steps ? <Steps steps={m.steps} enter={fresh(m)} /> : null}
         <p
-          className={
-            fresh(m) ? "bubble bubble-failed enter" : "bubble bubble-failed"
-          }
+          className={[
+            "bubble bubble-failed",
+            stoppedByPerson(m) ? "bubble-stopped" : "",
+            fresh(m) ? "enter" : "",
+          ]
+            .filter(Boolean)
+            .join(" ")}
         >
-          <Icon name="alert" />
+          <Icon name={stoppedByPerson(m) ? "stop" : "alert"} />
           <span>{m.text}</span>
         </p>
       </div>
@@ -328,13 +332,16 @@ export function ChatView(props: ChatViewProps) {
         ) : null}
         {/* The streamed answer already entered, so the saved one does not. */}
         <p className="bubble bubble-answer">{m.text}</p>
-        {props.onCopy ? (
-          <CopyButton
-            onCopy={() => props.onCopy?.(m.id) ?? Promise.resolve()}
-            onError={setActionError}
-          />
-        ) : null}
-        <ReadAloud id={m.id} text={m.text} rate={props.readRate ?? 1} />
+        {/* Copy and Read aloud sit side by side, under the start of the answer. */}
+        <div className="turn-actions">
+          {props.onCopy ? (
+            <CopyButton
+              onCopy={() => props.onCopy?.(m.id) ?? Promise.resolve()}
+              onError={setActionError}
+            />
+          ) : null}
+          <ReadAloud id={m.id} text={m.text} rate={props.readRate ?? 1} />
+        </div>
       </div>
     );
   }
@@ -453,17 +460,19 @@ export function ChatView(props: ChatViewProps) {
           <h1 className="chat-title">{assistant.name}</h1>
           <span className="faint">{modelLine ?? "No model is set up yet"}</span>
         </div>
-        {props.onSaveChat ? (
-          <SaveChatButton
-            disabled={messages.length === 0}
-            onSave={props.onSaveChat}
-            onError={setActionError}
-          />
-        ) : null}
-        {props.headExtra}
-        <button type="button" className="btn" onClick={props.onCustomize}>
-          Customize
-        </button>
+        <div className="chat-head-actions">
+          {props.onSaveChat ? (
+            <SaveChatButton
+              disabled={messages.length === 0}
+              onSave={props.onSaveChat}
+              onError={setActionError}
+            />
+          ) : null}
+          {props.headExtra}
+          <button type="button" className="btn" onClick={props.onCustomize}>
+            Customize
+          </button>
+        </div>
       </header>
       <ContextBar
         tools={tools}
@@ -656,4 +665,12 @@ export function ChatView(props: ChatViewProps) {
       </div>
     </>
   );
+}
+
+/**
+ * A turn the person stopped before any words came. It is not an error, so it
+ * does not look like one: no red, no warning sign.
+ */
+function stoppedByPerson(m: ChatMessage): boolean {
+  return m.failed === true && m.text === "Stopped.";
 }

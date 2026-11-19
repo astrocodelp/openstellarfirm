@@ -22,6 +22,7 @@ import {
   SCREEN_WIDTH,
 } from "../../shared/computer";
 import type { Assistant } from "../../shared/types";
+import { refocusIfLost } from "./a11y";
 import { api } from "./bridge";
 import { ErrorLine, message as errorText, Icon, InlineConfirm } from "./ui";
 
@@ -330,6 +331,9 @@ export function ComputerPanel({
       setError(errorText(e));
     } finally {
       setWorking(false);
+      // Turn off, Start and Remove are gone once they have run: the focus goes
+      // to the first thing to do next in the panel, not to the top of the page.
+      refocusIfLost(nextInPanel);
     }
   }
 
@@ -341,6 +345,7 @@ export function ComputerPanel({
       await api.computerSetup();
       setSetupState("done");
       await check();
+      refocusIfLost(nextInPanel);
     } catch (e) {
       setSetupState("failed");
       setError(errorText(e));
@@ -684,5 +689,12 @@ export function ComputerPanel({
         </div>
       ) : null}
     </aside>
+  );
+}
+
+/** The panel's first button below its heading that can be pressed now. */
+function nextInPanel(): HTMLElement | null {
+  return document.querySelector<HTMLElement>(
+    "#computer-panel > :not(.computer-head) button:not(:disabled)",
   );
 }

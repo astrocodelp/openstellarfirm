@@ -248,6 +248,15 @@ legend {
   outline-offset: var(--focus-offset);
 }
 
+/*
+ * A heading or a line that takes the focus only so it is read out: its ring
+ * stands clear of the words and is rounded, instead of a box tight on the text.
+ */
+:is(h1, h2, h3, p, section)[tabindex="-1"]:focus-visible {
+  outline-offset: 0.375rem;
+  border-radius: var(--radius-inset);
+}
+
 /* Where a skip link sends the focus: a region, not a control, so no ring. */
 main[tabindex="-1"]:focus {
   outline: none;
@@ -267,8 +276,15 @@ h3[id] {
   background: var(--selection);
 }
 
+/*
+ * Pinned to the top corner of what holds it. Left where it would sit, a hidden
+ * line inside a scrolling pane is placed against the page instead, far below
+ * the window, and the whole app could then be scrolled up by that much.
+ */
 .visually-hidden {
   position: absolute;
+  top: 0;
+  left: 0;
   width: 1px;
   height: 1px;
   overflow: hidden;
@@ -835,10 +851,34 @@ textarea.input {
 
 .chat-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.75rem;
   padding: 0.75rem 1.25rem;
   border-bottom: 1px solid var(--line);
+}
+
+/*
+ * The name and the model keep room to be read. When the pane is narrow (the
+ * computer open beside it), the buttons go to a second line instead of
+ * squeezing the name to a few letters and the model onto two lines.
+ */
+.chat-head > .row-text {
+  flex: 1 1 14rem;
+}
+
+.chat-head-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-left: auto;
+}
+
+.chat-head > .row-text > .faint {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 [data-platform="darwin"] .chat-head {
@@ -905,6 +945,10 @@ textarea.input {
   display: flex;
   gap: 0.5rem;
   color: var(--danger);
+}
+
+.bubble-failed.bubble-stopped {
+  color: var(--dim);
 }
 
 .empty {
@@ -1248,9 +1292,36 @@ textarea.input {
   border-radius: var(--radius-panel);
 }
 
-@media (max-width: 56rem) {
+/*
+ * A narrow window has no room for the preview beside the form. The picture
+ * goes (the form shows the look), but Export and Copy to StellarFirm cloud
+ * stay, in a slim bar under the form.
+ */
+@media (max-width: 64rem) {
+  .form-layout {
+    flex-direction: column;
+  }
+
   .preview {
+    flex: 0 0 auto;
+    flex-direction: row;
+    justify-content: flex-end;
+    padding: 0.75rem 1.5rem;
+    border-left: 0;
+    border-top: 1px solid var(--line);
+  }
+
+  .preview > :not(.preview-actions),
+  .preview:not(:has(.preview-actions)) {
     display: none;
+  }
+
+  .preview-actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    margin-top: 0;
   }
 }
 
@@ -1265,6 +1336,9 @@ textarea.input {
 .chat-pane {
   flex: 1;
   min-width: 0;
+  /* In a narrow window the row is a column: the chat scrolls inside, with the
+     message box kept in view, instead of growing past the window. */
+  min-height: 0;
   display: flex;
   flex-direction: column;
 }
@@ -1405,6 +1479,15 @@ textarea.input {
   align-items: flex-start;
   gap: 0.375rem;
   max-width: 100%;
+}
+
+/* Copy and Read aloud: one quiet row, the first label lined up with the answer's text. */
+.turn-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+  margin-inline-start: 0.5rem;
 }
 
 .steps {
@@ -2087,8 +2170,8 @@ kbd {
   display: inline-flex;
   align-items: center;
   gap: 0.375rem;
-  min-height: 2rem;
-  padding: 0 0.75rem;
+  min-height: 1.75rem;
+  padding: 0 0.625rem;
   border: 0;
   border-radius: var(--radius-pill);
   background: transparent;
@@ -2097,11 +2180,11 @@ kbd {
   cursor: pointer;
 }
 
-/* 32px to look at, 40px to hit; up and down only, so it never covers Copy. */
+/* 28px to look at, 40px to hit, like Copy; up and down only, so the two never overlap. */
 .read-aloud::after {
   content: "";
   position: absolute;
-  inset: -0.25rem 0;
+  inset: -0.375rem 0;
 }
 
 .read-aloud:hover {

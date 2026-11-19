@@ -14,6 +14,7 @@ import {
   afterPaint,
   announce,
   applyAccessibility,
+  focusLost,
   refocusIfLost,
 } from "./a11y";
 import { BackupScreen } from "./Backup";
@@ -84,6 +85,18 @@ export function App() {
     setSection(null);
     afterPaint(() => revealSection(title));
   }, [view.name, section]);
+
+  // A button that opens another screen from inside the old one (Customize,
+  // Models in the chat header) is gone with it, and the focus would fall to
+  // the top of the page. It lands on the new screen's heading instead, or on
+  // the message box when the chat comes back.
+  useEffect(() => {
+    afterPaint(() => {
+      if (!focusLost()) return;
+      if (view.name === "chat") document.getElementById("message-box")?.focus();
+      else focusScreen();
+    });
+  }, [view.name]);
   const [showShortcuts, setShowShortcuts] = useState(false);
   /** The assistants' names, for what is told to a screen reader. */
   const names = useRef(new Map<string, string>());

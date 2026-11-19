@@ -20,6 +20,7 @@ import {
   type WireMessage,
 } from "./models";
 import { toAnthropic } from "./wires/anthropic";
+import { failure, turnedDown } from "./wires/common";
 import { toGemini } from "./wires/gemini";
 import { collect, type Seen, spy, stream } from "./wires/testing";
 
@@ -360,6 +361,75 @@ describe("after a refusal", () => {
     expect(result.steps[0]?.label).toMatch(/did not take the pictures/);
     expect(cannotRead(key, "picture")).toBe(true);
     expect(cannotRead(key, "pdf")).toBe(false);
+  });
+
+  it("reads a picture on this computer when Ollama answers it with a 500", async () => {
+    const key = "source\nollama-500";
+    const sent: WireMessage[][] = [];
+    let calls = 0;
+    async function* turn(messages: WireMessage[]): AsyncGenerator<TurnEvent> {
+      sent.push(structuredClone(messages));
+      calls += 1;
+      if (calls === 1)
+        throw await failure(
+          new Response(
+            JSON.stringify({
+              error: {
+                message:
+                  "image input is not supported - hint: if this is unexpected, you may need to provide the mmproj",
+              },
+            }),
+            { status: 500 },
+          ),
+        );
+      yield { type: "text", text: "Read it." };
+    }
+    const result = await runAgent(
+      { folders: [], web: false, sites: [] },
+      [
+        {
+          role: "user",
+          content: "What is this?",
+          files: [
+            {
+              type: "image",
+              name: "a.png",
+              mediaType: "image/png",
+              data: "QQ==",
+            },
+          ],
+        },
+      ],
+      {
+        turn,
+        ask: async () => "reject",
+        allowSite: () => {},
+        onText: () => {},
+        onActivity: () => {},
+        signal: new AbortController().signal,
+        files: {
+          toText: (messages) => filesToText(messages, readers()),
+          remember: (mode) => rememberCannotRead(key, mode),
+        },
+      },
+    );
+    expect(result.text).toBe("Read it.");
+    expect(JSON.stringify(sent[1])).toContain("Words in the picture.");
+    expect(cannotRead(key, "picture")).toBe(true);
+  });
+
+  it("does not take any server error for a refusal of the files", async () => {
+    const plain = await failure(new Response("{}", { status: 500 }));
+    expect(plain.message).toBe("The model answered with an error (500).");
+    expect(turnedDown(plain)).toBe(false);
+    const other = await failure(
+      new Response(JSON.stringify({ error: "out of memory" }), {
+        status: 500,
+      }),
+    );
+    expect(other.message).toBe("The model answered with an error (500).");
+    expect(turnedDown(other)).toBe(false);
+    expect(turnedDown(new ModelError("bad", 400))).toBe(true);
   });
 
   it("remembers nothing when the retry fails too", async () => {

@@ -7,7 +7,12 @@ import {
   NO_PICTURES_LINE,
   PICTURES_A_CALL,
 } from "../../shared/recording";
-import { ModelError, type TurnEvent, type WireMessage } from "../models";
+import {
+  ModelError,
+  type TurnEvent,
+  turnedDown,
+  type WireMessage,
+} from "../models";
 import { DraftError, parseSkillDraft } from "./parse";
 
 /**
@@ -75,7 +80,11 @@ async function answerOf(
 function refusedPictures(error: unknown): boolean {
   return (
     error instanceof ModelError &&
-    (error.status === 400 || error.status === 415 || error.status === 422)
+    (error.status === 400 ||
+      error.status === 415 ||
+      error.status === 422 ||
+      // Ollama: a 500 that says the model cannot take pictures.
+      turnedDown(error))
   );
 }
 

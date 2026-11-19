@@ -168,14 +168,37 @@ export async function failure(
       status,
     );
   }
-  const reason =
-    status === 400 || status === 422 ? await reasonOf(response, apiKey) : "";
+  // Ollama answers a picture sent to a model that cannot read pictures with a
+  // 500, so a server error's reason is read too, and kept only when it is
+  // about the files: that is what lets the files be read on this computer.
+  const said =
+    status === 400 || status === 422 || status >= 500
+      ? await reasonOf(response, apiKey)
+      : "";
+  const reason = status >= 500 && !aboutFiles(said) ? "" : said;
   return new ModelError(
     reason
       ? `The model turned the request down: ${reason}`
       : `The model answered with an error (${status}).`,
     status,
   );
+}
+
+/** True when a service's reason is about the files it was sent. */
+export function aboutFiles(reason: string): boolean {
+  return /\b(?:image|images|vision|picture|pictures|pdf|multimodal|mmproj)\b/i.test(
+    reason,
+  );
+}
+
+/**
+ * True when the service turned the request down, rather than failing on its
+ * side: a bad request, or a server error that says it cannot take the files.
+ */
+export function turnedDown(error: unknown): error is ModelError {
+  if (!(error instanceof ModelError)) return false;
+  if (error.status === 400) return true;
+  return (error.status ?? 0) >= 500 && aboutFiles(error.message);
 }
 
 export async function reasonOf(

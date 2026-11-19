@@ -30,6 +30,7 @@ export {
   type ToolCall,
   type ToolSpec,
   type TurnEvent,
+  turnedDown,
   type WireMessage,
 } from "./wires/common";
 

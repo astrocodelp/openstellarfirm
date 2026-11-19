@@ -732,7 +732,7 @@ export function ConnectionsScreen({
 
         <section className="stack" aria-labelledby="connections-title">
           <h2 className="section-title" id="connections-title">
-            Your connections
+            Services you added
           </h2>
           {state.connections.length === 0 ? (
             <p className="dim">Nothing yet. Add a service below.</p>

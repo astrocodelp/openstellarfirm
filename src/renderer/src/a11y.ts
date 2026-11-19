@@ -275,9 +275,27 @@ export function useModalDialog(
   }, [open, ref]);
   useEffect(() => {
     if (open || !opener) return;
-    if (opener.isConnected) opener.focus({ preventScroll: true });
+    if (opener.isConnected) focusBack(opener);
     setOpener(null);
   }, [open, opener]);
+}
+
+/**
+ * Gives the focus back to where it was. A heading or a message that Find
+ * anything jumped to held the focus only for that visit, and gave up its
+ * stop when it lost it; it gets one again, for this visit too, so the focus
+ * does not fall to the top of the page. Returns false when it still did not take.
+ */
+export function focusBack(el: HTMLElement): boolean {
+  el.focus({ preventScroll: true });
+  if (document.activeElement === el) return true;
+  if (el.hasAttribute("tabindex")) return false;
+  el.setAttribute("tabindex", "-1");
+  el.addEventListener("blur", () => el.removeAttribute("tabindex"), {
+    once: true,
+  });
+  el.focus({ preventScroll: true });
+  return document.activeElement === el;
 }
 
 // ---------------------------------------------------------------------------
