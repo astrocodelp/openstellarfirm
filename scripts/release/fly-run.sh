@@ -4,23 +4,40 @@
 #   fly-run.sh <tag>              build the Linux and Windows installers for a tag
 #   fly-run.sh --checks <ref>     run scripts/ci.sh at a commit or branch
 #
-# Environment: FLY_API_TOKEN (required), FLY_APP (default stellarfirm-actions),
-# FLY_REGION (default ams). The token only goes in a header, read from stdin.
-# Secrets such as GITHUB_TOKEN are Fly app secrets: every Machine of the app
-# gets them as environment, so nothing secret is in the request below.
+# Environment: FLY_API_TOKEN and FLY_APP (both required), FLY_REGION (default
+# ams). FLY_APP is the Fly app that holds this project's release secrets and
+# nothing else (see docs/RELEASING.md); there is no default, so a build never
+# lands in an app that holds other projects' secrets. The token only goes in a
+# header, read from stdin. Secrets such as GITHUB_TOKEN are Fly app secrets:
+# every Machine of the app gets them as environment, so nothing secret is in
+# the request below. The repository comes from package.json.
 set -euo pipefail
 
 die() { printf 'error: %s\n' "$*" >&2; exit 1; }
 
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 api="https://api.machines.dev/v1"
-app="${FLY_APP:-stellarfirm-actions}"
+app="${FLY_APP:-}"
 region="${FLY_REGION:-ams}"
-repo="astrocodelp/worker-bot-open-source"
+
+# The images, pinned by digest so a build runs on exactly what was checked.
+# Looked up on 2026-11-19 from Docker Hub:
+#   electronuserland/builder:wine  and  node:22-bookworm
+# To move to a newer image, read its digest with
+#   docker buildx imagetools inspect electronuserland/builder:wine
+#   docker buildx imagetools inspect node:22-bookworm
+# and change it here and in docs/RELEASING.md, with the date.
+release_image="electronuserland/builder@sha256:f3a8d451994c881d0972e7b1846ee4d4fdc15eb41fc6b1f350b38cbf99ca90fe"
+checks_image="node@sha256:e13726ca604184d7a91fcacab1fc09eefd642dc28e79ac34e85540dd93b78cfb"
 
 [ -n "${FLY_API_TOKEN:-}" ] || die "FLY_API_TOKEN is not set"
+[ -n "$app" ] || die "FLY_APP is not set: name the Fly app that holds this project's release secrets, and only them"
 [[ "$app" =~ ^[a-z0-9][a-z0-9-]{0,62}$ ]] || die "bad FLY_APP"
 [[ "$region" =~ ^[a-z]{3}$ ]] || die "bad FLY_REGION"
 command -v curl >/dev/null || die "curl is needed"
+command -v node >/dev/null || die "node is needed (to read package.json)"
+repo="$(node "$root/scripts/release/repo.mjs")" || die "could not read the repository from package.json"
+[[ "$repo" =~ ^[0-9A-Za-z._-]+/[0-9A-Za-z._-]+$ ]] || die "bad repository in package.json"
 
 fly() {
   local method="$1" url="$2"; shift 2
@@ -44,17 +61,17 @@ else
   [[ "$ref" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]] || die "not a release tag such as v0.1.0"
 fi
 
-# Both values are validated above, so the here-docs below cannot be broken out of.
+# Every value is validated above, so the here-docs below cannot be broken out of.
 if [ "$mode" = release ]; then
-  image="electronuserland/builder:wine"
+  image="$release_image"
   cpus=4
   memory=8192
-  env_line="\"RELEASE_REF\": \"$ref\""
+  env_line="\"RELEASE_REF\": \"$ref\", \"RELEASE_REPO\": \"$repo\""
   skip_secrets=false
   # The script is fetched from the repository at that exact tag, then run.
   cmd='set -euo pipefail; curl --proto =https --tlsv1.2 -fsSL "https://raw.githubusercontent.com/'"$repo"'/${RELEASE_REF}/scripts/release/build-linux-win.sh" -o /tmp/build-linux-win.sh; exec bash /tmp/build-linux-win.sh'
 else
-  image="node:22-bookworm"
+  image="$checks_image"
   cpus=2
   memory=4096
   env_line="\"CHECK_REF\": \"$ref\""
