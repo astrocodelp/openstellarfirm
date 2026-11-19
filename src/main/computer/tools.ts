@@ -7,7 +7,7 @@ import {
 } from "../../shared/computer";
 import type { ChatStep, Decision } from "../../shared/types";
 import { FolderError, folderLabels, saveNewFile, shortName } from "../folders";
-import type { ImagePart, ToolSpec } from "../wires/common";
+import { type ImagePart, ModelError, type ToolSpec } from "../wires/common";
 import { ComputerError, EXCHANGE_INSIDE, HOME } from "./args";
 import {
   type ComputerService,
@@ -190,6 +190,7 @@ export interface ComputerGate {
 export type ComputerLike = Pick<
   ComputerService,
   | "ensure"
+  | "endedOf"
   | "holdOf"
   | "whenFree"
   | "screenshot"
@@ -201,6 +202,14 @@ export type ComputerLike = Pick<
   | "readFile"
   | "saveToExchange"
 >;
+
+/** The answer ends with one of these when the person ends its computer under it. */
+export const TURNED_OFF_TEXT =
+  "Its computer was turned off, so this answer stopped. Send a message to carry on: the computer starts again when it is used.";
+export const REMOVED_TEXT =
+  "Its computer was removed, so this answer stopped. A fresh one starts the next time it is used.";
+/** As the answer says when it is stopped. */
+const STOPPED = "Stopped.";
 
 export interface GateAssistant {
   id: string;
@@ -305,6 +314,14 @@ export function computerGate(
 ): ComputerGate | undefined {
   if (!assistant.computer) return undefined;
   const id = assistant.id;
+  // The person's Turn off or Remove ends this answer's use of the computer: a
+  // later step would otherwise start it again, against what they just did.
+  const since = service.endedOf(id).count;
+  const ended = (): ModelError | undefined => {
+    const now = service.endedOf(id);
+    if (now.count === since) return undefined;
+    return new ModelError(now.removed ? REMOVED_TEXT : TURNED_OFF_TEXT);
+  };
   return {
     specs: COMPUTER_TOOLS,
     owns: (name) => COMPUTER_TOOL_NAMES.has(name),
@@ -330,15 +347,34 @@ export function computerGate(
           "A step on its computer was not written correctly",
         );
       }
+      const off = ended();
+      if (off) throw off;
       // While the person has paused it or taken over, it waits its turn.
-      if (service.holdOf(id) !== "none")
-        host.onActivity("Waiting while you have its computer");
-      await service.whenFree(id, host.signal);
+      const hold = service.holdOf(id);
+      if (hold !== "none")
+        host.onActivity(
+          hold === "paused"
+            ? "Waiting until you resume its computer"
+            : "Waiting while you have its computer",
+        );
+      try {
+        await service.whenFree(id, host.signal);
+      } catch (error) {
+        if (host.signal.aborted) throw new ModelError(STOPPED);
+        throw error;
+      }
+      const offWhileWaiting = ended();
+      if (offWhileWaiting) throw offWhileWaiting;
+      let done: ComputerCallResult;
       try {
         await service.ensure({ id, computer: assistant.computer });
-        return await act(name, args, steps, host);
+        done = await act(name, args, steps, host);
       } catch (error) {
-        if (host.signal.aborted) throw error;
+        // A stop ends the answer as a stop, and a step the person cut short
+        // by turning the computer off ends it with why, not Docker's words.
+        if (host.signal.aborted) throw new ModelError(STOPPED);
+        const offDuring = ended();
+        if (offDuring) throw offDuring;
         return fail(
           error instanceof ComputerError || error instanceof FolderError
             ? error.message
@@ -346,6 +382,11 @@ export function computerGate(
           "Could not use its computer",
         );
       }
+      // A command killed by Turn off ends as if it had hit its time limit,
+      // which would mislead the model.
+      const offDuring = ended();
+      if (offDuring) throw offDuring;
+      return done;
     },
   };
 

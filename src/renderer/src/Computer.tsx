@@ -332,6 +332,15 @@ export function ComputerPanel({
     removeButton.current?.focus({ preventScroll: true });
   }, [removing]);
 
+  // Stop the answer goes away once the answer has stopped: the focus moves on
+  // to the next thing in the panel instead of being left on nothing.
+  const stoppedHere = useRef(false);
+  useEffect(() => {
+    if (busy || !stoppedHere.current) return;
+    stoppedHere.current = false;
+    refocusIfLost(nextInPanel);
+  }, [busy]);
+
   function keepComputer() {
     backToRemove.current = true;
     setRemoving(false);
@@ -680,7 +689,14 @@ export function ComputerPanel({
               </button>
             )}
             {busy ? (
-              <button type="button" className="btn" onClick={onStop}>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => {
+                  stoppedHere.current = true;
+                  onStop();
+                }}
+              >
                 <Icon name="stop" size={14} />
                 Stop the answer
               </button>
