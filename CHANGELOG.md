@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Desk pets: the firmware, the 3D print files and the protocol code for Nova,
+  Zib and Comet, a small desk figure on an Arduino Nano ESP32, are here
+  (`firmware/`, `hardware/` and `src/shared/pets/`). They pair with the app in
+  a later release; the plan and the phases are in
+  [docs/desk-pets-plan.md](docs/desk-pets-plan.md). `pnpm pets:header` writes
+  the C++ headers the firmware shares with the protocol code.
+
 ### Security
 
 - The release scripts take the GitHub token and the signing variables out of

@@ -334,18 +334,19 @@ the scripts in [docs/RELEASING.md](docs/RELEASING.md).
 
 ## How it is laid out
 
-| Folder               | What                                                                                                                                                                                                                     |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `src/shared`         | Types, the pets, skills and model presets, the address checks, the system prompt, the assistant file format, the links to StellarFirm. No Node or DOM imports.                                                           |
-| `src/main`           | The main process: the JSON store, sealed keys, the model wires, the folder, web, connection and screen tools, the loop that runs them, and the gate that asks you.                                                       |
-| `src/preload`        | The only bridge between the page and the main process.                                                                                                                                                                   |
-| `src/reader`         | The hidden window that opens PDFs and reads pictures on this computer, with PDF.js and Tesseract.js.                                                                                                                     |
-| `src/renderer`       | The React screens, built on tokens in three stylesheets: `styles.css` (the tokens and most screens), `gallery.css` (the connections gallery) and `record.css` (Record how you work, your own skills, and their dialogs). |
-| `resources/computer` | The Dockerfile and scripts an assistant's own computer is built from.                                                                                                                                                    |
-| `personas`           | Starter personas, one JSON file each.                                                                                                                                                                                    |
-| `build`              | The app icon, its Linux sizes, and the macOS entitlements.                                                                                                                                                               |
-| `scripts`            | Build, licence, checks and release scripts.                                                                                                                                                                              |
-| `docs`               | Releasing, the release notes template, an assistant's computer, and the maintainer assistant's instructions.                                                                                                             |
+| Folder                 | What                                                                                                                                                                                                                     |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `src/shared`           | Types, the pets (and `src/shared/pets/`, the desk pet protocol), skills and model presets, the address checks, the system prompt, the assistant file format, the links to StellarFirm. No Node or DOM imports.           |
+| `src/main`             | The main process: the JSON store, sealed keys, the model wires, the folder, web, connection and screen tools, the loop that runs them, and the gate that asks you.                                                       |
+| `src/preload`          | The only bridge between the page and the main process.                                                                                                                                                                   |
+| `src/reader`           | The hidden window that opens PDFs and reads pictures on this computer, with PDF.js and Tesseract.js.                                                                                                                     |
+| `src/renderer`         | The React screens, built on tokens in three stylesheets: `styles.css` (the tokens and most screens), `gallery.css` (the connections gallery) and `record.css` (Record how you work, your own skills, and their dialogs). |
+| `firmware`, `hardware` | The desk pet: the firmware for its Arduino Nano ESP32 and the 3D print files and build guide for Nova, Zib and Comet. They pair with the app in later releases ([docs/desk-pets-plan.md](docs/desk-pets-plan.md)).       |
+| `resources/computer`   | The Dockerfile and scripts an assistant's own computer is built from.                                                                                                                                                    |
+| `personas`             | Starter personas, one JSON file each.                                                                                                                                                                                    |
+| `build`                | The app icon, its Linux sizes, and the macOS entitlements.                                                                                                                                                               |
+| `scripts`              | Build, licence, checks and release scripts.                                                                                                                                                                              |
+| `docs`                 | Releasing, the release notes template, an assistant's computer, and the maintainer assistant's instructions.                                                                                                             |
 
 ## Roadmap
 

@@ -1,0 +1,45 @@
+{
+  "id": "base",
+  "label": "Launch pad",
+  "parts": [
+    {
+      "id": "base_shell",
+      "label": "Shell (top plate and walls)",
+      "color": "#1b1b22",
+      "opacity": 1,
+      "material": "PLA, black or dark grey",
+      "qty": 1,
+      "view": "view/base_shell.stl",
+      "print": "print/base_shell.stl",
+      "orientation": "Upside down, top face on the bed",
+      "supports": "None. The port and switch slots, and the lime ring groove, print as short bridges; the top edge chamfer is a 45 degree overhang.",
+      "notes": "Press four M3 heat-set inserts into the bosses from their open ends. Glue the 40 mm speaker into its ring facing up and the microphone board under the mic hole with its port lined up. Hot-glue the POWER and MIC slide switches behind their slots. The two USB-C ports have a 1 mm recess outside so a plug seats fully."
+    },
+    {
+      "id": "base_floor",
+      "label": "Floor (battery tray and core board posts)",
+      "color": "#1b1b22",
+      "opacity": 1,
+      "material": "PLA, black or dark grey",
+      "qty": 1,
+      "view": "view/base_floor.stl",
+      "print": "print/base_floor.stl",
+      "orientation": "Flat, underside on the bed, posts up",
+      "supports": "None. The countersinks print as 45 degree overhangs and the 10.5 mm foot recesses as short bridges.",
+      "notes": "The four corner walls hold the battery; the four posts take the core board on M2.5 x 6 self-tapping screws. Four M3 x 8 screws go up through the countersunk holes into the shell's inserts. Stick a rubber foot into each of the four round recesses on the underside."
+    },
+    {
+      "id": "base_ring_inlay",
+      "label": "Lime ring inlay",
+      "color": "#d9ff3f",
+      "opacity": 1,
+      "material": "PLA, lime",
+      "qty": 1,
+      "view": "view/base_ring_inlay.stl",
+      "print": "print/base_ring_inlay.stl",
+      "orientation": "Flat on the bed",
+      "supports": "None",
+      "notes": "Press it into the groove in the top plate, with a drop of glue if it feels loose. It stands 0.4 mm proud of the top face."
+    }
+  ]
+}
