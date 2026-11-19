@@ -1,12 +1,45 @@
 # OpenStellarFirm
 
-A desktop app for personal AI assistants that run on your own computer, on a
-model you choose. For macOS, Windows and Linux. The code is open: free to use,
-change and share, not to sell.
+Personal AI assistants on your own computer. A desktop app for macOS, Windows
+and Linux that thinks with your own model: a local AI model on this machine
+(Ollama, LM Studio), offline if you like, or your own key. It is an MCP client
+too. No account, no cloud saving, no telemetry.
+
+[![Latest release](https://img.shields.io/github/v/release/astrocodelp/worker-bot-open-source?include_prereleases&sort=semver&label=release)](https://github.com/astrocodelp/worker-bot-open-source/releases)
+[![Licence: Apache-2.0 + Commons Clause](https://img.shields.io/badge/licence-Apache--2.0%20%2B%20Commons%20Clause-blue)](LICENSE)
+[![Platforms: macOS, Windows, Linux](https://img.shields.io/badge/platforms-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)](#install-a-release)
+[![Discussions](https://img.shields.io/github/discussions/astrocodelp/worker-bot-open-source?label=discussions)](https://github.com/astrocodelp/worker-bot-open-source/discussions)
+
+<!-- screenshot: docs/screenshot.png -->
+
+## Download
+
+Download the newest build for your system from the
+[Releases page](https://github.com/astrocodelp/worker-bot-open-source/releases).
+Until the first release is out, run it from source (see [Run it](#run-it)).
+The builds are not signed yet, so your system warns you the first time:
+[Install a release](#install-a-release) says how to open one. Check the file
+you downloaded against the sums file beside it first:
+
+```bash
+shasum -a 256 -c SHA256SUMS-mac.txt --ignore-missing   # macOS
+sha256sum -c SHA256SUMS.txt --ignore-missing           # Linux
+```
+
+```powershell
+# Windows: compare with the file's line in SHA256SUMS.txt
+Get-FileHash .\OpenStellarFirm-0.1.0-win-x64.exe -Algorithm SHA256
+```
+
+**Works with** Ollama, LM Studio, OpenAI, Claude, Gemini, OpenRouter, any
+OpenAI-compatible address, and remote MCP servers.
+
+## What it is
 
 You give each assistant a name, a look and a job. It thinks with your own
 model: one that runs on this machine (Ollama, LM Studio), your own key, or your
-own endpoint. There is no account, no server of ours, and no fee.
+own endpoint. There is no account, no server of ours, and no fee. Its code is
+open to read, change and share, not to sell (see [Licence](#licence)).
 
 > **Early.** An assistant can talk, read and add files in folders you pick,
 > read web pages you allow, use the tools of servers you connect, look at
@@ -14,9 +47,50 @@ own endpoint. There is no account, no server of ours, and no fee.
 > own in Docker. It cannot click, type or use your own apps.
 > See [What is built](#what-is-built) and the [Roadmap](#roadmap).
 
-OpenStellarFirm is the open-source sibling of
+OpenStellarFirm is the source-available sibling of
 [StellarFirm](https://stellarfirm.ai), by Astro Code. StellarFirm is where a
 whole team of AI Agent Assistants works for your company in the cloud.
+
+## Install a release
+
+The builds are not signed or notarized yet, so macOS and Windows warn you the
+first time you open the app. Check the file's sum first (see
+[Download](#download)), then:
+
+### macOS
+
+1. Open the `.dmg` and drag OpenStellarFirm to Applications (or unzip the
+   `.zip`). Take `arm64` for Apple silicon, `x64` for an Intel Mac.
+2. Open the app. macOS says it cannot check it; press **Done**.
+3. Open **System Settings**, then **Privacy & Security**. Under Security, press
+   **Open Anyway** next to OpenStellarFirm, and confirm.
+
+Check it: `shasum -a 256 -c SHA256SUMS-mac.txt --ignore-missing`.
+
+### Windows
+
+1. Run `OpenStellarFirm-<version>-win-x64.exe`.
+2. When SmartScreen says "Windows protected your PC", press **More info**, then
+   **Run anyway**.
+
+Check it in PowerShell:
+`Get-FileHash .\OpenStellarFirm-<version>-win-x64.exe -Algorithm SHA256`, and
+compare the result with the file's line in `SHA256SUMS.txt`.
+
+### Linux
+
+1. Make the AppImage runnable and start it:
+   `chmod +x OpenStellarFirm-<version>-linux-x64.AppImage`, then
+   `./OpenStellarFirm-<version>-linux-x64.AppImage`.
+2. An AppImage needs FUSE (on Debian or Ubuntu, the `libfuse2` package;
+   `libfuse2t64` on Ubuntu 24.04). Without it, start it with
+   `--appimage-extract-and-run`. Or take the `.tar.gz`, unpack it, and run
+   `openstellarfirm` inside.
+3. To save a key, the app needs a running Secret Service keyring, such as
+   GNOME Keyring or KWallet. Without one it refuses to save a key rather than
+   keep it in the clear; a model on this computer needs no key.
+
+Check it: `sha256sum -c SHA256SUMS.txt --ignore-missing`.
 
 ## What is built
 
@@ -137,7 +211,8 @@ whole team of AI Agent Assistants works for your company in the cloud.
   when an answer is done or a step waits. The target is WCAG 2.2 AA; see
   [ACCESSIBILITY.md](ACCESSIBILITY.md) for what was tested and how to report a
   barrier.
-- **First run** that finds a model already running on this computer.
+- **First run** that finds a model already running on this computer, and says
+  how to get one when there is none.
 
 ## What is not built yet
 
@@ -153,6 +228,7 @@ whole team of AI Agent Assistants works for your company in the cloud.
   only on your computer does not have.
 - **No signed installers and no automatic update.** Build from source, or use
   an unsigned release and check its sums. See
+  [Install a release](#install-a-release) and
   [docs/RELEASING.md](docs/RELEASING.md).
 
 ## Privacy and safety
@@ -184,39 +260,72 @@ whole team of AI Agent Assistants works for your company in the cloud.
     image and its packages from Docker Hub and Debian's mirrors, on your
     click. With its network on, that computer reaches the internet on its
     own; it is off by default.
-- Links to stellarfirm.ai, composio.dev, Docker's install page and this
-  project's pages open in your browser, only on your click.
+- Links to stellarfirm.ai, composio.dev, Docker's install page, Ollama's and
+  LM Studio's download pages, and this project's pages open in your browser,
+  only on your click.
 
 The full list of what the code enforces, and what it does not, is in
 [SECURITY.md](SECURITY.md).
 
 ## Run it
 
-Needs Node 22 or newer and pnpm 10.
+From source, on macOS, Windows or Linux:
 
 ```bash
+git clone https://github.com/astrocodelp/worker-bot-open-source.git
+cd worker-bot-open-source
+corepack enable        # or: npm install -g pnpm@10
 pnpm install
+pnpm dev
+```
+
+- **Node 22.13 or newer**: Node 22 or 24 LTS.
+- **pnpm 10**, through Corepack (it comes with Node) or `npm install -g pnpm@10`.
+- **The first `pnpm dev` downloads Electron**, about 100 MB, once.
+- **A model.** Start Ollama or LM Studio with a model in it, or have a key for
+  a service such as OpenAI or Anthropic. The first run looks for a model on
+  this computer.
+- **On Linux**, Electron needs the usual desktop libraries (on Debian or
+  Ubuntu: `libgtk-3-0`, `libnss3`, `libgbm1` and `libasound2`), and saving a
+  key needs a Secret Service keyring (see [Linux](#linux)).
+- **Docker is optional.** Only an assistant's own computer needs it (Docker
+  Desktop, Docker Engine, OrbStack, Colima or Podman).
+- **`pnpm dev` and `pnpm dev:ui` use the same port** (5199): run one at a time.
+- **The data folder** of `pnpm dev` is the installed app's own:
+  `~/Library/Application Support/OpenStellarFirm` on a Mac,
+  `%APPDATA%\OpenStellarFirm` on Windows, and `~/.config/OpenStellarFirm` on
+  Linux. Settings, Your data, opens it.
+
+```bash
 pnpm dev        # the app, with hot reload
 pnpm dev:ui     # only the screens, in a browser, on stand-in data
 pnpm test       # offline tests
 pnpm typecheck
 pnpm lint
 pnpm build      # dist/
-pnpm package    # an unsigned installer in release/
+pnpm package    # unsigned installers for this system, in release/
 bash scripts/ci.sh   # everything the maintainers check, in one go
 ```
 
+`pnpm package` builds unsigned. On a Mac it makes a `.dmg` and a `.zip` for
+both Apple silicon and Intel, about 500 MB in all; `pnpm package:win` and
+`pnpm package:linux` build for those systems. Signed releases are made with
+the scripts in [docs/RELEASING.md](docs/RELEASING.md).
+
 ## How it is laid out
 
-| Folder         | What                                                                                                                                                               |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `src/shared`   | Types, the pets, skills and model presets, the address checks, the system prompt, the assistant file format, the links to StellarFirm. No Node or DOM imports.     |
-| `src/main`     | The main process: the JSON store, sealed keys, the model wires, the folder, web, connection and screen tools, the loop that runs them, and the gate that asks you. |
-| `src/preload`  | The only bridge between the page and the main process.                                                                                                             |
-| `src/renderer` | The React screens and one stylesheet built on tokens.                                                                                                              |
-| `personas`     | Starter personas, one JSON file each.                                                                                                                              |
-| `scripts`      | Build, checks and release scripts.                                                                                                                                 |
-| `docs`         | Releasing, and the maintainer assistant's instructions.                                                                                                            |
+| Folder               | What                                                                                                                                                                                                                     |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `src/shared`         | Types, the pets, skills and model presets, the address checks, the system prompt, the assistant file format, the links to StellarFirm. No Node or DOM imports.                                                           |
+| `src/main`           | The main process: the JSON store, sealed keys, the model wires, the folder, web, connection and screen tools, the loop that runs them, and the gate that asks you.                                                       |
+| `src/preload`        | The only bridge between the page and the main process.                                                                                                                                                                   |
+| `src/reader`         | The hidden window that opens PDFs and reads pictures on this computer, with PDF.js and Tesseract.js.                                                                                                                     |
+| `src/renderer`       | The React screens, built on tokens in three stylesheets: `styles.css` (the tokens and most screens), `gallery.css` (the connections gallery) and `record.css` (Record how you work, your own skills, and their dialogs). |
+| `resources/computer` | The Dockerfile and scripts an assistant's own computer is built from.                                                                                                                                                    |
+| `personas`           | Starter personas, one JSON file each.                                                                                                                                                                                    |
+| `build`              | The app icon, its Linux sizes, and the macOS entitlements.                                                                                                                                                               |
+| `scripts`            | Build, licence, checks and release scripts.                                                                                                                                                                              |
+| `docs`               | Releasing, the release notes template, an assistant's computer, and the maintainer assistant's instructions.                                                                                                             |
 
 ## Roadmap
 
@@ -246,11 +355,15 @@ Apache License 2.0 with the Commons Clause: see [LICENSE](LICENSE) and
 [NOTICE](NOTICE).
 
 - You may use it, at home and at work, read it, change it and share it.
-- You may not sell it, or a product or service built on it, without a
-  commercial licence from Astro Code L.P. See [COMMERCIAL.md](COMMERCIAL.md).
+- You may not sell it without a commercial licence from Astro Code L.P. In
+  the Commons Clause's own words, selling includes providing to others, for a
+  fee or other consideration, "a product or service whose value derives,
+  entirely or substantially, from the functionality of the Software". See
+  [COMMERCIAL.md](COMMERCIAL.md).
 
 Because selling is not allowed, this is not an "open source" licence in the
-Open Source Initiative's sense. The source is open to read, change and share.
+Open Source Initiative's sense: the project is source-available. Its code is
+open to read, change and share, not to sell.
 
 The licence covers this repository only. It does not cover StellarFirm cloud
 (stellarfirm.ai), StellarFirm for Universities, for Scientists or for Course
@@ -259,4 +372,6 @@ characters are marks of Astro Code L.P. OpenStellarFirm includes that mark.
 If you share a changed version, give it its own name and look.
 
 Other people's work inside a built app is listed in
-[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md); the build writes their full
+licence texts to THIRD-PARTY-LICENSES.txt, which ships beside the app and opens
+from Settings, About.
