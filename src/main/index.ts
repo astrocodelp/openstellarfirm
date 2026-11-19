@@ -66,6 +66,7 @@ import { folderLabels } from "./folders";
 import { MailService, mailInput } from "./mail";
 import { listModels, ModelError, streamTurn, type WireMessage } from "./models";
 import { lookupCompany } from "./poppy";
+import { type DraftModel, registerRecording } from "./recording/service";
 import { electronScreen } from "./screen-capture";
 import { Secrets } from "./secrets";
 import type { Seen } from "./seen";
@@ -298,6 +299,7 @@ async function runAssistant(spec: RunSpec): Promise<AgentResult> {
       : [],
     ...(spec.team ? { askable: spec.team.names } : {}),
     ...(spec.askedBy ? { askedBy: spec.askedBy } : {}),
+    ownSkills: store.ownSkills(),
   });
   return runAgent(
     assistant,
@@ -342,6 +344,48 @@ async function runAssistant(spec: RunSpec): Promise<AgentResult> {
         : {}),
     },
   );
+}
+
+/**
+ * The model a recording's draft goes to: the assistant's own, as an answer
+ * would use it, or another saved source the person picked after a model could
+ * not read the pictures. Never a silent fallback to another model.
+ */
+async function draftModel(
+  assistantId: string,
+  pickedSourceId?: string,
+): Promise<DraftModel> {
+  const assistant = store.assistant(assistantId);
+  const sourceId =
+    pickedSourceId ?? assistant.sourceId ?? store.settings().defaultSourceId;
+  const source = sourceId
+    ? store.sources().find((s) => s.id === sourceId)
+    : undefined;
+  if (!source) throw new Error("No model is set up yet. Add one in Models.");
+  const apiKey = await secrets.get(source.id);
+  const model =
+    pickedSourceId === undefined
+      ? (assistant.model ?? source.model)
+      : source.model;
+  const local = isLocalEndpoint(source.baseUrl);
+  return {
+    plan: {
+      model: `${source.name} · ${model}`,
+      where: local ? "on this computer" : source.name,
+      local,
+      sourceId: source.id,
+    },
+    turn: (messages, signal) =>
+      streamTurn({
+        baseUrl: source.baseUrl,
+        wire: source.wire,
+        auth: headerOf(source.preset),
+        ...(apiKey ? { apiKey } : {}),
+        model,
+        messages,
+        signal,
+      }),
+  };
 }
 
 /**
@@ -812,6 +856,7 @@ function register(window: BrowserWindow): void {
   );
   handle(IPC.dismissUpdate, () => store.dismissUpdate());
   handle(IPC.checkNow, () => checker.start());
+  registerRecording({ handle, window, store, model: draftModel });
 }
 
 /**

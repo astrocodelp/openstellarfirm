@@ -2,7 +2,9 @@
 
 import type { CheckEvery } from "./checks";
 import type { LinkName } from "./links";
+import type { OwnSkill, OwnSkillDraft, OwnSkillInput } from "./own-skills";
 import type { SendKey, TextSize } from "./preferences";
+import type { RecordPlan, RecordSource, RecordStatus } from "./recording";
 import type { Theme } from "./theme";
 import type { UpdateCheck } from "./update";
 
@@ -314,6 +316,11 @@ export interface Settings {
   checkNotify?: boolean;
   /** True while the main assistant has an update the person has not seen. */
   checkUnread?: boolean;
+  /**
+   * The person's own skills, such as one drafted from a recording. Only the
+   * main process changes them, through `saveOwnSkill` and `removeOwnSkill`.
+   */
+  ownSkills?: OwnSkill[];
 }
 
 export interface AppState {
@@ -368,6 +375,8 @@ export interface BackupResult {
   chats: number;
   /** True when the app's limit on assistants stopped the rest. */
   full: boolean;
+  /** How many of the person's own skills were added. */
+  ownSkills?: number;
 }
 
 /** What the page can ask the main process to do. */
@@ -466,6 +475,33 @@ export interface OpenApi {
   checkForUpdate(): Promise<UpdateCheck>;
   /** Closes the notice for the version that is shown now. */
   dismissUpdate(): Promise<Settings>;
+  /**
+   * Record how you work. The screens and windows that may be recorded; the
+   * person's pick is the consent. The page never captures anything itself.
+   */
+  recordSources(): Promise<RecordSource[]>;
+  recordStart(sourceId: string): Promise<RecordStatus>;
+  recordStop(): Promise<RecordStatus>;
+  recordStatus(): Promise<RecordStatus>;
+  /** One picture from a video the person picked, as base64 JPEG. */
+  recordAddFrame(jpeg: string, atMs: number): Promise<RecordStatus>;
+  recordRemoveFrame(frameId: string): Promise<RecordStatus>;
+  /** Forgets the recording and every picture in it. */
+  recordClear(): Promise<RecordStatus>;
+  /** How many pictures would go to which model. Sends nothing. */
+  recordPlan(assistantId: string, sourceId?: string): Promise<RecordPlan>;
+  /** Sends the kept pictures to the model and returns a draft. Saves nothing. */
+  recordDraft(
+    assistantId: string,
+    notes: string,
+    sourceId?: string,
+  ): Promise<OwnSkillDraft>;
+  recordCancel(): Promise<void>;
+  onRecord(listener: (status: RecordStatus) => void): () => void;
+  /** Saves one of the person's own skills: only on their own Save. */
+  saveOwnSkill(input: OwnSkillInput): Promise<OwnSkill>;
+  /** Deletes one, and takes it off every assistant that had it ticked. */
+  removeOwnSkill(id: string): Promise<void>;
   onDelta(listener: (delta: ChatDelta) => void): () => void;
   onDone(listener: (done: ChatDone) => void): () => void;
   onActivity(listener: (activity: ChatActivity) => void): () => void;
@@ -515,6 +551,19 @@ export const IPC = {
   checkNow: "checks:now",
   checkForUpdate: "update:check",
   dismissUpdate: "update:dismiss",
+  recordSources: "record:sources",
+  recordStart: "record:start",
+  recordStop: "record:stop",
+  recordStatus: "record:status",
+  recordAddFrame: "record:frame:add",
+  recordRemoveFrame: "record:frame:remove",
+  recordClear: "record:clear",
+  recordPlan: "record:plan",
+  recordDraft: "record:draft",
+  recordCancel: "record:cancel",
+  record: "record:update",
+  saveOwnSkill: "skills:own:save",
+  removeOwnSkill: "skills:own:remove",
   delta: "chat:delta",
   done: "chat:done",
   activity: "chat:activity",

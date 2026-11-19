@@ -10,6 +10,7 @@ import type {
   ModelSource,
   OpenApi,
 } from "../../shared/types";
+import { recordPreview } from "./record-preview";
 
 /**
  * The page talks to the app through `window.stellarOpen`. In a plain browser
@@ -354,6 +355,7 @@ function preview(): OpenApi {
     },
     onActivity: () => () => {},
     onApproval: () => () => {},
+    ...recordPreview(state),
   };
 }
 

@@ -11,6 +11,18 @@ The app is at version 0.1.0. There is no tagged release yet.
 
 ### Added
 
+- Record how you work: on an assistant's page, record your whole screen or one
+  window (your pick is the consent, up to ten minutes) or pick a video you
+  have. A picture is kept every two seconds only when the screen changed, in
+  memory only; no video is saved. Remove any picture with the mouse or the
+  keyboard, add a few words, and see how many pictures go to which model
+  before anything is sent. The assistant's own model studies them three at a
+  time and drafts a skill; a model that cannot read pictures is named, and you
+  can pick another for that draft. You read and edit the draft, and only your
+  Save keeps it, in "My skills" in the skills picker, where you can edit,
+  delete and tick it. Own skills travel in a backup as text. No picture of the
+  whole screen is kept while OpenStellarFirm is in front, nor of a window whose
+  title reads like a password manager.
 - A gallery of 50 services to connect, up from ten: each one checked against
   the service's own page for a remote MCP server at one fixed https address
   that takes a key you make there in a header. Search by name, what it does or

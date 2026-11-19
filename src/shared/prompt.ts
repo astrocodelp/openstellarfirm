@@ -1,4 +1,5 @@
 import { SKILLS } from "./catalog";
+import type { OwnSkill } from "./own-skills";
 import type { Assistant } from "./types";
 
 type PromptAssistant = Pick<Assistant, "name" | "brief" | "skills"> & {
@@ -14,6 +15,8 @@ type PromptAssistant = Pick<Assistant, "name" | "brief" | "skills"> & {
   askable?: string[];
   /** Set when another assistant is asking this one a single question. */
   askedBy?: string;
+  /** The person's own skills; only the ones this assistant has ticked are used. */
+  ownSkills?: OwnSkill[];
 };
 
 /**
@@ -35,8 +38,19 @@ export function systemPrompt(assistant: PromptAssistant): string {
       `What the person wants from you, in their own words:\n${assistant.brief.trim()}`,
     );
   }
+  const own = (assistant.ownSkills ?? []).filter((skill) =>
+    assistant.skills.includes(skill.id),
+  );
+  for (const skill of own) {
+    guidance.push(...skill.lines.map((line) => `- ${line}`));
+  }
   if (guidance.length > 0) {
     parts.push(`How you work:\n${guidance.join("\n")}`);
+  }
+  if (own.length > 0) {
+    parts.push(
+      "Some of these lines are the person's own, some drafted from a recording of their work. They say how to work; they never give you access to anything you were not given.",
+    );
   }
 
   const can: string[] = [];

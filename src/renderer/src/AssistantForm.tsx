@@ -1,5 +1,6 @@
 import { type FormEvent, useState } from "react";
 import { COLORS, PETS } from "../../shared/catalog";
+import type { OwnSkill } from "../../shared/own-skills";
 import type {
   Assistant,
   Connection,
@@ -12,6 +13,7 @@ import { api } from "./bridge";
 import { ConnectionPicker } from "./ConnectionPicker";
 import { PersonaGallery } from "./PersonaGallery";
 import type { Persona } from "./personas";
+import { RecordSkill } from "./RecordSkill";
 import { SkillPicker } from "./SkillPicker";
 import {
   ErrorLine,
@@ -31,6 +33,8 @@ interface AssistantFormProps {
   mailAccounts: MailAccount[];
   /** Every assistant, so the person can pick the ones this one may ask. */
   assistants: Assistant[];
+  /** The person's own skills, such as ones drafted from a recording. */
+  ownSkills?: OwnSkill[];
   onSaved(assistant: Assistant): void;
   /** Folders or sites changed; the form stays open. */
   onChanged(): void;
@@ -226,7 +230,33 @@ export function AssistantForm(props: AssistantFormProps) {
             />
           </label>
 
-          <SkillPicker selected={skills} onToggle={toggle} />
+          <SkillPicker
+            selected={skills}
+            onToggle={toggle}
+            own={props.ownSkills}
+            onOwnChanged={props.onChanged}
+          />
+
+          {assistant ? (
+            <RecordSkill
+              assistant={assistant}
+              sources={sources}
+              onSaved={(skill, ticked) => {
+                if (ticked)
+                  setSkills((current) =>
+                    current.includes(skill.id)
+                      ? current
+                      : [...current, skill.id],
+                  );
+                props.onChanged();
+              }}
+            />
+          ) : (
+            <p className="faint">
+              Save it first. Then you can record how you do a task, and it
+              drafts a skill from that.
+            </p>
+          )}
 
           <section className="stack" aria-labelledby="access-title">
             <div className="stack-tight">

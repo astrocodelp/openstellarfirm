@@ -1,0 +1,308 @@
+/*
+ * Record how you work, and the person's own skills. Only tokens from
+ * styles.css; motion only when the person has not asked for less, and with
+ * reduced motion only opacity fades remain.
+ */
+
+.modal {
+  width: min(46rem, calc(100vw - 2rem));
+  max-height: calc(100dvh - 3rem);
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-panel);
+  background: var(--raised);
+  color: var(--text);
+  box-shadow: var(--float-shadow);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.modal::backdrop {
+  background: rgb(0 0 0 / 0.55);
+}
+
+.modal-body {
+  padding: 1.5rem;
+}
+
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+/* The heading takes focus so each step is announced; the ring is for keys only. */
+.modal-head .section-title:focus:not(:focus-visible) {
+  outline: none;
+}
+
+.record-notes {
+  margin: 0;
+  padding-left: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  color: var(--dim);
+}
+
+.record-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 0.75rem;
+}
+
+.record-option,
+.record-source {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+  min-height: 5.5rem;
+  padding: 1rem 1.125rem;
+  border: 1px solid var(--control-line);
+  border-radius: var(--radius-card);
+  background: var(--sunken);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.record-option:hover,
+.record-source:hover {
+  background: var(--hover);
+}
+
+.record-option:disabled,
+.record-source:disabled {
+  cursor: default;
+  color: var(--faint);
+}
+
+.record-option:disabled:hover,
+.record-source:disabled:hover {
+  background: var(--sunken);
+}
+
+.record-option-title,
+.record-source-name {
+  font-weight: 500;
+}
+
+.record-sources {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 24rem;
+  overflow: auto;
+}
+
+.record-source {
+  width: 100%;
+  padding: 0.625rem;
+}
+
+.record-source-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.record-source-thumb {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  border-radius: var(--radius-inset);
+  background: var(--active);
+  overflow: hidden;
+}
+
+.record-source-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.record-live {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  font-weight: 500;
+}
+
+.record-dot {
+  width: 0.75rem;
+  height: 0.75rem;
+  flex-shrink: 0;
+  border-radius: var(--radius-pill);
+  background: var(--danger);
+}
+
+.record-clock {
+  font-size: var(--text-heading);
+  font-weight: 500;
+}
+
+.record-num {
+  font-variant-numeric: tabular-nums;
+}
+
+.record-over {
+  color: var(--danger);
+}
+
+.record-progress {
+  width: 100%;
+  height: 0.5rem;
+  accent-color: var(--text);
+}
+
+.record-plan p {
+  margin: 0;
+}
+
+.record-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0.125rem;
+  list-style: none;
+  max-height: 19rem;
+  overflow: auto;
+}
+
+.record-frame {
+  position: relative;
+  isolation: isolate;
+}
+
+.record-frame img,
+.record-frame-empty {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-inset);
+  background: var(--active);
+}
+
+.record-frame-at {
+  position: absolute;
+  left: 0.375rem;
+  bottom: 0.375rem;
+  padding: 0 0.375rem;
+  border-radius: var(--radius-pill);
+  background: rgb(7 7 9 / 0.72);
+  color: #f3efe6;
+  font-size: var(--text-caption);
+  pointer-events: none;
+}
+
+.record-frame-remove {
+  position: absolute;
+  top: 0.375rem;
+  right: 0.375rem;
+  width: 1.75rem;
+  height: 1.75rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid rgb(243 239 230 / 0.42);
+  border-radius: var(--radius-pill);
+  background: rgb(7 7 9 / 0.72);
+  color: #f3efe6;
+  cursor: pointer;
+}
+
+/* A larger target than the mark: 2.5rem around a 1.75rem button. */
+.record-frame-remove::after {
+  content: "";
+  position: absolute;
+  inset: -0.375rem;
+}
+
+.record-frame-remove:hover {
+  background: rgb(7 7 9 / 0.9);
+}
+
+.own-skill {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.own-skill-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.own-skill-actions {
+  display: inline-flex;
+  gap: 0.875rem;
+  padding: 0.5rem 0.5rem 0 0;
+  flex-shrink: 0;
+}
+
+.own-skill-actions .link-btn {
+  position: relative;
+}
+
+/* A larger target than the word, short of the next one. */
+.own-skill-actions .link-btn::after {
+  content: "";
+  position: absolute;
+  inset: -0.625rem -0.375rem;
+}
+
+.own-skill-delete {
+  color: var(--danger);
+}
+
+.own-skill-confirm p {
+  margin: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modal[open],
+  .modal[open]::backdrop {
+    animation: fade-in var(--dur-quick) var(--ease-out);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .modal[open] {
+    transform-origin: 50% 100%;
+    animation: card-in var(--dur-enter) var(--ease-out);
+  }
+
+  .modal[open]::backdrop {
+    animation: fade-in var(--dur-enter) var(--ease-out);
+  }
+
+  .record-option,
+  .record-source,
+  .record-frame-remove {
+    transition:
+      background-color var(--dur-press) var(--ease-out),
+      transform var(--dur-press) var(--ease-out);
+  }
+
+  .record-option:not(:disabled):active,
+  .record-source:not(:disabled):active {
+    transform: scale(0.985);
+  }
+
+  .record-frame-remove:active {
+    transform: scale(0.96);
+  }
+}
