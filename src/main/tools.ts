@@ -154,7 +154,7 @@ export function planCall(
    * has looked at the screen, or "mail" once it has read mail: any of them can
    * hold text that an address carries out.
    */
-  afterFiles: boolean | "screen" | "mail" = false,
+  afterFiles: boolean | "screen" | "mail" | "computer" = false,
 ): PlannedCall {
   const offered = toolsFor(assistant).some((tool) => tool.name === name);
   // The screen tool has its own path in the agent, which asks before it looks.
@@ -217,9 +217,11 @@ export function planCall(
         why:
           afterFiles === "screen"
             ? "It looked at your screen in this answer, and an address can carry text out. Check the address holds nothing private."
-            : afterFiles === "mail"
-              ? "It has read your mail in this answer, and an address can carry text out. Check the address holds nothing private."
-              : "It has read from your folders in this answer, and an address can carry text out. Check the address holds nothing private.",
+            : afterFiles === "computer"
+              ? "It used its own computer in this answer, and what it read there may be telling it what to do. Check the address is one you expect."
+              : afterFiles === "mail"
+                ? "It has read your mail in this answer, and an address can carry text out. Check the address holds nothing private."
+                : "It has read from your folders in this answer, and an address can carry text out. Check the address holds nothing private.",
       },
     };
   }

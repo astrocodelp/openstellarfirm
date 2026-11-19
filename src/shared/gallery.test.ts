@@ -146,7 +146,9 @@ describe("the size of the instructions", () => {
 
   it(`keeps each ready-made assistant under ${PROMPT_BUDGET} characters`, () => {
     for (const { name, raw } of personas) {
-      const { assistant } = readAssistantFile(raw);
+      // A persona never brings a computer, so the prompt is read without one.
+      const { computer: _computer, ...assistant } =
+        readAssistantFile(raw).assistant;
       const prompt = systemPrompt({ ...base, ...assistant });
       expect(prompt.length, name).toBeLessThanOrEqual(PROMPT_BUDGET);
       // Every skill it ticks is in it.

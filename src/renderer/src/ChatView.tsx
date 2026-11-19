@@ -1,5 +1,6 @@
 import {
   type KeyboardEvent,
+  type ReactNode,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -100,6 +101,8 @@ interface ChatViewProps {
   preset?: string;
   /** The chat after a message was forgotten, the chat cleared or summed up. */
   onChatChanged(messages: ChatMessage[]): void;
+  /** More buttons in the head, before Customize. */
+  headExtra?: ReactNode;
 }
 
 /** The time a check started, as the person's computer writes it. */
@@ -244,7 +247,10 @@ export function ChatView(props: ChatViewProps) {
   const files = useAttachments(assistant.id);
   const drop = useDropFiles(files, true);
   const canAct =
-    assistant.folders.length > 0 || assistant.web || assistant.screen === true;
+    assistant.folders.length > 0 ||
+    assistant.web ||
+    assistant.screen === true ||
+    assistant.computer !== undefined;
   const [memory, setMemory] = useMemory(assistant.id, messages.length);
   const tools = useChatTools(assistant.id, props.onChatChanged);
   const use = contextUse({
@@ -444,6 +450,7 @@ export function ChatView(props: ChatViewProps) {
             onError={setError}
           />
         ) : null}
+        {props.headExtra}
         <button type="button" className="btn" onClick={props.onCustomize}>
           Customize
         </button>

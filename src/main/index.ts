@@ -81,6 +81,9 @@ import {
   scheduleChecks,
   updateNotice,
 } from "./checks";
+import { createComputers, registerComputer } from "./computer/ipc";
+import type { ComputerService } from "./computer/service";
+import { computerGate } from "./computer/tools";
 import {
   ConnectionService,
   catalogInput,
@@ -142,6 +145,7 @@ let checker: CheckScheduler;
 let attachments: Attachments;
 let reader: Reader;
 let languages: OcrLanguages;
+let computers: ComputerService;
 const running = new Map<string, AbortController>();
 /** The step that waits for the person, by assistant. One at a time each. */
 const waiting = new Map<
@@ -427,9 +431,16 @@ async function runAssistant(spec: RunSpec): Promise<AgentResult> {
   // gets none, and only an answer to the person may save one.
   const notes = kind === "asked" ? undefined : memoryOf(assistant.id);
   const remember = kind === "answer" && notes?.on === true;
+  // Its own computer is used only in an answer to the person: never by a
+  // check, which only reads, nor when another assistant asks it a question.
+  const computer = kind === "answer" ? assistant.computer : undefined;
+  const computerTools = computer
+    ? computerGate(assistant, computers)
+    : undefined;
   const prompt = systemPrompt({
     ...assistant,
     screen,
+    computer,
     folderLabels: folderLabels(assistant.folders).map((f) => f.label),
     connectionNames: mcp
       ? store
@@ -468,6 +479,7 @@ async function runAssistant(spec: RunSpec): Promise<AgentResult> {
       modeKey: `${source.id}\n${assistant.model ?? source.model}`,
       ...(mcp ? { mcp } : {}),
       ...(mailGate ? { mail: mailGate } : {}),
+      ...(computerTools ? { computer: computerTools } : {}),
       ...(spec.team ? { team: spec.team } : {}),
       ...(remember ? { memory: rememberGate(memory, assistant.id) } : {}),
       ...(spec.seen ? { seen: spec.seen } : {}),
@@ -1013,15 +1025,25 @@ function deleteAllChats(): number {
 
 function register(window: BrowserWindow): void {
   handle(IPC.getState, () => state());
-  handle(IPC.saveAssistant, (_e, input: AssistantInput) =>
-    store.saveAssistant(input),
-  );
+  handle(IPC.saveAssistant, (_e, input: AssistantInput) => {
+    const had = store.assistants().find((a) => a.id === input?.id)?.computer;
+    const saved = store.saveAssistant(input);
+    // Turning the computer off stops it; it is kept until the person removes it.
+    if (had && !saved.computer) {
+      computers.setHold(saved.id, "none");
+      void computers.stop(saved.id).catch(() => {});
+    }
+    return saved;
+  });
   handle(IPC.removeAssistant, (_e, id: unknown) => {
     running.get(str(id))?.abort();
+    const had = store.assistants().find((a) => a.id === id)?.computer;
     store.removeAssistant(str(id));
     memory.forget(str(id));
     forgotten.delete(str(id));
     attachments.clearWaiting(str(id));
+    // Its computer goes with it; the exchange folder stays in the data folder.
+    if (had) void computers.remove(str(id)).catch(() => {});
   });
   handle(IPC.exportAssistant, (_e, id: unknown) =>
     exportAssistant(window, str(id)),
@@ -1200,6 +1222,13 @@ function register(window: BrowserWindow): void {
   handle(IPC.copyMessage, (_e, id: unknown, messageId: unknown) =>
     copyMessage(str(id, 64), str(messageId, 64)),
   );
+  registerComputer({
+    handle,
+    service: computers,
+    assistant: (id) => store.assistant(str(id)),
+    progress: (payload) => tell(window, IPC.computerProgress, payload),
+    openFolder: (path) => shell.openPath(path),
+  });
   registerMemory();
 }
 
@@ -1358,6 +1387,7 @@ app.whenReady().then(() => {
   } catch {
     // A sweep that fails leaves files for the next start.
   }
+  computers = createComputers(dir, join(__dirname, "../computer"));
   updates = new UpdateChecker({
     fetch,
     now: () => new Date(),
@@ -1397,4 +1427,17 @@ app.whenReady().then(() => {
 
 app.on("window-all-closed", () => {
   app.quit();
+});
+
+// The assistants' computers stop when the app quits. They are kept, with
+// their files, until the person removes them.
+let stoppedComputers = false;
+app.on("before-quit", (event) => {
+  if (stoppedComputers || !computers) return;
+  event.preventDefault();
+  stoppedComputers = true;
+  void Promise.race([
+    computers.stopAll().catch(() => {}),
+    new Promise((resolve) => setTimeout(resolve, 15_000)),
+  ]).finally(() => app.quit());
 });

@@ -16,6 +16,11 @@ export interface Seen {
   screen: boolean;
   /** Set once this answer has read the person's mail. */
   mail: boolean;
+  /**
+   * Set once this answer has seen its own computer's screen or a command's
+   * output there: outside text, which may come from a web page.
+   */
+  computer?: boolean;
   /** The picture the last call made, taken by the loop right after it. */
   picture?: ImagePart;
   [flag: string]: boolean | ImagePart | undefined;

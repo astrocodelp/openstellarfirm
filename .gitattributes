@@ -1,0 +1,3 @@
+# The computer's scripts run inside Linux, so they keep Unix line endings
+# even in a checkout on Windows.
+resources/computer/* text eol=lf

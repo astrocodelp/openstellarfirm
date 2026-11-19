@@ -1,4 +1,9 @@
 import { presetOf } from "../../shared/catalog";
+import type {
+  ComputerHold,
+  ComputerProgress,
+  ComputerView,
+} from "../../shared/computer";
 import { catalogEntry, catalogPreset } from "../../shared/connection-catalog";
 import { cleanNoteText } from "../../shared/memory";
 import { searchChats } from "../../shared/search";
@@ -202,6 +207,15 @@ function preview(): OpenApi {
   };
   const chats = new Map<string, ChatMessage[]>();
   const doneListeners = new Set<(done: ChatDone) => void>();
+  const progressListeners = new Set<(progress: ComputerProgress) => void>();
+  let computerImage = false;
+  /** Running stand-in computers and who holds each. */
+  const computers = new Map<string, ComputerHold>();
+  const computerViewOf = (assistantId: string): ComputerView => ({
+    container: computers.has(assistantId) ? "on" : "off",
+    hold: computers.get(assistantId) ?? "none",
+    exchange: `/Users/you/Library/Application Support/OpenStellarFirm/computers/${assistantId}/exchange`,
+  });
   const say = (
     assistantId: string,
     role: ChatMessage["role"],
@@ -227,9 +241,10 @@ function preview(): OpenApi {
     getState: async () => structuredClone(state),
     saveAssistant: async (input) => {
       const existing = state.assistants.find((a) => a.id === input.id);
+      const { computer, ...rest } = input;
       const next: Assistant = {
         ...existing,
-        ...input,
+        ...rest,
         id: existing?.id ?? id(),
         folders: existing?.folders ?? [],
         sites: existing?.sites ?? [],
@@ -239,6 +254,8 @@ function preview(): OpenApi {
         web: input.web ?? existing?.web ?? false,
         createdAt: existing?.createdAt ?? now(),
       };
+      if (computer === null) delete next.computer;
+      else if (computer) next.computer = computer;
       state.assistants = existing
         ? state.assistants.map((a) => (a.id === next.id ? next : a))
         : [...state.assistants, next];
@@ -513,6 +530,56 @@ function preview(): OpenApi {
     },
     onActivity: () => () => {},
     onApproval: () => () => {},
+    // A stand-in computer: no Docker, only a drawn screen, so the panel can be
+    // worked on in a browser.
+    computerStatus: async () => ({
+      docker: "ready",
+      version: "preview",
+      image: computerImage,
+      building: false,
+    }),
+    computerSetup: async () => {
+      for (const line of ["Downloading the base image", "Adding packages"]) {
+        for (const listener of progressListeners)
+          listener({ line, state: "running" });
+        await new Promise((r) => setTimeout(r, 600));
+      }
+      computerImage = true;
+      for (const listener of progressListeners)
+        listener({ line: "Done", state: "done" });
+    },
+    computerView: async (assistantId) => computerViewOf(assistantId),
+    computerStart: async (assistantId) => {
+      computers.set(assistantId, "none");
+      return computerViewOf(assistantId);
+    },
+    computerShot: async (assistantId) =>
+      computers.has(assistantId)
+        ? {
+            src: `data:image/svg+xml,${encodeURIComponent(
+              '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 800"><rect width="1280" height="800" fill="#1d1d23"/><rect x="80" y="80" width="640" height="420" rx="8" fill="#f3efe6"/></svg>',
+            )}`,
+            at: now(),
+          }
+        : null,
+    computerHold: async (assistantId, hold) => {
+      computers.set(assistantId, hold);
+      return computerViewOf(assistantId);
+    },
+    computerInput: async () => {},
+    computerStop: async (assistantId) => {
+      computers.delete(assistantId);
+      return computerViewOf(assistantId);
+    },
+    computerRemove: async (assistantId) => {
+      computers.delete(assistantId);
+      return computerViewOf(assistantId);
+    },
+    computerOpenExchange: async () => {},
+    onComputerProgress: (listener) => {
+      progressListeners.add(listener);
+      return () => progressListeners.delete(listener);
+    },
   };
 }
 

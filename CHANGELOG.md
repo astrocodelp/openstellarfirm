@@ -125,6 +125,18 @@ The app is at version 0.1.0. There is no tagged release yet.
   of keys, are hidden wherever they appear.
 - A Copy button under each answer. The words are copied by the main process
   from the saved chat; the page sends only which message.
+- A computer of its own for an assistant, in Docker on this computer, never
+  in a cloud. Off by default, turned on per assistant. The app finds the
+  `docker` command (Docker Desktop, Docker Engine, OrbStack, Colima, Rancher
+  Desktop or Podman's), builds a small Debian desktop from a Dockerfile it
+  ships on your click, and runs one container per assistant with no network
+  unless you allow it, every capability dropped, no new privileges, limits on
+  processes, memory and processors, and only its own exchange folder mounted.
+  The assistant can take a picture of its screen, click, type, press keys,
+  scroll, run a command with a time limit, and copy a file out; saving a copy
+  into one of your folders asks every time. A panel beside the chat shows the
+  screen about once a second, with Pause, Take over, Stop, Turn off and
+  Remove. See [docs/COMPUTER.md](docs/COMPUTER.md).
 
 ### Changed
 

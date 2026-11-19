@@ -45,7 +45,7 @@ export const MAX_PICTURE_BYTES = 1_500_000;
 export const REMOVED_PICTURE = "[an earlier look at the screen was removed]";
 export const PICTURE_TEXT = "The screen was captured. The picture follows.";
 export const NO_PICTURES_TEXT =
-  "The screen was captured, but this model cannot read pictures, so you cannot see it. Tell the person you could not see their screen.";
+  "The picture was taken, but this model cannot read pictures, so you cannot see it. Tell the person you could not see the screen.";
 
 /** A grabbed screen. The real one wraps an Electron image. */
 export interface Frame {

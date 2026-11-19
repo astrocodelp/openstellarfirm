@@ -2,6 +2,15 @@
 
 import type { AccessibilityPrefs } from "./accessibility";
 import type { CheckEvery } from "./checks";
+import type {
+  ComputerHold,
+  ComputerInput,
+  ComputerProgress,
+  ComputerSettings,
+  ComputerShot,
+  ComputerStatus,
+  ComputerView,
+} from "./computer";
 import type { LinkName } from "./links";
 import type { AssistantMemory, MemoryNote } from "./memory";
 import type { SendKey, TextSize } from "./preferences";
@@ -94,6 +103,12 @@ export interface Assistant {
    * asks first.
    */
   screen?: boolean;
+  /**
+   * A computer of its own: a Linux desktop in Docker on this computer. Missing
+   * means off. Only the assistant form sets it; never in a shared file, a
+   * backup or a persona.
+   */
+  computer?: ComputerSettings;
   /** Sites the person chose to always allow for this assistant. */
   sites: string[];
   /** Ids of the connections it may use. Only the assistant form sets them. */
@@ -132,6 +147,8 @@ export type AssistantInput = Pick<
   id?: string;
   web?: boolean;
   screen?: boolean;
+  /** Null turns its computer off; missing keeps it as it is. */
+  computer?: ComputerSettings | null;
   connections?: string[];
   mail?: string[];
   canAsk?: string[];
@@ -612,6 +629,26 @@ export interface OpenApi {
   onDone(listener: (done: ChatDone) => void): () => void;
   onActivity(listener: (activity: ChatActivity) => void): () => void;
   onApproval(listener: (change: ApprovalChange) => void): () => void;
+  /** Whether Docker is there and running, and whether the computer is set up. */
+  computerStatus(): Promise<ComputerStatus>;
+  /** Builds the computer's image, on the person's click. Progress arrives as events. */
+  computerSetup(): Promise<void>;
+  computerView(assistantId: string): Promise<ComputerView>;
+  computerStart(assistantId: string): Promise<ComputerView>;
+  /** A picture of the screen for the live view; null when it is off. */
+  computerShot(assistantId: string): Promise<ComputerShot | null>;
+  /** Pauses the assistant on its computer, or gives the person control. */
+  computerHold(assistantId: string, hold: ComputerHold): Promise<ComputerView>;
+  /** A click or a key from the person; only while they have taken over. */
+  computerInput(assistantId: string, input: ComputerInput): Promise<void>;
+  computerStop(assistantId: string): Promise<ComputerView>;
+  /** Removes the computer. The exchange folder and its files stay. */
+  computerRemove(assistantId: string): Promise<ComputerView>;
+  /** Opens the assistant's exchange folder. The page names no path. */
+  computerOpenExchange(assistantId: string): Promise<void>;
+  onComputerProgress(
+    listener: (progress: ComputerProgress) => void,
+  ): () => void;
 }
 
 export const IPC = {
@@ -683,6 +720,17 @@ export const IPC = {
   done: "chat:done",
   activity: "chat:activity",
   approval: "chat:approval",
+  computerStatus: "computer:status",
+  computerSetup: "computer:setup",
+  computerView: "computer:view",
+  computerStart: "computer:start",
+  computerShot: "computer:shot",
+  computerHold: "computer:hold",
+  computerInput: "computer:input",
+  computerStop: "computer:stop",
+  computerRemove: "computer:remove",
+  computerOpenExchange: "computer:exchange",
+  computerProgress: "computer:progress",
 } as const;
 
 /** Every answer over IPC, so an error arrives as a plain sentence. */

@@ -1,5 +1,6 @@
 import { type FormEvent, useId, useState } from "react";
 import { COLORS, PETS } from "../../shared/catalog";
+import type { ComputerSettings } from "../../shared/computer";
 import type {
   Assistant,
   Connection,
@@ -9,6 +10,7 @@ import type {
   PetId,
 } from "../../shared/types";
 import { api } from "./bridge";
+import { ComputerChoice } from "./Computer";
 import { ConnectionPicker } from "./ConnectionPicker";
 import { MemorySection } from "./Memory";
 import { PersonaGallery } from "./PersonaGallery";
@@ -50,6 +52,9 @@ export function AssistantForm(props: AssistantFormProps) {
   const [skills, setSkills] = useState<string[]>(assistant?.skills ?? []);
   const [web, setWeb] = useState(assistant?.web ?? false);
   const [screen, setScreen] = useState(assistant?.screen ?? false);
+  const [computer, setComputer] = useState<ComputerSettings | null>(
+    assistant?.computer ?? null,
+  );
   const [connectionIds, setConnectionIds] = useState<string[]>(
     assistant?.connections ?? [],
   );
@@ -100,6 +105,7 @@ export function AssistantForm(props: AssistantFormProps) {
           skills,
           web,
           screen,
+          computer,
           connections: connectionIds,
           mail: mailIds,
           canAsk,
@@ -276,6 +282,8 @@ export function AssistantForm(props: AssistantFormProps) {
               only after you approve. Everything visible goes to the model you
               chose, so close anything private first.
             </p>
+
+            <ComputerChoice value={computer} onChange={setComputer} />
 
             {assistant ? (
               <>

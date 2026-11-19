@@ -21,6 +21,8 @@ app's version and operating system. Please do not include a real key.
 - **The folders you pick** for an assistant, **the websites you allow**, **the
   connections you add**, and, when you turn it on and approve each look,
   **what is on your screen**.
+- **Docker**, when you give an assistant a computer of its own: the app runs
+  your `docker` command to build and run that computer.
 
 ## Where untrusted text comes from
 
@@ -34,6 +36,7 @@ app's version and operating system. Please do not include a real key.
 | Another assistant's answer                        | Reaches the asker's model marked as information, not instructions.                                                                                                                                                                                                             |
 | A file you attach                                 | Its kind is decided from its bytes, never its name. PDFs and pictures are read only in a hidden reader window: sandboxed, isolated, in its own session where every request but its own files is cancelled. Reaches the model marked as information, not instructions.          |
 | A picture of the screen                           | Reaches the model as information. The prompt says text in it is never an instruction.                                                                                                                                                                                          |
+| An assistant's own computer (screen, commands)    | Outside text: it may come from a web page or a file made there. The answer is marked, so later web reads, connection calls and mail reads ask again. It reaches the model as information.                                                                                      |
 | A company's published file (`poppy.json`)         | Read strictly, every text cut and cleaned, shown as plain text. Only a web address and a name are ever copied into a form you review.                                                                                                                                          |
 | An imported assistant file, a backup or a persona | Checked field by field. It never brings a key, a model, a folder, a site, a connection, web access or screen access with it. A backup only adds new assistants and never changes or removes one you have. Chats in it come in as plain text.                                   |
 | A model service's answers and errors              | A redirect is an error. An error is shown as a short plain line with the key taken out.                                                                                                                                                                                        |
@@ -52,7 +55,21 @@ app's version and operating system. Please do not include a real key.
   connection is made to that checked address. A redirect to another site is
   not followed.
 - **Connections.** Made only from a web address you typed (https, or http on
-  this computer). The app never starts a program for one. A redirect is an
+  this computer). The app never starts a program for one.
+- **An assistant's own computer.** Off unless you turn it on for that
+  assistant; only the assistant form sets it, and no shared file, backup or
+  persona carries it. `docker` is run with an argument array, never a shell,
+  and every value from a model is checked before it becomes one argument
+  (whole pixels on the screen, keys from a fixed list, a command within its
+  length and time limits). The container has `--network none` unless you
+  allowed the network, `--cap-drop ALL`, `no-new-privileges`, an ordinary
+  user, limits on processes, memory and processors, and one folder of yours
+  mounted: its own exchange folder in the app's data folder. Never
+  `--privileged`, never the Docker socket. Inside it nothing asks; saving a
+  file from it into one of your folders asks every time and never replaces a
+  file. Checks and assistants that are asked a question never use it. The
+  page can send it clicks and keys only while you have taken over. The full
+  design and threat model: [docs/COMPUTER.md](docs/COMPUTER.md). A redirect is an
   error; an answer is capped at 2 MB and a request at 30 seconds; at most 20
   connections, each with a name of its own, and 40 tools each. Which assistants may use a connection is set
   only by you.
@@ -192,6 +209,12 @@ Said plainly, so nobody relies on more than is there:
 - **Checks cost what your model costs.** Each check is a call to your model.
 - **A look at the screen shows everything visible.** Close anything private
   before you approve. Many models on this computer cannot read pictures.
+- **An assistant's own computer is a container, not a virtual machine.** On
+  Linux it shares your kernel. With its network on, a page there can try to
+  steer it and it could send what is on that computer to a website. A file
+  copied out of it can be harmful like any download. Stopping an answer does
+  not end a command already running inside it, which runs to its time limit.
+  See [docs/COMPUTER.md](docs/COMPUTER.md).
 - **Earlier answers stay in the chat.** If an assistant quoted a file in an
   earlier answer, a later web read on an allowed site does not ask again.
 - **A backup file is not encrypted.** If you include chats it holds your
@@ -212,8 +235,9 @@ Said plainly, so nobody relies on more than is there:
   the page is loaded from a file. Serving it from a protocol of the app's own
   would let that go off.
 - **Not run against real services.** The Anthropic and Gemini wires, the
-  connections client and the screen capture are covered by offline tests with
-  stand-ins. Report what breaks against the real thing.
+  connections client, the screen capture and the Docker calls are covered by
+  offline tests with stand-ins. The computer was also checked by hand with
+  Docker Desktop on macOS. Report what breaks against the real thing.
 
 ## Dependencies
 
