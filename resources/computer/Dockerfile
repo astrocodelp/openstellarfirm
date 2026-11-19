@@ -14,7 +14,7 @@ RUN apt-get update \
       firefox-esr \
       python3 python3-pip python3-venv \
       ca-certificates curl git unzip zip less nano procps file \
-      fonts-dejavu-core fonts-liberation \
+      fonts-dejavu-core fonts-liberation fonts-wqy-microhei fonts-unfonts-core \
  && rm -rf /var/lib/apt/lists/*
 
 # Everything runs as this ordinary user: the container has no root process

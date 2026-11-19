@@ -193,6 +193,9 @@ The app is at version 0.1.0. There is no tagged release yet.
 
 ### Fixed
 
+- An assistant's computer shows Chinese, Japanese and Korean text on web
+  pages instead of boxes (two small font packages in its image).
+
 - Three problems an automated accessibility check (axe-core) found on the
   running app: a word Find anything found in a chat fell under 4.5:1 contrast
   on the chosen row in dark; the service search pointed a screen reader at a
