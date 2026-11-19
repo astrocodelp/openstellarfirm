@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { downloadFile } from "../../shared/links";
 import type { AppState, LinkName, UpdateCheck } from "../../shared/types";
 import { availableUpdate } from "../../shared/update";
 import { api } from "./bridge";
@@ -35,6 +36,9 @@ export function UpdatesSection({
   const { busy, error, run } = useAction();
   const [result, setResult] = useState("");
   const available = availableUpdate(settings, version);
+  const file = available
+    ? downloadFile(available, { platform: state.platform, arch: state.arch })
+    : null;
   const last = when(settings.lastUpdateCheck);
 
   return (
@@ -52,11 +56,53 @@ export function UpdatesSection({
             void save({ checkUpdates: event.target.checked })
           }
         />
-        <span>Look for a newer version once a day</span>
+        <span>Look for new versions at launch and once a day</span>
       </label>
       <p className="faint" id="update-check-note">
-        It asks GitHub once a day and sends nothing about you.
+        It asks GitHub and sends nothing about you.
       </p>
+      {settings.checkUpdates ? (
+        <label className="choice" style={{ alignSelf: "flex-start" }}>
+          <input
+            type="checkbox"
+            checked={settings.updateNotify !== false}
+            onChange={(event) =>
+              void save({ updateNotify: event.target.checked })
+            }
+          />
+          <span>Show a notice when a new version is out</span>
+        </label>
+      ) : null}
+      {available ? (
+        <div className="stack-tight">
+          <p>Version {available} is available.</p>
+          <div className="wrap">
+            {file ? (
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={busy}
+                onClick={() => void run(() => api.openLink("download"))}
+              >
+                Download {available}
+                <Icon name="external" size={14} />
+              </button>
+            ) : null}
+            <button
+              type="button"
+              className={file ? "link-btn" : "btn"}
+              onClick={() => void run(() => api.openLink("release"))}
+            >
+              See what's new
+            </button>
+          </div>
+          <p className="faint">
+            {file
+              ? "Install it as you did the first time, and your computer may warn you again."
+              : "Pick the file for your computer on the release page, and install it as you did the first time."}
+          </p>
+        </div>
+      ) : null}
       <div className="wrap">
         <button
           type="button"
@@ -73,18 +119,6 @@ export function UpdatesSection({
         >
           Check now
         </button>
-        {available ? (
-          <span className="wrap">
-            <span>Version {available} is available.</span>
-            <button
-              type="button"
-              className="link-btn"
-              onClick={() => void run(() => api.openLink("release"))}
-            >
-              See the release
-            </button>
-          </span>
-        ) : null}
       </div>
       <p className="faint">
         Your version is {version}.{last ? ` Last checked ${last}.` : ""}
@@ -93,10 +127,16 @@ export function UpdatesSection({
         <summary>How the update check works</summary>
         <p className="faint">
           The app never downloads or installs anything by itself. It can only
-          tell you that a newer version exists. Once a day, the app asks GitHub
-          which version is the newest. It sends nothing about you. GitHub sees
-          your network address, as any website does. It is off until you turn it
-          on.
+          tell you that a newer version exists. While the switch is on, the app
+          asks GitHub which version is the newest each time it starts (at most
+          once every ten minutes) and once a day while it stays open. It sends
+          nothing about you. GitHub sees your network address, as any website
+          does. It is off until you turn it on, and Check now works either way.
+        </p>
+        <p className="faint">
+          When a check finds a new version, the app shows one notice for it,
+          once. Download opens this computer&apos;s file on GitHub in your
+          browser, and you install it yourself, as you did the first time.
         </p>
       </details>
       <div aria-live="polite">

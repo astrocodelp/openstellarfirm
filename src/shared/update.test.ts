@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { linkUrl, REPO, releaseUrl } from "./links";
+import { downloadFile, linkUrl, REPO, releaseUrl } from "./links";
 import {
   cleanSendKey,
   cleanTextSize,
@@ -13,6 +13,8 @@ import {
   cleanVersion,
   compareVersions,
   isNewer,
+  shouldNotify,
+  updateOutNotice,
   versionOfTag,
 } from "./update";
 
@@ -121,6 +123,102 @@ describe("fixed links", () => {
     );
     expect(() => releaseUrl("1.2.3/../../x")).toThrow();
     expect(() => releaseUrl("v1.2.3")).toThrow();
+  });
+});
+
+describe("the download", () => {
+  const releases = "https://github.com/astrocodelp/openstellarfirm/releases";
+  const download = (platform: string, arch: string) =>
+    linkUrl("download", "1.2.3", { platform, arch });
+
+  it("opens this computer's file of the newest release", () => {
+    expect(download("darwin", "arm64")).toBe(
+      `${releases}/download/v1.2.3/OpenStellarFirm-1.2.3-mac-arm64.dmg`,
+    );
+    expect(download("darwin", "x64")).toBe(
+      `${releases}/download/v1.2.3/OpenStellarFirm-1.2.3-mac-x64.dmg`,
+    );
+    expect(download("win32", "x64")).toBe(
+      `${releases}/download/v1.2.3/OpenStellarFirm-1.2.3-win-x64.exe`,
+    );
+    // Windows on arm64 runs the x64 build.
+    expect(download("win32", "arm64")).toBe(
+      `${releases}/download/v1.2.3/OpenStellarFirm-1.2.3-win-x64.exe`,
+    );
+    expect(download("linux", "x64")).toBe(
+      `${releases}/download/v1.2.3/OpenStellarFirm-1.2.3-linux-x64.AppImage`,
+    );
+  });
+
+  it("opens the release page where there is no file for this computer", () => {
+    for (const [platform, arch] of [
+      ["linux", "arm64"],
+      ["linux", "ia32"],
+      ["darwin", "ia32"],
+      ["win32", "ia32"],
+      ["freebsd", "x64"],
+    ] as const) {
+      expect(downloadFile("1.2.3", { platform, arch })).toBeNull();
+      expect(download(platform, arch)).toBe(`${releases}/tag/v1.2.3`);
+    }
+  });
+
+  it("names the files as the build does", () => {
+    const builder = readFileSync(
+      join(import.meta.dirname, "../../electron-builder.yml"),
+      "utf8",
+    );
+    expect(builder).toMatch(
+      /artifactName: OpenStellarFirm-\$\{version\}-\$\{os\}-\$\{arch\}\.\$\{ext\}/,
+    );
+    expect(builder).toMatch(
+      /artifactName: OpenStellarFirm-\$\{version\}-linux-x64\.\$\{ext\}/,
+    );
+  });
+
+  it("needs a known version and this computer, and is built from numbers only", () => {
+    expect(() => linkUrl("download")).toThrow();
+    expect(() => linkUrl("download", "1.2.3")).toThrow();
+    expect(
+      downloadFile("1.2.3/../x", { platform: "darwin", arch: "arm64" }),
+    ).toBeNull();
+    expect(
+      downloadFile("v1.2.3", { platform: "darwin", arch: "arm64" }),
+    ).toBeNull();
+  });
+});
+
+describe("the notice for a new version", () => {
+  const on = { checkUpdates: true };
+
+  it("is told once for each version newer than the one running", () => {
+    expect(shouldNotify(on, "0.2.0", "0.1.0")).toBe(true);
+    expect(
+      shouldNotify({ ...on, notifiedVersion: "0.2.0" }, "0.2.0", "0.1.0"),
+    ).toBe(false);
+    expect(
+      shouldNotify({ ...on, notifiedVersion: "0.2.0" }, "0.3.0", "0.1.0"),
+    ).toBe(true);
+    expect(shouldNotify(on, "0.1.0", "0.1.0")).toBe(false);
+  });
+
+  it("stays quiet when checks or notices are off, or the version was dismissed", () => {
+    expect(shouldNotify({}, "0.2.0", "0.1.0")).toBe(false);
+    expect(shouldNotify({ ...on, updateNotify: false }, "0.2.0", "0.1.0")).toBe(
+      false,
+    );
+    expect(
+      shouldNotify({ ...on, dismissedVersion: "0.2.0" }, "0.2.0", "0.1.0"),
+    ).toBe(false);
+    expect(shouldNotify(on, "0.2.0 now", "0.1.0")).toBe(false);
+  });
+
+  it("says the version in plain words, built from the numbers only", () => {
+    expect(updateOutNotice("0.2.0")).toEqual({
+      title: "OpenStellarFirm 0.2.0 is out",
+      body: "Open it to download the new version.",
+    });
+    expect(() => updateOutNotice("0.2.0 <b>")).toThrow();
   });
 });
 

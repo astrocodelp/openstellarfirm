@@ -59,6 +59,47 @@ export function availableUpdate(
   return settings.dismissedVersion === newest ? null : newest;
 }
 
+/**
+ * Whether an automatic check that found `version` should show a system notice:
+ * checks and notices are on, the version is newer than the one running and
+ * than any the person was told about, and it is not one they dismissed. So a
+ * version is told once, and never again after a restart.
+ */
+export function shouldNotify(
+  settings: {
+    checkUpdates?: boolean;
+    updateNotify?: boolean;
+    dismissedVersion?: string;
+    notifiedVersion?: string;
+  },
+  version: string,
+  current: string,
+): boolean {
+  if (settings.checkUpdates !== true || settings.updateNotify === false)
+    return false;
+  const clean = cleanVersion(version);
+  if (!clean || !isNewer(clean, current)) return false;
+  if (settings.dismissedVersion === clean) return false;
+  const told = cleanVersion(settings.notifiedVersion);
+  return !told || isNewer(clean, told);
+}
+
+/**
+ * The words of the system notice. Built from the clean version only, so no
+ * text from an answer reaches the notice.
+ */
+export function updateOutNotice(version: string): {
+  title: string;
+  body: string;
+} {
+  const clean = cleanVersion(version);
+  if (!clean) throw new Error("That is not a version.");
+  return {
+    title: `OpenStellarFirm ${clean} is out`,
+    body: "Open it to download the new version.",
+  };
+}
+
 /** What a check found. "unknown" covers every way it could not tell. */
 export type UpdateCheck =
   | { status: "newer"; version: string }

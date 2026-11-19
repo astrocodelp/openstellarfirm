@@ -273,9 +273,12 @@ Check it: `sha256sum -c SHA256SUMS.txt --ignore-missing`.
 - The app has no telemetry and loads nothing from a CDN. It talks to the model
   you set up, the web pages you approved and the connections you added. Four
   more calls exist, and each starts only when you ask:
-  - **Update check** (off by default). When you turn it on, or press "Check
-    now", the app asks GitHub once a day which version is the newest. It sends
-    nothing about you, and it never downloads or installs anything.
+  - **Update check** (off by default; the first run asks). When you turn it
+    on, the app asks GitHub which version is the newest each time it starts
+    (at most once every ten minutes) and once a day while it stays open, and
+    "Check now" asks at once. It sends nothing about you, and it never
+    downloads or installs anything by itself: a new version gets one system
+    notice, and Download opens your computer's file in your browser.
   - **Composio.** Adding or using a Composio connection contacts Composio with
     your own key.
   - **A reading language.** Downloading one from Settings fetches that one

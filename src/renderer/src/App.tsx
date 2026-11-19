@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { cleanAccessibility } from "../../shared/accessibility";
+import { downloadFile } from "../../shared/links";
 import type {
   ApprovalCard,
   AppState,
@@ -223,13 +224,20 @@ export function App() {
       });
       void refresh();
     });
+    // A check found a version (read the state again, so the notice shows), or
+    // the person clicked the system notice: Settings opens on Updates.
+    const offUpdate = api.onUpdateNews(({ open }) => {
+      void refresh();
+      if (open) openSettings({ section: "updates" });
+    });
     return () => {
       offDelta();
       offActivity();
       offApproval();
       offDone();
+      offUpdate();
     };
-  }, [refresh]);
+  }, [refresh, openSettings]);
 
   // Load a chat, and any step that waits in it, the first time it is opened.
   useEffect(() => {
@@ -307,6 +315,13 @@ export function App() {
         <SkipLinks messageBox={false} />
         <Welcome
           keychain={state.keychain}
+          checkUpdates={state.settings.checkUpdates}
+          onCheckUpdates={(on) =>
+            void act(async () => {
+              await api.setSettings({ checkUpdates: on });
+              await refresh();
+            })
+          }
           onDone={() => void finishWelcome()}
           onCloud={() => void act(() => api.openCloud("home"))}
         />
@@ -440,6 +455,13 @@ export function App() {
           newVersion ? (
             <UpdateNotice
               version={newVersion}
+              canDownload={
+                downloadFile(newVersion, {
+                  platform: state.platform,
+                  arch: state.arch,
+                }) !== null
+              }
+              onDownload={() => void act(() => api.openLink("download"))}
               onSee={() => void act(() => api.openLink("release"))}
               onDismiss={() =>
                 void act(async () => {

@@ -130,11 +130,16 @@ app's version and operating system. Please do not include a real key.
   redirect is never followed, and the file is capped at 256 KB and 10 seconds.
   What the file says is shown as plain text and never sent to a model. Nothing
   is saved or connected by it.
-- **Update check.** Off by default. When on, or when you press "Check now",
-  the app makes one request a day to GitHub's public releases address for this
-  project, with no key and no cookie, reads only the release tag, follows no
-  redirect, and never downloads or installs anything. It can only show that a
-  version is available, with a button that opens the release page.
+- **Update check.** Off by default. When on, the app makes one request to
+  GitHub's public releases address for this project when it starts (none if
+  one ran in the last ten minutes) and one a day while it stays open, and one
+  when you press "Check now", with no key and no cookie. It reads only the
+  release tag, follows no redirect, and never downloads or installs anything.
+  It can only show that a version is available, once as a system notice, with
+  buttons that open the release page or this computer's file on GitHub in the
+  browser; both addresses are built from the three numbers of the version and
+  a fixed list of file names, never from text in the answer. Installing by
+  itself waits for signed builds.
 - **Mail.** The client can only look: it opens folders with `EXAMINE` and
   reads with `BODY.PEEK`, so nothing is marked read, and it can send only a
   fixed list of commands (sign in, list folders, examine, search, fetch, sign

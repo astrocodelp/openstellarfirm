@@ -292,6 +292,7 @@ function preview(): OpenApi {
     },
     keychain: true,
     platform: "browser",
+    arch: "x64",
     version: "0.0.0",
     dataDir: "/Users/you/Library/Application Support/OpenStellarFirm",
   };
@@ -626,6 +627,7 @@ function preview(): OpenApi {
     },
     onActivity: () => () => {},
     onApproval: () => () => {},
+    onUpdateNews: () => () => {},
     // A stand-in computer: no Docker, only a drawn screen, so the panel can be
     // worked on in a browser.
     computerStatus: async () => ({
