@@ -161,7 +161,8 @@ whole team of AI Agent Assistants works for your company in the cloud.
 - A key is sealed with the operating system's keychain before it touches the
   disk. It is read only in the main process, sent only to the address it was
   saved with, never to the page, and never shown again. With no keychain, a
-  key is refused rather than saved in the clear.
+  key is refused rather than saved in the clear; on Linux that means a running
+  Secret Service keyring such as GNOME Keyring or KWallet.
 - What an assistant reads is sent to the model you chose. With a model on this
   computer, it stays here. The same goes for the pictures you keep from a
   recording, and the screen says how many go to which model first.

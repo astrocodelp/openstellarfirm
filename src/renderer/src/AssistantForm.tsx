@@ -558,7 +558,10 @@ export function AssistantForm(props: AssistantFormProps) {
                 <option value="">Use the default</option>
                 {sources.map((s) => (
                   <option key={s.id} value={s.id}>
-                    {s.name}
+                    {/* Two sources can share a name (two Ollama models): the model tells them apart. */}
+                    {sources.some((o) => o.id !== s.id && o.name === s.name)
+                      ? `${s.name} · ${s.model}`
+                      : s.name}
                   </option>
                 ))}
               </select>

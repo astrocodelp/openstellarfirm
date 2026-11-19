@@ -18,7 +18,9 @@ app's version and operating system. Please do not include a real key.
   only in a request header (`Authorization`, `x-api-key`, `x-goog-api-key` or
   `api-key`)
   to the address they were saved with. Never in a web address, never sent to
-  the page, never logged.
+  the page, never logged. On Linux a key is saved only when a real keyring
+  (GNOME Keyring, KWallet or another Secret Service) seals it: without one,
+  Chromium falls back to a key everyone knows, so the app refuses and says so.
 - **Your chats and assistants.** Plain JSON in the app's data folder, readable
   only by your user account.
 - **The folders you pick** for an assistant, **the websites you allow**, **the

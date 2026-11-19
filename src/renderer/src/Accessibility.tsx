@@ -127,34 +127,38 @@ export function AccessibilitySection({
         ))}
       </fieldset>
 
-      <Choices
-        legend="Read aloud speed"
-        value={`${prefs.readRate}`}
-        options={READ_RATES.map((rate) => ({
-          id: `${rate}`,
-          name: RATE_NAMES[rate],
-        }))}
-        note={
-          speech.available === "no"
-            ? "Read aloud is not available on this computer: it has no voice that works without the internet."
-            : "Each answer has a Read aloud button. It uses a voice on this computer only, so no text leaves it."
-        }
-        onPick={(rate) => change({ readRate: Number(rate) as ReadRate })}
-      />
+      {speech.available === "no" ? (
+        // No speed or sample to offer when no voice can read: one plain line.
+        <p className="faint">
+          Read aloud is not available on this computer: it has no voice that
+          works without the internet.
+        </p>
+      ) : (
+        <Choices
+          legend="Read aloud speed"
+          value={`${prefs.readRate}`}
+          options={READ_RATES.map((rate) => ({
+            id: `${rate}`,
+            name: RATE_NAMES[rate],
+          }))}
+          note="Each answer has a Read aloud button. It uses a voice on this computer only, so no text leaves it."
+          onPick={(rate) => change({ readRate: Number(rate) as ReadRate })}
+        />
+      )}
       <div className="wrap">
-        <button
-          type="button"
-          className="btn"
-          aria-disabled={speech.available === "no" || undefined}
-          onClick={() => {
-            if (speech.available === "no") return;
-            if (speech.speaking === "sample") stopSpeaking();
-            else speak("sample", SAMPLE, prefs.readRate);
-          }}
-        >
-          <Icon name={speech.speaking === "sample" ? "stop" : "speaker"} />
-          {speech.speaking === "sample" ? "Stop" : "Try read aloud"}
-        </button>
+        {speech.available === "no" ? null : (
+          <button
+            type="button"
+            className="btn"
+            onClick={() => {
+              if (speech.speaking === "sample") stopSpeaking();
+              else speak("sample", SAMPLE, prefs.readRate);
+            }}
+          >
+            <Icon name={speech.speaking === "sample" ? "stop" : "speaker"} />
+            {speech.speaking === "sample" ? "Stop" : "Try read aloud"}
+          </button>
+        )}
         <button type="button" className="btn" onClick={onShortcuts}>
           Keyboard shortcuts
         </button>
