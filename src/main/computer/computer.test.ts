@@ -13,10 +13,13 @@ import {
   type ComputerSettings,
   cleanComputer,
   defaultComputer,
+  IDLE_MINUTES,
   inputFromKey,
+  MAX_RUNNING,
   normalizeKey,
 } from "../../shared/computer";
 import { systemPrompt } from "../../shared/prompt";
+import type { ChatStep } from "../../shared/types";
 import { type AgentDeps, runAgent } from "../agent";
 import { buildGate } from "../connections";
 import type { ToolCall, TurnEvent, WireMessage } from "../models";
@@ -37,8 +40,10 @@ import type { Runner, RunOptions, RunResult } from "./runner";
 import {
   ComputerService,
   exchangeName,
+  IDLE_MS,
   insidePath,
   MAX_COPY_BYTES,
+  MAX_FRAMES,
   MAX_OUTPUT_CHARS,
   READY_FILE,
 } from "./service";
@@ -1211,5 +1216,253 @@ describe("the instructions", () => {
     const on = systemPrompt({ ...base, computer: { network: true } });
     expect(on).toMatch(/It can reach the internet/);
     expect(systemPrompt(base)).not.toMatch(/computer_/);
+  });
+
+  it("say plainly when its computer cannot be used here, and offer no tool", () => {
+    const missing = systemPrompt({ ...base, computerNote: "missing" });
+    expect(missing).toMatch(/no computer of your own in this answer/);
+    expect(missing).toMatch(/needs Docker, which is not on/);
+    expect(missing).not.toMatch(/computer_/);
+    expect(systemPrompt({ ...base, computerNote: "stopped" })).toMatch(
+      /not running/,
+    );
+    expect(systemPrompt({ ...base, computerNote: "setup" })).toMatch(
+      /Set up computers/,
+    );
+    // With a computer it can use, the note never shows.
+    expect(
+      systemPrompt({
+        ...base,
+        computer: { network: false },
+        computerNote: "setup",
+      }),
+    ).not.toMatch(/no computer of your own/);
+  });
+});
+
+// On by default: what may run, and when.
+
+const OTHER = [
+  "1a3a2c1e-5b6d-4e7f-8a9b-0c1d2e3f4a51",
+  "2a3a2c1e-5b6d-4e7f-8a9b-0c1d2e3f4a52",
+  "3a3a2c1e-5b6d-4e7f-8a9b-0c1d2e3f4a53",
+];
+
+/** A service on a fake clock, with `running` as the computers Docker lists. */
+function clocked(running: string[] = []) {
+  let now = 1_000_000;
+  const fake = fakeDocker((args) => {
+    if (args[0] === "version") return ok("27.5.1\n");
+    if (args[0] === "image") return ok("sha256:1");
+    if (args[1] === "inspect") return failed("No such container");
+    if (args[0] === "ps" && args.includes("--format"))
+      return ok(running.join("\n"));
+    if (args[0] === "stop") {
+      const name = args.at(-1) ?? "";
+      const at = running.findIndex((id) => name.endsWith(id));
+      if (at !== -1) running.splice(at, 1);
+    }
+    if (args[0] === "run") {
+      const label = args.find((a) => a.startsWith(`${LABEL}.assistant=`));
+      if (label) running.push(label.split("=")[1] ?? "");
+    }
+    return ok();
+  });
+  const told: [string, boolean][] = [];
+  const svc = new ComputerService({
+    dataDir: tempDir(),
+    docker: () => fake.runner,
+    imageFiles: () => files,
+    sleep: async () => {},
+    now: () => now,
+  });
+  svc.listen((id, on) => told.push([id, on]));
+  return {
+    svc,
+    calls: fake.calls,
+    running,
+    told,
+    advance: (ms: number) => {
+      now += ms;
+    },
+  };
+}
+
+const stops = (calls: string[][]) =>
+  calls.filter((c) => c[0] === "stop").map((c) => c.at(-1));
+
+describe("a computer for every assistant", () => {
+  it("starts nothing and asks Docker nothing when Docker is not here", async () => {
+    const { svc, calls } = service(undefined, false);
+    expect(await svc.readinessNow()).toBe("missing");
+    expect(await svc.sweepIdle()).toEqual([]);
+    await svc.stopAll();
+    expect(calls).toEqual([]);
+  });
+
+  it("starts no computer just to see whether the computers can be used", async () => {
+    const { svc, calls } = clocked();
+    expect(await svc.readinessNow()).toBe("ready");
+    // Kept a while: an answer does not wait on Docker each time.
+    expect(await svc.readinessNow()).toBe("ready");
+    expect(calls.map((c) => c[0])).toEqual(["version", "image"]);
+    // Nothing started this run, so the idle sweep asks Docker nothing either.
+    expect(await svc.sweepIdle()).toEqual([]);
+    expect(calls.map((c) => c[0])).toEqual(["version", "image"]);
+  });
+
+  it("says why when the computers cannot be used yet", async () => {
+    const setup = service((args) =>
+      args[0] === "version" ? ok("27.5.1\n") : failed("No such image"),
+    );
+    expect(await setup.svc.readinessNow()).toBe("setup");
+    const stopped = service(() =>
+      failed("Cannot connect to the Docker daemon at unix:///x"),
+    );
+    expect(await stopped.svc.readinessNow()).toBe("stopped");
+  });
+
+  it("tells the page when a computer goes on and off", async () => {
+    const { svc, told } = clocked();
+    await svc.ensure({ id: ID, computer: settings });
+    expect(svc.runningIds()).toEqual([ID]);
+    await svc.stop(ID);
+    expect(told).toEqual([
+      [ID, true],
+      [ID, false],
+    ]);
+    expect(svc.runningIds()).toEqual([]);
+  });
+
+  it(`runs at most ${MAX_RUNNING} at once, stopping the one used least recently`, async () => {
+    const { svc, calls, running, advance } = clocked([...OTHER]);
+    // Each was used in turn; the first is the oldest.
+    for (const id of OTHER) {
+      svc.lease(id)();
+      advance(1000);
+    }
+    await svc.ensure({ id: ID, computer: settings });
+    expect(stops(calls)).toEqual([containerName(OTHER[0] ?? "")]);
+    expect(running).toEqual([OTHER[1], OTHER[2], ID]);
+  });
+
+  it("never stops one an answer is using, or the person holds, to make room", async () => {
+    const { svc, calls } = clocked([...OTHER]);
+    const release = svc.lease(OTHER[0] ?? "");
+    svc.setHold(OTHER[1] ?? "", "taken");
+    await svc.ensure({ id: ID, computer: settings });
+    expect(stops(calls)).toEqual([containerName(OTHER[2] ?? "")]);
+    release();
+  });
+
+  it("says so when every computer that runs is working", async () => {
+    const { svc, calls } = clocked([...OTHER]);
+    for (const id of OTHER) svc.lease(id);
+    await expect(svc.ensure({ id: ID, computer: settings })).rejects.toThrow(
+      /3 computers are working already/,
+    );
+    expect(calls.map((c) => c[0])).not.toContain("run");
+    expect(stops(calls)).toEqual([]);
+  });
+
+  it(`stops a computer nobody used for ${IDLE_MINUTES} minutes, and keeps it`, async () => {
+    const { svc, calls, advance, told } = clocked();
+    await svc.ensure({ id: ID, computer: settings });
+    advance(IDLE_MS - 1000);
+    expect(await svc.sweepIdle()).toEqual([]);
+    // A step resets the clock; watching it does not.
+    await svc.click(ID, 1, 1);
+    advance(IDLE_MS - 1000);
+    await svc.screenshot(ID, "jpg", 1000, false);
+    advance(2000);
+    expect(await svc.sweepIdle()).toEqual([ID]);
+    expect(stops(calls)).toEqual([NAME]);
+    // Stopped, never removed: its files stay.
+    expect(calls.map((c) => c[0])).not.toContain("rm");
+    expect(told.at(-1)).toEqual([ID, false]);
+  });
+
+  it("leaves an idle computer running while an answer uses it or the person holds it", async () => {
+    const { svc, advance } = clocked();
+    await svc.ensure({ id: ID, computer: settings });
+    const release = svc.lease(ID);
+    advance(IDLE_MS * 2);
+    expect(await svc.sweepIdle()).toEqual([]);
+    release();
+    svc.setHold(ID, "taken");
+    advance(IDLE_MS * 2);
+    expect(await svc.sweepIdle()).toEqual([]);
+    svc.setHold(ID, "none");
+    advance(IDLE_MS * 2);
+    expect(await svc.sweepIdle()).toEqual([ID]);
+  });
+
+  it("gives one left from before the full idle time", async () => {
+    const { svc, advance } = clocked([OTHER[0] ?? ""]);
+    await svc.ensure({ id: ID, computer: settings });
+    advance(IDLE_MS);
+    expect(await svc.sweepIdle()).toEqual([ID]);
+    advance(IDLE_MS);
+    expect(await svc.sweepIdle()).toEqual([OTHER[0]]);
+  });
+
+  it("lists every assistant's computer with when it was last used", async () => {
+    const { svc } = service((args) =>
+      args[0] === "ps"
+        ? ok(`${ID}|running\n${OTHER[0]}|exited\nnot-an-id|running\n`)
+        : ok(),
+    );
+    svc.lease(ID)();
+    const list = await svc.list([ID, OTHER[0] ?? "", OTHER[1] ?? ""]);
+    expect(list.map((i) => [i.assistantId, i.container])).toEqual([
+      [ID, "on"],
+      [OTHER[0], "off"],
+      [OTHER[1], "none"],
+    ]);
+    expect(list[0]?.lastUsed).toMatch(/^\d{4}-/);
+    expect(list[1]).not.toHaveProperty("lastUsed");
+  });
+});
+
+describe("pictures after steps", () => {
+  it("keeps one after a step for the person, in memory, and never for the model", async () => {
+    const { svc } = computerService("JPEGBYTES");
+    const gate = computerGate({ id: ID, folders: [], computer: settings }, svc);
+    const steps: ChatStep[] = [];
+    const host = {
+      ask: async () => "approve" as const,
+      onActivity: () => {},
+      signal: new AbortController().signal,
+    };
+    const out = await gate?.call(
+      "computer_click",
+      JSON.stringify({ x: 1, y: 1 }),
+      steps,
+      host,
+    );
+    expect(out?.image).toBeUndefined();
+    const frame = steps[0]?.frame ?? "";
+    expect(frame).toMatch(/^[0-9a-f-]{36}$/);
+    expect(new TextDecoder().decode(svc.frame(ID, frame))).toBe("JPEGBYTES");
+    // Only for the assistant it belongs to.
+    expect(svc.frame(OTHER[0] ?? "", frame)).toBeUndefined();
+    // Copying a file changes nothing on the screen: no picture.
+    await gate?.call(
+      "computer_copy_out",
+      JSON.stringify({ path: "notes.txt" }),
+      steps,
+      host,
+    );
+    expect(steps.at(-1)?.frame).toBeUndefined();
+    // Removing the computer forgets its pictures.
+    await svc.remove(ID);
+    expect(svc.frame(ID, frame)).toBeUndefined();
+  });
+
+  it(`keeps at most ${MAX_FRAMES}, the newest`, async () => {
+    const { svc } = computerService("J");
+    const first = await svc.keepFrame(ID);
+    for (let i = 0; i < MAX_FRAMES; i += 1) await svc.keepFrame(ID);
+    expect(svc.frame(ID, first ?? "")).toBeUndefined();
   });
 });

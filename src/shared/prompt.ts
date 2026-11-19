@@ -10,6 +10,11 @@ type PromptAssistant = Pick<Assistant, "name" | "brief" | "skills"> & {
   screen?: boolean;
   /** Its own computer in Docker, and whether that computer reaches the internet. */
   computer?: { network: boolean };
+  /**
+   * Set when it has a computer turned on that cannot be used here: Docker is
+   * missing or not running, or the computers are not set up yet.
+   */
+  computerNote?: "missing" | "stopped" | "setup";
   /** The names of the connections it may use. */
   connectionNames?: string[];
   /** The names of the mail accounts it may read. */
@@ -98,6 +103,7 @@ export function systemPrompt(assistant: PromptAssistant): string {
     );
   }
   const connected = (assistant.connectionNames ?? []).length > 0;
+  const unready = assistant.computer ? undefined : assistant.computerNote;
   if (connected) {
     can.push(
       `- Use the tools of these connections: ${(assistant.connectionNames ?? []).join(", ")}. Each of their tools has the connection's name in its description. The person is asked before a call is made, so say what you want to do and why.`,
@@ -135,6 +141,17 @@ export function systemPrompt(assistant: PromptAssistant): string {
   } else {
     parts.push(
       "You can only talk in this chat. You cannot open files, browse the web, use apps or send anything. If the person asks for one of those, say plainly that you cannot do it here, and help with what you can.",
+    );
+  }
+  if (unready) {
+    parts.push(
+      `You have no computer of your own in this answer, so you cannot open programs, a terminal or a browser. ${
+        unready === "missing"
+          ? "It needs Docker, which is not on the person's computer."
+          : unready === "stopped"
+            ? "It needs Docker, which is not running on the person's computer."
+            : "The person has not set up the computers yet: they do it once with Set up computers, from the Computer button in the chat's head."
+      } If they ask for something that needs it, say so plainly.`,
     );
   }
   if (assistant.canRemember) {

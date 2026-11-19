@@ -43,7 +43,7 @@ open to read, change and share, not to sell (see [Licence](#licence)).
 
 > **Early.** An assistant can talk, read and add files in folders you pick,
 > read web pages you allow, use the tools of servers you connect, look at
-> your screen when you approve, and, if you give it one, use a computer of its
+> your screen when you approve, and, where Docker runs, use a computer of its
 > own in Docker. It cannot click, type or use your own apps.
 > See [What is built](#what-is-built) and the [Roadmap](#roadmap).
 
@@ -114,6 +114,8 @@ Check it: `sha256sum -c SHA256SUMS.txt --ignore-missing`.
   can have a model of its own. Google Vertex AI is not supported: it signs in
   with a service account, not a key.
 - **Chat that streams**, with Stop. Each assistant keeps its own chat.
+  Answers are written in Markdown where it helps (headings, lists, tables,
+  task lists, code), drawn as the app's own elements, never as HTML.
 - **Files in a message.** Attach pictures, PDFs and text files by the paper
   clip, a drop or a paste. Where your model takes them it gets them as they
   are; otherwise the app reads their text on this computer, scanned pages too.
@@ -178,16 +180,23 @@ Check it: `sha256sum -c SHA256SUMS.txt --ignore-missing`.
   and you can turn memory off for an assistant. A chat shows how full the
   model's window is, lets you forget a message or clear the chat, and offers
   to sum up the older messages when it gets long.
-- **A computer of its own, in Docker.** Off until you turn it on for an
-  assistant. A small Linux desktop (a browser, Python, a terminal) runs in a
-  Docker container on this computer, never in a cloud. The assistant clicks,
+- **A computer of its own, in Docker.** On for every assistant where Docker
+  runs, with no network, once you set the computers up (one download of about
+  1 GB, on your click); turn it off for one assistant in its form. A small
+  Linux desktop (a browser, Python, a terminal) runs in a Docker container on
+  this computer, never in a cloud. Nothing starts when the app opens: a
+  computer starts the first time its assistant uses it, or when you press
+  Start. At most three run at once, and one nobody used for 15 minutes stops;
+  its files stay. Without Docker an assistant simply has no computer tools. The assistant clicks,
   types and runs commands there without asking, because that computer has no
   network unless you allow it, no capabilities, limits on memory and
   processors, and no folder of yours but its own exchange folder. With its
   network on, a command, typing or a key press asks once the answer has read
   something of yours. Saving a file from it into one of your folders asks
-  every time. You watch it beside
-  the chat, and can pause it or take over. Needs Docker Desktop, Docker
+  every time. While it is on, a small live picture of its screen sits on the
+  Computer button in the chat's head, each step on it shows a picture of the
+  screen after it, and the panel beside the chat lets you watch, pause, take
+  over, and see every assistant's computer at once. Needs Docker Desktop, Docker
   Engine, OrbStack, Colima or Podman. See [docs/COMPUTER.md](docs/COMPUTER.md).
 - **Record how you work.** On an assistant's page, show it a task once:
   record your whole screen or one window (up to ten minutes), or pick a video
@@ -226,8 +235,7 @@ Check it: `sha256sum -c SHA256SUMS.txt --ignore-missing`.
   your real desktop was considered and not built: it cannot be isolated, and
   one wrong click there reaches your mail, files and signed-in accounts.
 - **No servers started as a command.** A connection is a web address. The
-  only program the app starts is `docker`, for an assistant whose computer
-  you turned on.
+  only program the app starts is `docker`, for the assistants' computers.
 - **No sign-in with a company (Poppy).** Version 1.0 of the Personal Agent
   Protocol needs an identity that lives on a server, which an app that runs
   only on your computer does not have.

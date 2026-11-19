@@ -1,13 +1,19 @@
+import { randomUUID } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   type ComputerHold,
+  type ComputerListItem,
+  type ComputerReadiness,
   type ComputerSettings,
   type ComputerStatus,
   type ComputerView,
+  IDLE_MINUTES,
+  MAX_RUNNING,
   type MouseButton,
   normalizeKey,
+  readinessOf,
   SCREEN_HEIGHT,
   SCREEN_WIDTH,
   type ScrollDirection,
@@ -21,7 +27,10 @@ import {
   HOME,
   imageTag,
   inspectArgs,
+  isAssistantId,
+  LIST_ALL_ARGS,
   LIST_RUNNING_ARGS,
+  LIST_RUNNING_ASSISTANTS_ARGS,
   runArgs,
   type UserIds,
 } from "./args";
@@ -43,6 +52,14 @@ export const MAX_COPY_BYTES = 25 * 1024 * 1024;
 export const MAX_SCROLL = 10;
 /** start.sh makes this file once the screen and its window manager are ready. */
 export const READY_FILE = "/tmp/.computer-ready";
+export const IDLE_MS = IDLE_MINUTES * 60_000;
+/** Pictures kept after steps, across every assistant, in memory only. */
+export const MAX_FRAMES = 120;
+/** One step's picture, at most: a JPEG of the screen is far smaller. */
+export const MAX_FRAME_BYTES = 2_000_000;
+/** How long the answer to "can the computers be used?" is kept. */
+const READY_FOR_MS = 30_000;
+const NOT_READY_FOR_MS = 15_000;
 
 // The pointer is moved without "--sync": on a virtual screen the move and
 // the click arrive in order, and "--sync" waits a long time when the pointer
@@ -74,6 +91,8 @@ export interface ComputerDeps {
   /** The ids the computer's user is made with; 1000 when not given. */
   ids?: UserIds;
   sleep?(ms: number): Promise<void>;
+  /** The time, in milliseconds; Date.now when not given. */
+  now?(): number;
 }
 
 /** The first line of what Docker said, cut short, or a plain sentence. */
@@ -213,8 +232,75 @@ export class ComputerService {
   private readonly ended = new Map<string, ComputerEnded>();
   /** True once a computer was started in this run of the app. */
   private touched = false;
+  /** When each computer was last used by its assistant or the person. */
+  private readonly lastUsed = new Map<string, number>();
+  /** Answers and steps using each computer now; a busy one is never stopped. */
+  private readonly busy = new Map<string, number>();
+  /** The computers known to be on, as the page is told. */
+  private readonly on = new Set<string>();
+  /** Pictures after steps, oldest first. Never written to disk. */
+  private readonly frames = new Map<
+    string,
+    { assistantId: string; bytes: Uint8Array }
+  >();
+  private readiness: { value: ComputerReadiness; at: number } | undefined;
+  private listener: ((assistantId: string, on: boolean) => void) | undefined;
 
   constructor(private readonly deps: ComputerDeps) {}
+
+  private now(): number {
+    return this.deps.now?.() ?? Date.now();
+  }
+
+  /** Told each time a computer is turned on or off. */
+  listen(listener: (assistantId: string, on: boolean) => void): void {
+    this.listener = listener;
+  }
+
+  private setOn(assistantId: string, on: boolean): void {
+    if (this.on.has(assistantId) === on) return;
+    if (on) this.on.add(assistantId);
+    else this.on.delete(assistantId);
+    this.listener?.(assistantId, on);
+  }
+
+  /** The assistants whose computers are on, as this run knows. Asks Docker nothing. */
+  runningIds(): string[] {
+    return [...this.on];
+  }
+
+  private touch(assistantId: string): void {
+    this.lastUsed.set(assistantId, this.now());
+  }
+
+  lastUsedOf(assistantId: string): number | undefined {
+    return this.lastUsed.get(assistantId);
+  }
+
+  /**
+   * Marks the computer as in use for an answer, until the returned function
+   * is called. While in use it is never stopped to make room or for being idle.
+   */
+  lease(assistantId: string): () => void {
+    this.busy.set(assistantId, (this.busy.get(assistantId) ?? 0) + 1);
+    this.touch(assistantId);
+    let done = false;
+    return () => {
+      if (done) return;
+      done = true;
+      const left = (this.busy.get(assistantId) ?? 1) - 1;
+      if (left > 0) this.busy.set(assistantId, left);
+      else this.busy.delete(assistantId);
+      this.touch(assistantId);
+    };
+  }
+
+  private inUse(assistantId: string): boolean {
+    return (
+      (this.busy.get(assistantId) ?? 0) > 0 ||
+      this.holdOf(assistantId) === "taken"
+    );
+  }
 
   private runner(): Runner {
     const run = this.deps.docker();
@@ -229,13 +315,13 @@ export class ComputerService {
     return imageTag(this.deps.imageFiles(), this.deps.ids);
   }
 
-  async status(): Promise<ComputerStatus> {
+  async status(timeoutMs = 8000): Promise<ComputerStatus> {
     const run = this.deps.docker();
     if (!run) return { docker: "missing", image: false, building: false };
     let version: RunResult;
     try {
       version = await run(["version", "--format", "{{.Server.Version}}"], {
-        timeoutMs: 8000,
+        timeoutMs,
       });
     } catch {
       return { docker: "missing", image: false, building: false };
@@ -249,6 +335,28 @@ export class ComputerService {
       image: await this.hasImage(),
       building: this.building,
     };
+  }
+
+  /**
+   * Whether an answer can use its computer: Docker is here and running, and
+   * the computers are set up. Kept for a short while, so an answer does not
+   * wait on Docker each time. Starts nothing; with no `docker` command found,
+   * no program is run at all.
+   */
+  async readinessNow(): Promise<ComputerReadiness> {
+    const kept = this.readiness;
+    if (kept) {
+      const keep = kept.value === "ready" ? READY_FOR_MS : NOT_READY_FOR_MS;
+      if (this.now() - kept.at < keep) return kept.value;
+    }
+    let value: ComputerReadiness;
+    try {
+      value = readinessOf(await this.status(3000));
+    } catch {
+      value = "missing";
+    }
+    this.readiness = { value, at: this.now() };
+    return value;
   }
 
   private async hasImage(): Promise<boolean> {
@@ -290,6 +398,7 @@ export class ComputerService {
           said(result, "The computer could not be set up."),
         );
       this.imageReady = tag;
+      this.readiness = undefined;
     } finally {
       this.building = false;
     }
@@ -324,11 +433,115 @@ export class ComputerService {
     const found = this.deps.docker()
       ? await this.inspect(assistant.id).catch(() => undefined)
       : undefined;
+    if (found) this.setOn(assistant.id, found.running);
+    else if (this.deps.docker()) this.setOn(assistant.id, false);
     return {
       container: !found ? "none" : found.running ? "on" : "off",
       hold: this.holdOf(assistant.id),
       exchange,
     };
+  }
+
+  /** The ids of the assistants whose computers run now, from Docker. */
+  private async listRunning(): Promise<string[]> {
+    const result = await this.runner()(LIST_RUNNING_ASSISTANTS_ARGS, {
+      timeoutMs: 8000,
+    });
+    if (result.code !== 0) return [];
+    return Buffer.from(result.stdout)
+      .toString("utf8")
+      .split(/\s+/)
+      .filter(isAssistantId);
+  }
+
+  /** Every computer of the app, for the list in the panel. */
+  async list(assistantIds: string[]): Promise<ComputerListItem[]> {
+    const states = new Map<string, "on" | "off">();
+    const run = this.deps.docker();
+    if (run) {
+      const result = await run(LIST_ALL_ARGS, { timeoutMs: 8000 }).catch(
+        () => undefined,
+      );
+      if (result?.code === 0)
+        for (const line of Buffer.from(result.stdout)
+          .toString("utf8")
+          .split(/\r?\n/)) {
+          const [id = "", state = ""] = line.trim().split("|");
+          if (isAssistantId(id))
+            states.set(id, state === "running" ? "on" : "off");
+        }
+    }
+    return assistantIds.map((assistantId) => {
+      const container = states.get(assistantId) ?? "none";
+      if (run) this.setOn(assistantId, container === "on");
+      const used = this.lastUsed.get(assistantId);
+      return {
+        assistantId,
+        container,
+        ...(used ? { lastUsed: new Date(used).toISOString() } : {}),
+      };
+    });
+  }
+
+  /**
+   * Makes room before one more computer starts: with as many running as the
+   * cap, the one used least recently that nothing is using now is stopped.
+   * Its files stay, and the next step on it starts it again.
+   */
+  private async makeRoom(assistantId: string): Promise<void> {
+    const others = (await this.listRunning()).filter(
+      (id) => id !== assistantId,
+    );
+    const over = others.length - MAX_RUNNING + 1;
+    if (over <= 0) return;
+    const free = others
+      .filter((id) => !this.inUse(id))
+      .sort(
+        (a, b) => (this.lastUsed.get(a) ?? 0) - (this.lastUsed.get(b) ?? 0),
+      );
+    if (free.length < over)
+      throw new ComputerError(
+        `${MAX_RUNNING} computers are working already, the most that run at once. Wait for one to finish, or turn one off in its Computer panel.`,
+      );
+    for (const id of free.slice(0, over)) await this.quietStop(id);
+  }
+
+  /** Stops a computer the app stopped itself, to make room or for being idle. */
+  private async quietStop(assistantId: string): Promise<void> {
+    const result = await this.runner()(
+      ["stop", "--time", "3", containerName(assistantId)],
+      { timeoutMs: 30_000 },
+    );
+    if (result.code !== 0 && !/No such container/i.test(result.stderr))
+      throw new ComputerError(said(result, "A computer did not stop."));
+    this.setOn(assistantId, false);
+  }
+
+  /**
+   * Stops each computer nobody has used for the idle time. A computer that
+   * an answer is using, or that the person holds, is left alone. Docker is
+   * asked nothing when no computer was started in this run of the app.
+   * Returns the assistants whose computers were stopped.
+   */
+  async sweepIdle(): Promise<string[]> {
+    if (!this.touched || !this.deps.docker()) return [];
+    const running = await this.listRunning();
+    for (const id of this.on) if (!running.includes(id)) this.setOn(id, false);
+    const stopped: string[] = [];
+    const now = this.now();
+    for (const id of running) {
+      if (this.inUse(id)) continue;
+      const used = this.lastUsed.get(id);
+      // One left from before: its time starts now.
+      if (used === undefined) {
+        this.lastUsed.set(id, now);
+        continue;
+      }
+      if (now - used < IDLE_MS) continue;
+      await this.quietStop(id).catch(() => {});
+      stopped.push(id);
+    }
+    return stopped;
   }
 
   /**
@@ -352,9 +565,10 @@ export class ComputerService {
       throw new ComputerError("This assistant has no computer turned on.");
     const run = this.runner();
     this.touched = true;
+    this.touch(assistant.id);
     if (!(await this.hasImage()))
       throw new ComputerError(
-        "The computer is not set up yet. Press Set up the computer in its Computer panel.",
+        "The computer is not set up yet. Press Set up computers in its Computer panel.",
       );
     const image = this.tag();
     const want = configKey(settings, image);
@@ -363,6 +577,8 @@ export class ComputerService {
     if (found && found.config !== want) {
       await run(["rm", "--force", name], { timeoutMs: 30_000 });
     }
+    if (!(found && found.config === want && found.running))
+      await this.makeRoom(assistant.id);
     if (found && found.config === want) {
       if (!found.running) {
         const result = await run(["start", name], { timeoutMs: 60_000 });
@@ -384,6 +600,7 @@ export class ComputerService {
         throw new ComputerError(said(result, "The computer did not start."));
     }
     await this.waitForScreen(assistant.id);
+    this.setOn(assistant.id, true);
   }
 
   /**
@@ -411,6 +628,7 @@ export class ComputerService {
     fallback: string,
     timeoutMs = 15_000,
   ): Promise<RunResult> {
+    this.touch(assistantId);
     const result = await this.runner()(execArgs(assistantId, command), {
       timeoutMs,
     });
@@ -419,12 +637,18 @@ export class ComputerService {
     return result;
   }
 
-  /** One picture of the screen. "png" for a model, "jpg" for the live view. */
+  /**
+   * One picture of the screen. "png" for a model, "jpg" for the live view.
+   * A look by the live view (`use` false) does not count as using it, so a
+   * computer only watched still stops when idle.
+   */
   async screenshot(
     assistantId: string,
     format: "png" | "jpg",
     maxBytes: number,
+    use = true,
   ): Promise<{ bytes: Uint8Array; mediaType: string }> {
+    if (use) this.touch(assistantId);
     const result = await this.runner()(
       execArgs(assistantId, ["computer-screenshot", format]),
       { timeoutMs: 15_000, maxBytes },
@@ -532,6 +756,7 @@ export class ComputerService {
     signal?: AbortSignal,
   ): Promise<RunOutput> {
     const { command: line, seconds: limit } = checkedCommand(command, seconds);
+    this.touch(assistantId);
     const result = await this.runner()(
       execArgs(assistantId, [
         "timeout",
@@ -563,6 +788,7 @@ export class ComputerService {
   /** Reads one regular file from the computer, up to the size cap. */
   async readFile(assistantId: string, raw: unknown): Promise<Uint8Array> {
     const path = insidePath(raw);
+    this.touch(assistantId);
     const info = await this.runner()(
       execArgs(assistantId, ["stat", "-L", "-c", "%s|%F", "--", path]),
       { timeoutMs: 15_000 },
@@ -631,6 +857,39 @@ export class ComputerService {
     );
   }
 
+  /**
+   * Keeps a picture of the screen as it is now, for the step that just ran,
+   * in memory only, and returns its id. Undefined when it could not be taken.
+   */
+  async keepFrame(assistantId: string): Promise<string | undefined> {
+    let shot: { bytes: Uint8Array };
+    try {
+      shot = await this.screenshot(assistantId, "jpg", MAX_FRAME_BYTES, false);
+    } catch {
+      return undefined;
+    }
+    if (shot.bytes.length === 0) return undefined;
+    const id = randomUUID();
+    this.frames.set(id, { assistantId, bytes: shot.bytes });
+    while (this.frames.size > MAX_FRAMES) {
+      const oldest = this.frames.keys().next().value;
+      if (oldest === undefined) break;
+      this.frames.delete(oldest);
+    }
+    return id;
+  }
+
+  /** A picture kept after a step, only for the assistant it belongs to. */
+  frame(assistantId: string, frameId: string): Uint8Array | undefined {
+    const kept = this.frames.get(frameId);
+    return kept?.assistantId === assistantId ? kept.bytes : undefined;
+  }
+
+  private forgetFrames(assistantId: string): void {
+    for (const [id, kept] of this.frames)
+      if (kept.assistantId === assistantId) this.frames.delete(id);
+  }
+
   holdOf(assistantId: string): ComputerHold {
     return this.holds.get(assistantId)?.mode ?? "none";
   }
@@ -694,6 +953,7 @@ export class ComputerService {
     });
     if (result.code !== 0 && !/No such container/i.test(result.stderr))
       throw new ComputerError(said(result, "The computer did not stop."));
+    this.setOn(assistantId, false);
   }
 
   /** Removes the container. The exchange folder and its files stay. */
@@ -701,6 +961,8 @@ export class ComputerService {
     const name = containerName(assistantId);
     this.markEnded(assistantId, true);
     this.setHold(assistantId, "none");
+    this.forgetFrames(assistantId);
+    this.lastUsed.delete(assistantId);
     const run = this.deps.docker();
     if (!run) return;
     const result = await run(["rm", "--force", name], {
@@ -708,6 +970,7 @@ export class ComputerService {
     });
     if (result.code !== 0 && !/No such container/i.test(result.stderr))
       throw new ComputerError(said(result, "The computer was not removed."));
+    this.setOn(assistantId, false);
   }
 
   /** Stops every running computer of this app, as the app quits. */
@@ -723,7 +986,8 @@ export class ComputerService {
       .toString("utf8")
       .split(/\s+/)
       .filter((id) => /^[0-9a-f]{12,64}$/.test(id));
-    if (ids.length === 0) return;
-    await run(["stop", "--time", "3", ...ids], { timeoutMs: 20_000 });
+    if (ids.length > 0)
+      await run(["stop", "--time", "3", ...ids], { timeoutMs: 20_000 });
+    for (const id of [...this.on]) this.setOn(id, false);
   }
 }

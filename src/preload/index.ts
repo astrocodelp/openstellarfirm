@@ -128,6 +128,10 @@ const api: OpenApi = {
   computerRemove: (id) => call(IPC.computerRemove, id),
   computerOpenExchange: (id) => call(IPC.computerOpenExchange, id),
   onComputerProgress: (listener) => listen(IPC.computerProgress, listener),
+  computerRunning: () => call(IPC.computerRunning),
+  computerList: () => call(IPC.computerList),
+  computerFrame: (id, frameId) => call(IPC.computerFrame, id, frameId),
+  onComputerState: (listener) => listen(IPC.computerState, listener),
 };
 
 contextBridge.exposeInMainWorld("stellarOpen", api);

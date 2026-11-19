@@ -4,12 +4,14 @@ import { join } from "node:path";
 import type {
   ComputerHold,
   ComputerInput,
+  ComputerListItem,
   ComputerProgress,
   ComputerShot,
+  ComputerState,
   ComputerView,
 } from "../../shared/computer";
 import { type Assistant, IPC } from "../../shared/types";
-import { ComputerError, computerIds } from "./args";
+import { ComputerError, computerIds, isAssistantId } from "./args";
 import { dockerEnv, findDocker } from "./find";
 import { spawnRunner } from "./runner";
 import { ComputerService } from "./service";
@@ -108,7 +110,11 @@ export interface ComputerIpc {
   service: ComputerService;
   /** The assistant by id; throws when it is not there. */
   assistant(id: unknown): Assistant;
+  /** Every assistant, for the list of all computers. */
+  assistants(): Assistant[];
   progress(payload: ComputerProgress): void;
+  /** Tells the page a computer was turned on or off. */
+  state(payload: ComputerState): void;
   openFolder(path: string): Promise<string>;
 }
 
@@ -139,7 +145,30 @@ export function registerComputer(ipc: ComputerIpc): void {
   const inOrder = inputLanes();
   const view = (id: unknown): Promise<ComputerView> =>
     service.view(ipc.assistant(id));
+  service.listen((assistantId, on) => ipc.state({ assistantId, on }));
   handle(IPC.computerStatus, () => service.status());
+  handle(IPC.computerRunning, () => service.runningIds());
+  handle(
+    IPC.computerList,
+    (): Promise<ComputerListItem[]> =>
+      service.list(
+        ipc
+          .assistants()
+          .filter((a) => a.computer)
+          .map((a) => a.id),
+      ),
+  );
+  handle(
+    IPC.computerFrame,
+    (_e, id: unknown, frameId: unknown): string | null => {
+      const assistant = ipc.assistant(id);
+      if (typeof frameId !== "string" || !isAssistantId(frameId)) return null;
+      const bytes = service.frame(assistant.id, frameId);
+      return bytes
+        ? `data:image/jpeg;base64,${Buffer.from(bytes).toString("base64")}`
+        : null;
+    },
+  );
   handle(IPC.computerSetup, async () => {
     // Lines arrive fast while it builds; the page gets one every quarter second.
     let last = 0;
@@ -176,10 +205,12 @@ export function registerComputer(ipc: ComputerIpc): void {
     async (_e, id: unknown): Promise<ComputerShot | null> => {
       const assistant = ipc.assistant(id);
       try {
+        // Watching is not using: a computer only watched still stops when idle.
         const shot = await service.screenshot(
           assistant.id,
           "jpg",
           MAX_VIEW_BYTES,
+          false,
         );
         return {
           src: `data:${shot.mediaType};base64,${Buffer.from(shot.bytes).toString("base64")}`,

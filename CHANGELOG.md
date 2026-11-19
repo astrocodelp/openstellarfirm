@@ -46,12 +46,16 @@ product name was set used `~/.config/openstellarfirm`.
   head is one row: the name and model, Computer, Customize and a More menu
   with Save this chat, Summarise and continue and Clear chat.
 - Answers show their Markdown: bold, italic, code, code blocks with Copy and
-  their own sideways scroll, lists, quotes and links, drawn as the app's own
+  their own sideways scroll, lists, task lists, tables (GitHub's pipe form,
+  each in its own sideways scroll; a copy pastes into a spreadsheet as
+  columns), quotes and links, drawn as the app's own
   elements (never HTML from the model). A link shows its address on hover and
   focus, and opens in the browser only after you say yes to its host; the app
   checks the link is in that answer and is http or https. The sidebar's last
   line, Copy and Read aloud use the plain words; Save this chat keeps the
-  Markdown.
+  Markdown. The instructions ask the model for Markdown where it helps
+  (short headings, lists, tables, fenced code with its language) and plain
+  sentences for a short answer.
 - A Copy button under each answer. The words are copied by the main process
   from the saved chat; the page sends only which message.
 - Folders you pick. An assistant can list, find and read files there, and
@@ -153,7 +157,20 @@ product name was set used `~/.config/openstellarfirm`.
   an assistant took are left out, and every saved key, and the usual shapes
   of keys, are hidden wherever they appear.
 - A computer of its own for an assistant, in Docker on this computer, never
-  in a cloud. Off by default, turned on per assistant. The app finds the
+  in a cloud. On by default for every assistant, with no network, where
+  Docker runs and once the computers are set up (one build, on your click,
+  for all of them); turned off per assistant in its form, and an assistant
+  saved before keeps what it chose. Nothing starts when the app opens: a
+  computer starts when its assistant first uses it or you press Start. At
+  most three run at once (starting one more stops the one used longest ago
+  that nothing is using), and one idle for 15 minutes stops; its files stay.
+  Without Docker the assistant has no computer tools, and an empty chat says
+  in one line how to get Docker. While it is on, the Computer button in the
+  chat's head shows a small live picture of its screen, about once a second
+  and only while the window is visible; each step on it shows a picture of
+  the screen after it (kept in memory while the app runs, never saved) that
+  opens full size; the panel slides in only when you click (never from a
+  key) and lists every assistant's computer with Turn off and Remove. The app finds the
   `docker` command (Docker Desktop, Docker Engine, OrbStack, Colima, Rancher
   Desktop or Podman's), builds a small Debian desktop from a Dockerfile it
   ships on your click, and runs one container per assistant with no network
@@ -162,8 +179,8 @@ product name was set used `~/.config/openstellarfirm`.
   The assistant can take a picture of its screen, click, type, press keys,
   scroll, run a command with a time limit, and copy a file out; saving a copy
   into one of your folders asks every time. A panel beside the chat shows the
-  screen about once a second, with Pause, Take over, Stop, Turn off and
-  Remove. Its empty screen is a night desktop with the app's mark, the panel
+  screen about once a second while it is open, with Pause, Take over, Stop,
+  Turn off and Remove. Its empty screen is a night desktop with the app's mark, the panel
   says when nothing is open on it yet, and the exchange folder's path is
   behind "Where the folder is". See [docs/COMPUTER.md](docs/COMPUTER.md).
 - Accessibility first, aiming at WCAG 2.2 AA. A Settings section,

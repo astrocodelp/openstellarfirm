@@ -23,7 +23,7 @@ import {
 } from "../shared/assistant-file";
 import { presetOf } from "../shared/catalog";
 import { cleanLookFor, isCheckEvery, LOOK_FOR_MAX } from "../shared/checks";
-import { cleanComputer } from "../shared/computer";
+import { cleanComputer, defaultComputer } from "../shared/computer";
 import { connectionPresetOf } from "../shared/connection-catalog";
 import { plainLine } from "../shared/markdown";
 import {
@@ -214,8 +214,11 @@ export class Store {
     // Settings saved before the theme existed follow the computer.
     parsed.settings = cleanSettings(parsed.settings);
     // Assistants saved before tools existed have no folders, sites or web.
+    // One that never chose about its own computer gets the default, with no
+    // network; one the person turned off stays off.
     parsed.assistants = parsed.assistants.map((a) => ({
       ...a,
+      ...storedComputer(a),
       folders: a.folders ?? [],
       web: a.web ?? false,
       screen: a.screen ?? false,
@@ -274,9 +277,9 @@ export class Store {
         ...clean,
         web: input.web === undefined ? existing.web : clean.web,
         screen: input.screen === undefined ? existing.screen : clean.screen,
-        ...computerField(
-          input.computer === undefined ? existing.computer : input.computer,
-        ),
+        ...(input.computer === undefined
+          ? storedComputer(existing)
+          : computerField(input.computer)),
         folders: existing.folders,
         sites: existing.sites,
         canAsk:
@@ -308,7 +311,10 @@ export class Store {
     }
     const created: Assistant = {
       ...clean,
-      ...computerField(input.computer),
+      // A new assistant has its own computer unless the form turned it off.
+      ...computerField(
+        input.computer === undefined ? defaultComputer() : input.computer,
+      ),
       folders: [],
       sites: [],
       connections: cleanConnectionIds(
@@ -1088,10 +1094,27 @@ function mailFields(
 }
 
 /** No main assistant: nothing checks, and nothing is unread. */
-/** Its own computer: on with checked settings, or no field at all for off. */
-function computerField(raw: unknown): Pick<Assistant, "computer"> {
+/** Its own computer as the person set it: on with checked settings, or off. */
+function computerField(
+  raw: unknown,
+): Pick<Assistant, "computer" | "computerOff"> {
   const computer = cleanComputer(raw);
-  return computer ? { computer } : {};
+  return computer ? { computer } : { computerOff: true };
+}
+
+/**
+ * Its own computer as it was saved. One that never chose (saved before
+ * computers were on by default) gets the default, with no network; one the
+ * person turned off stays off.
+ */
+export function storedComputer(a: {
+  computer?: unknown;
+  computerOff?: unknown;
+}): Pick<Assistant, "computer" | "computerOff"> {
+  if (a.computerOff === true && a.computer === undefined)
+    return { computer: undefined, computerOff: true };
+  const computer = cleanComputer(a.computer) ?? defaultComputer();
+  return { computer, computerOff: undefined };
 }
 
 function noMain(settings: Settings): void {

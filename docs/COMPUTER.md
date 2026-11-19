@@ -8,8 +8,34 @@ command, typing or a key press asks first once the answer has read something
 of yours (see [When it asks](#when-it-asks)). You watch it beside the chat, and
 you can pause it or take over at any time.
 
-It is off by default. You turn it on for one assistant at a time in its form,
-under "A computer of its own (Docker)".
+Every assistant has one by default, with no network, where Docker runs and
+once the computers are set up. You turn it off for one assistant in its form,
+under "A computer of its own (Docker)"; an assistant saved before computers
+were on by default gets the default, and one you turned off stays off. When
+Docker is missing or not running, nothing breaks: the assistant has no
+computer tools, its instructions say why, and an empty chat says in one line
+how to get Docker (or start it).
+
+## When a computer runs
+
+- **Nothing starts when the app opens.** At start the app asks Docker only
+  whether it is running and whether the computers are set up (`docker version`,
+  `docker image inspect`); with no `docker` command found it runs nothing at
+  all. A computer starts the first time its assistant uses it in an answer to
+  you, or when you press **Start the computer**.
+- **The image is built only on your click**, once for all assistants:
+  **Set up computers** in the Computer panel says first what it downloads and
+  its size.
+- **At most three run at once** (`MAX_RUNNING` in `src/shared/computer.ts`).
+  Starting one more stops the one used longest ago that nothing is using now:
+  never one an answer is using or one you have taken over. When all three are
+  working, the step says so and nothing is stopped.
+- **One idle for 15 minutes stops** (`IDLE_MINUTES`). A step by the assistant
+  or your input counts as use; watching the live picture does not. An answer
+  in progress and a computer you hold are never stopped. A stopped computer
+  keeps its files and starts again the next time it is used.
+- The app checks for idle computers once a minute, and asks Docker nothing
+  until a computer was started in this run of the app.
 
 ## What you need
 
@@ -30,7 +56,8 @@ your click.
 
 ## Setting it up
 
-The first time, the Computer panel offers **Set up the computer**. It says
+The first time, the Computer panel offers **Set up computers**, once for all
+assistants. It says
 before it starts that this downloads a Debian base image and its packages,
 about 1 GB, and takes a few minutes. The progress shows as it goes.
 
@@ -185,9 +212,22 @@ allow" for these steps. The rule is in `computerGate`
 
 ## Watching, pausing and taking over
 
-The **Computer** button in the chat's head opens the panel beside the chat. It
-also opens by itself the first time an assistant uses its computer, until you
-open or close it yourself.
+While a computer is on, the **Computer** button in the chat's head holds a
+small live picture of its screen; pressing it opens the panel beside the chat.
+The panel opens only when you ask, and slides in only after a click (a key
+press opens it in place, and with less motion nothing moves). One loop of
+pictures serves the button and the panel (`src/shared/frame-poller.ts`): about
+one a second, only while something shows that computer, the computer is on
+and the window is visible.
+
+Each step on the computer in the chat's list of steps has a small picture of
+its screen after that step; pressing it opens it full size. These pictures go
+only to you, never to the model; they are kept in memory, at most 120 across
+all assistants, and gone when the app quits or the computer is removed.
+
+**All computers**, at the foot of the panel, lists every assistant's
+computer: on or off, when it was last used in this run of the app, and Turn
+off and Remove (behind a confirmation) for each.
 
 - **Live view.** About one picture a second while the panel is open, the
   window is visible and the computer is on; nothing while the window is
@@ -253,8 +293,13 @@ What it does not give:
   processors or processes, but not all of your disk: the exchange folder and
   the container's own disk can grow.
 - **What you see in the live view goes nowhere.** It is drawn in the app's
-  window and never saved, but each picture the assistant itself takes goes to
-  the model you chose, like any tool result.
+  window and never saved, and the pictures after each step are kept in
+  memory only. Each picture the assistant itself takes goes to the model you
+  chose, like any tool result.
+- **On by default means Docker is used by default.** Where Docker runs, an
+  answer may start its assistant's computer without asking. The defaults keep
+  that safe: no network, the same isolation, and the asks above once the
+  network is on. Turn it off for an assistant that has no use for it.
 
 ## Considered and not built
 

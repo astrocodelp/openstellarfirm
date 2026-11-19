@@ -5,9 +5,11 @@ import type { CheckEvery } from "./checks";
 import type {
   ComputerHold,
   ComputerInput,
+  ComputerListItem,
   ComputerProgress,
   ComputerSettings,
   ComputerShot,
+  ComputerState,
   ComputerStatus,
   ComputerView,
 } from "./computer";
@@ -107,11 +109,14 @@ export interface Assistant {
    */
   screen?: boolean;
   /**
-   * A computer of its own: a Linux desktop in Docker on this computer. Missing
-   * means off. Only the assistant form sets it; never in a shared file, a
-   * backup or a persona.
+   * A computer of its own: a Linux desktop in Docker on this computer, with
+   * no network unless the person allows it. A new assistant has one with the
+   * defaults; only the assistant form turns it off or changes it, never a
+   * shared file, a backup or a persona.
    */
   computer?: ComputerSettings;
+  /** Set when the person turned its computer off, so the default stays off. */
+  computerOff?: true;
   /** Sites the person chose to always allow for this assistant. */
   sites: string[];
   /** Ids of the connections it may use. Only the assistant form sets them. */
@@ -163,6 +168,11 @@ export interface ChatStep {
   ok: boolean;
   /** Set when it saved a note with `remember`, so the chat can offer Undo. */
   note?: { id: string; text: string };
+  /**
+   * A picture of its own computer's screen after this step, kept in memory
+   * while the app runs and never saved; missing once the app has quit.
+   */
+  frame?: string;
 }
 
 /** What a file a person attached turned out to be, from its own bytes. */
@@ -722,6 +732,13 @@ export interface OpenApi {
   onComputerProgress(
     listener: (progress: ComputerProgress) => void,
   ): () => void;
+  /** The assistants whose computers are on, as far as this run of the app knows. */
+  computerRunning(): Promise<string[]>;
+  /** Every assistant's computer: on or off, and when it was last used. */
+  computerList(): Promise<ComputerListItem[]>;
+  /** The picture kept after one step on its computer; null once it is gone. */
+  computerFrame(assistantId: string, frameId: string): Promise<string | null>;
+  onComputerState(listener: (state: ComputerState) => void): () => void;
 }
 
 export const IPC = {
@@ -822,6 +839,10 @@ export const IPC = {
   computerRemove: "computer:remove",
   computerOpenExchange: "computer:exchange",
   computerProgress: "computer:progress",
+  computerRunning: "computer:running",
+  computerList: "computer:list",
+  computerFrame: "computer:frame",
+  computerState: "computer:state",
 } as const;
 
 /** Every answer over IPC, so an error arrives as a plain sentence. */

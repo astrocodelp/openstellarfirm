@@ -1158,6 +1158,15 @@ textarea.input {
   min-width: 0;
 }
 
+/* The box, its words for a screen reader and the body sit in one row. */
+.md .md-task > * {
+  margin-block-start: 0;
+}
+
+.md .md-task-body > * + * {
+  margin-block-start: 0.375rem;
+}
+
 .md-link-wrap {
   position: relative;
 }
@@ -1816,6 +1825,131 @@ textarea.input {
   padding-left: 1.75rem;
 }
 
+/* While its computer is on, the Computer button holds a small live picture. */
+.computer-chip {
+  padding-inline-start: 0.375rem;
+}
+
+.computer-chip-frame {
+  flex: none;
+  width: 2.75rem;
+  aspect-ratio: 1280 / 800;
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-tick);
+  background: var(--active);
+}
+
+.computer-chip-frame img,
+.step-frame img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  user-select: none;
+}
+
+.computer-note {
+  max-width: 32rem;
+  text-align: center;
+}
+
+/* A step's picture: small beside its line, full size on a press. */
+.step-frame-slot {
+  display: inline-flex;
+}
+
+.step-frame {
+  position: relative;
+  width: 2.5rem;
+  aspect-ratio: 1280 / 800;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-tick);
+  background: var(--active);
+  cursor: zoom-in;
+}
+
+/* 25px to look at, 40px to hit. */
+.step-frame::after {
+  content: "";
+  position: absolute;
+  inset: -0.5rem -0.125rem;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .step-frame:hover {
+    border-color: var(--control-line-on);
+  }
+}
+
+.dialog.frame-dialog {
+  width: min(72rem, calc(100% - 2.5rem));
+}
+
+/* The whole screen in view: as wide as the dialog, as tall as the window allows. */
+.frame-full {
+  display: block;
+  align-self: center;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: calc(100dvh - 12rem);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-inset);
+}
+
+/* Every assistant's computer, at the foot of the panel. */
+.computer-all > summary {
+  position: relative;
+  width: fit-content;
+  cursor: pointer;
+}
+
+.computer-all > summary::after {
+  content: "";
+  position: absolute;
+  inset: -0.6875rem -0.25rem;
+}
+
+.computer-all > .stack-tight {
+  margin-top: 0.5rem;
+}
+
+.computer-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.computer-list-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.75rem;
+  padding: 0.5rem 0;
+  border-top: 1px solid var(--line);
+}
+
+.computer-list-row > .row-text {
+  flex: 1 1 8rem;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  font-size: var(--text-ui);
+}
+
+.computer-list-row > .row-text > .faint {
+  font-size: var(--text-caption);
+}
+
+.computer-list-confirm {
+  flex-basis: 100%;
+}
+
 /* A narrow window has no room beside the chat: the computer goes below it. */
 @media (max-width: 72rem) {
   .chat-row {
@@ -1827,6 +1961,8 @@ textarea.input {
     max-height: 55%;
     border-left: 0;
     border-top: 1px solid var(--line);
+    --slide-x: 0;
+    --slide-y: 0.75rem;
   }
 }
 
@@ -2869,6 +3005,14 @@ kbd {
   }
 }
 
+/* The computer panel, asked for with a click: in from the side it sits on. */
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    translate: var(--slide-x, 1rem) var(--slide-y, 0);
+  }
+}
+
 @keyframes pulse {
   50% {
     opacity: 0.35;
@@ -2981,6 +3125,11 @@ kbd {
   .approval {
     transform-origin: 50% 100%;
     animation: card-in var(--dur-enter) var(--ease-out);
+  }
+
+  /* Only when a click asked for it: a key press opens it in place. */
+  .computer-panel[data-enter="slide"] {
+    animation: panel-in var(--dur-enter) var(--ease-out);
   }
 
   .pulse {

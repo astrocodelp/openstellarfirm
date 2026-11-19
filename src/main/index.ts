@@ -454,7 +454,14 @@ async function runAssistant(spec: RunSpec): Promise<AgentResult> {
   const remember = kind === "answer" && notes?.on === true;
   // Its own computer is used only in an answer to the person: never by a
   // check, which only reads, nor when another assistant asks it a question.
-  const computer = kind === "answer" ? assistant.computer : undefined;
+  // Its tools are there only where Docker runs and the computers are set
+  // up; this asks Docker nothing when it is not on this computer, and starts
+  // nothing.
+  const readiness =
+    kind === "answer" && assistant.computer
+      ? await computers.readinessNow()
+      : undefined;
+  const computer = readiness === "ready" ? assistant.computer : undefined;
   const computerTools = computer
     ? computerGate(assistant, computers)
     : undefined;
@@ -462,6 +469,7 @@ async function runAssistant(spec: RunSpec): Promise<AgentResult> {
     ...assistant,
     screen,
     computer,
+    ...(readiness && readiness !== "ready" ? { computerNote: readiness } : {}),
     folderLabels: folderLabels(assistant.folders).map((f) => f.label),
     connectionNames: mcp
       ? store
@@ -483,54 +491,63 @@ async function runAssistant(spec: RunSpec): Promise<AgentResult> {
     ...(spec.attachments ? { attachments: true } : {}),
     ownSkills: store.ownSkills(),
   });
-  return runAgent(
-    assistant,
-    [{ role: "system", content: prompt }, ...spec.history],
-    {
-      turn: (messages, tools) =>
-        streamTurn({
-          baseUrl: source.baseUrl,
-          wire: source.wire,
-          auth: headerOf(source.preset),
-          ...(apiKey ? { apiKey } : {}),
-          model: assistant.model ?? source.model,
-          messages,
-          tools,
-          signal,
-        }),
-      modeKey: `${source.id}\n${assistant.model ?? source.model}`,
-      ...(mcp ? { mcp } : {}),
-      ...(mailGate ? { mail: mailGate } : {}),
-      ...(computerTools ? { computer: computerTools } : {}),
-      ...(spec.team ? { team: spec.team } : {}),
-      ...(remember ? { memory: rememberGate(memory, assistant.id) } : {}),
-      ...(spec.seen ? { seen: spec.seen } : {}),
-      ...(spec.files ? { files: spec.files } : {}),
-      ...(kind === "check"
-        ? { readOnly: true, maxTurns: MAX_CHECK_TURNS }
-        : kind === "asked"
-          ? { maxTurns: MAX_ASKED_TURNS }
-          : computerTools
-            ? { maxTurns: MAX_COMPUTER_TURNS }
-            : {}),
-      ask: spec.ask,
-      allowSite: (site) => {
-        store.addSite(assistant.id, site);
+  // While the answer runs, its computer is in use: never stopped to make
+  // room for another or for being idle.
+  const release = computerTools ? computers.lease(assistant.id) : undefined;
+  const runAgentFor = (): Promise<AgentResult> =>
+    runAgent(
+      assistant,
+      [{ role: "system", content: prompt }, ...spec.history],
+      {
+        turn: (messages, tools) =>
+          streamTurn({
+            baseUrl: source.baseUrl,
+            wire: source.wire,
+            auth: headerOf(source.preset),
+            ...(apiKey ? { apiKey } : {}),
+            model: assistant.model ?? source.model,
+            messages,
+            tools,
+            signal,
+          }),
+        modeKey: `${source.id}\n${assistant.model ?? source.model}`,
+        ...(mcp ? { mcp } : {}),
+        ...(mailGate ? { mail: mailGate } : {}),
+        ...(computerTools ? { computer: computerTools } : {}),
+        ...(spec.team ? { team: spec.team } : {}),
+        ...(remember ? { memory: rememberGate(memory, assistant.id) } : {}),
+        ...(spec.seen ? { seen: spec.seen } : {}),
+        ...(spec.files ? { files: spec.files } : {}),
+        ...(kind === "check"
+          ? { readOnly: true, maxTurns: MAX_CHECK_TURNS }
+          : kind === "asked"
+            ? { maxTurns: MAX_ASKED_TURNS }
+            : computerTools
+              ? { maxTurns: MAX_COMPUTER_TURNS }
+              : {}),
+        ask: spec.ask,
+        allowSite: (site) => {
+          store.addSite(assistant.id, site);
+        },
+        onText: spec.onText,
+        onActivity: spec.onActivity,
+        signal,
+        ...(screen
+          ? {
+              screen: electronScreen(
+                isLocalEndpoint(source.baseUrl)
+                  ? "on this computer"
+                  : source.name,
+              ),
+            }
+          : {}),
       },
-      onText: spec.onText,
-      onActivity: spec.onActivity,
-      signal,
-      ...(screen
-        ? {
-            screen: electronScreen(
-              isLocalEndpoint(source.baseUrl)
-                ? "on this computer"
-                : source.name,
-            ),
-          }
-        : {}),
-    },
-  );
+    );
+  try {
+    return await runAgentFor();
+  } finally {
+    release?.();
+  }
 }
 
 /**
@@ -1173,13 +1190,13 @@ function register(window: BrowserWindow): void {
   });
   handle(IPC.removeAssistant, (_e, id: unknown) => {
     running.get(str(id))?.abort();
-    const had = store.assistants().find((a) => a.id === id)?.computer;
     store.removeAssistant(str(id));
     memory.forget(str(id));
     forgotten.delete(str(id));
     attachments.clearWaiting(str(id));
-    // Its computer goes with it; the exchange folder stays in the data folder.
-    if (had) void computers.remove(str(id)).catch(() => {});
+    // Its computer goes with it, even one turned off; the exchange folder
+    // stays in the data folder. Without Docker nothing is run.
+    void computers.remove(str(id)).catch(() => {});
   });
   handle(IPC.exportAssistant, (_e, id: unknown) =>
     exportAssistant(window, str(id)),
@@ -1378,7 +1395,9 @@ function register(window: BrowserWindow): void {
     handle,
     service: computers,
     assistant: (id) => store.assistant(str(id)),
+    assistants: () => store.assistants(),
     progress: (payload) => tell(window, IPC.computerProgress, payload),
+    state: (payload) => tell(window, IPC.computerState, payload),
     openFolder: (path) => shell.openPath(path),
   });
   registerRecording({ handle, window, store, model: draftModel });
@@ -1568,6 +1587,11 @@ app.whenReady().then(() => {
     // A sweep that fails leaves files for the next start.
   }
   computers = createComputers(dir, join(__dirname, "../computer"));
+  // A computer nobody has used for a while is stopped. Docker is asked
+  // nothing until a computer was started in this run of the app.
+  setInterval(() => {
+    void computers.sweepIdle().catch(() => {});
+  }, 60_000).unref();
   updates = new UpdateChecker({
     fetch,
     now: () => new Date(),

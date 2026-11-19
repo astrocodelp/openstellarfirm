@@ -188,6 +188,8 @@ export interface ComputerCallResult {
   image?: ImagePart;
   /** True when the result holds outside text: the screen, or a command's output. */
   outside: boolean;
+  /** True when nothing on the screen could have changed, so no picture is kept. */
+  still?: boolean;
 }
 
 export interface ComputerGate {
@@ -224,6 +226,7 @@ export type ComputerLike = Pick<
   | "run"
   | "readFile"
   | "saveToExchange"
+  | "keepFrame"
 >;
 
 /** The answer ends with one of these when the person ends its computer under it. */
@@ -389,6 +392,7 @@ export function computerGate(
       const offWhileWaiting = ended();
       if (offWhileWaiting) throw offWhileWaiting;
       let done: ComputerCallResult;
+      const before = steps.length;
       try {
         await service.ensure({ id, computer: assistant.computer });
         done = await act(name, args, steps, host);
@@ -409,6 +413,18 @@ export function computerGate(
       // which would mislead the model.
       const offDuring = ended();
       if (offDuring) throw offDuring;
+      // The person sees how the screen looked after the step, beside it in
+      // the chat. The picture is only theirs: it never goes to the model.
+      const step = steps[steps.length - 1];
+      if (
+        step &&
+        steps.length > before &&
+        !done.still &&
+        !host.signal.aborted
+      ) {
+        const frame = await service.keepFrame(id).catch(() => undefined);
+        if (frame) step.frame = frame;
+      }
       return done;
     },
   };
@@ -503,7 +519,7 @@ export function computerGate(
       return { text: runReport(out), outside: true };
     }
     if (name === COMPUTER_COPY_OUT) {
-      return copyOut(args, steps, host);
+      return { ...(await copyOut(args, steps, host)), still: true };
     }
     throw new ComputerError("That tool is not available here.");
   }
@@ -539,6 +555,7 @@ export function computerGate(
     return {
       text: "The person said no to this. Do not try it again. Ask them what they would like instead.",
       outside: false,
+      still: true,
     };
   }
 

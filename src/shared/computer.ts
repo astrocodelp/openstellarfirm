@@ -13,7 +13,19 @@ export const CPU_CHOICES = [1, 2, 4] as const;
 export const DEFAULT_MEMORY_GB = 2;
 export const DEFAULT_CPUS = 2;
 
-/** What the person set for one assistant's computer. Present means it is on. */
+/**
+ * How many of the assistants' computers run at once. Starting one more stops
+ * the one used least recently that is not working.
+ */
+export const MAX_RUNNING = 3;
+/** A computer nobody has used for this long is stopped. Its files stay. */
+export const IDLE_MINUTES = 15;
+
+/**
+ * What the person set for one assistant's computer. Present means it is on;
+ * a new assistant has one with the defaults (no network). It is used only
+ * where Docker is running and the computers are set up.
+ */
 export interface ComputerSettings {
   /** Off by default: the computer has no network at all. */
   network: boolean;
@@ -53,6 +65,29 @@ export interface ComputerStatus {
   image: boolean;
   /** True while the image is being built. */
   building: boolean;
+}
+
+/** Whether the assistants' computers can be used here, and if not, why. */
+export type ComputerReadiness = "ready" | "missing" | "stopped" | "setup";
+
+export function readinessOf(status: ComputerStatus): ComputerReadiness {
+  if (status.docker !== "ready") return status.docker;
+  return status.image ? "ready" : "setup";
+}
+
+/** A computer turned on or off, as the main process tells the page. */
+export interface ComputerState {
+  assistantId: string;
+  on: boolean;
+}
+
+/** One assistant's computer in the list of all of them. */
+export interface ComputerListItem {
+  assistantId: string;
+  /** "none" before it was ever started, "off" when stopped, "on" when running. */
+  container: "none" | "off" | "on";
+  /** When the assistant or the person last used it, in this run of the app. */
+  lastUsed?: string;
 }
 
 /** Who may use the computer right now. */
