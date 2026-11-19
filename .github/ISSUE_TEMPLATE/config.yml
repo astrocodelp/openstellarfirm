@@ -6,6 +6,9 @@ contact_links:
   - name: Share an idea
     url: https://github.com/astrocodelp/openstellarfirm/discussions/categories/ideas
     about: What OpenStellarFirm should do next. An idea becomes an issue once it is agreed.
+  - name: Report a conduct problem
+    url: https://github.com/astrocodelp/openstellarfirm/blob/main/CODE_OF_CONDUCT.md#enforcement
+    about: Email hey@stellarfirm.ai (see the Code of Conduct). Security problems go to the next link, never there.
   - name: Report a security problem
     url: https://github.com/astrocodelp/openstellarfirm/security/advisories/new
     about: Privately, never in a public issue.

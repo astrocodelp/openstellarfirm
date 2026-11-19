@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- The release scripts take the GitHub token and the signing variables out of
+  the environment while the checks and the build scripts run: the checks get
+  none, electron-builder gets only the signing variables, and the token goes to
+  the upload step alone.
+- The main window now cancels every request that is not one of the app's own
+  files (the dev server only when run from source) and refuses permission
+  checks, as the reader window already did.
+- The app asks before saving a web page, an SVG or a macro-enabled Office file
+  (`.html`, `.htm`, `.svg`, `.docm`, `.xlsm`, `.pptm` and similar), as it
+  already does for scripts.
+- Reading a web page also refuses the documentation address ranges
+  (192.0.2.0/24, 198.51.100.0/24, 203.0.113.0/24).
+
+### Changed
+
+- The release upload writes the SHA-256 checksums into the draft's notes as
+  well as attaching them. RELEASING.md says an unsigned build must not be the
+  public launch build and lists the signing variables.
+- Conduct reports go to hey@stellarfirm.ai; security reports stay on GitHub's
+  private reporting. Added `.github/CODEOWNERS`.
+- The README says the "Copy to StellarFirm cloud" address keeps the brief in
+  its fragment, which stays in the browser's history and on the clipboard.
+
 ## [0.1.0] - 2026-11-19
 
 The first release. The builds are not signed yet: see the README's

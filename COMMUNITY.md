@@ -77,4 +77,6 @@ Start with [CONTRIBUTING.md](CONTRIBUTING.md).
 
 Everyone who has helped is listed in [CONTRIBUTORS.md](CONTRIBUTORS.md).
 
-Be kind. The rules are in the [Code of Conduct](CODE_OF_CONDUCT.md).
+Be kind. The rules are in the [Code of Conduct](CODE_OF_CONDUCT.md). To report
+behaviour that breaks them, write to hey@stellarfirm.ai (security problems go
+to the Security tab instead).

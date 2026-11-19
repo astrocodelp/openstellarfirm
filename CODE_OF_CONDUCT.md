@@ -59,9 +59,11 @@ representative at an online or offline event.
 ## Enforcement
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
-reported to the community leaders responsible for enforcement through
-GitHub's private vulnerability reporting: use "Report a vulnerability" on
-this repository's Security tab, as described in [SECURITY.md](SECURITY.md).
+reported to the community leaders responsible for enforcement by email to
+**hey@stellarfirm.ai**, StellarFirm's public contact. Security problems are
+different: report those privately through GitHub's "Report a vulnerability" on
+this repository's Security tab, as described in [SECURITY.md](SECURITY.md),
+never to that address.
 All complaints will be reviewed and investigated promptly and fairly.
 
 All community leaders are obligated to respect the privacy and security of the

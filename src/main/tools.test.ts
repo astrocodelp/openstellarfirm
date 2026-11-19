@@ -244,6 +244,10 @@ describe("web reading", () => {
       "fe80::1",
       "fd00::1",
       "::ffff:10.0.0.1",
+      "192.0.2.1",
+      "198.51.100.7",
+      "203.0.113.200",
+      "::ffff:203.0.113.5",
     ]) {
       expect(isPublicAddress(ip), ip).toBe(false);
     }
@@ -259,7 +263,14 @@ describe("web reading", () => {
     ]) {
       expect(isPublicAddress(ip), ip).toBe(false);
     }
-    for (const ip of ["93.184.216.34", "8.8.8.8", "2606:4700::1111"]) {
+    for (const ip of [
+      "93.184.216.34",
+      "8.8.8.8",
+      "2606:4700::1111",
+      "198.51.101.1",
+      "203.0.112.1",
+      "203.0.114.1",
+    ]) {
       expect(isPublicAddress(ip), ip).toBe(true);
     }
   });
@@ -416,6 +427,13 @@ describe("which calls ask", () => {
       "Notes/app.csproj",
       "Notes/start.command",
       "Notes/sub/Dockerfile",
+      "Notes/page.html",
+      "Notes/page.HTM",
+      "Notes/page.xhtml",
+      "Notes/logo.svg",
+      "Notes/report.docm",
+      "Notes/budget.xlsm",
+      "Notes/slides.pptm",
     ]) {
       expect(runsOnItsOwn(path), path).toBe(true);
       const planned = planCall(

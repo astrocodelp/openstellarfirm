@@ -10,6 +10,20 @@
 #   Upload:        GITHUB_TOKEN (optional, goes to a DRAFT release)
 set -euo pipefail
 
+# The secrets are for two steps only: the signing and notarization variables
+# for electron-builder, the token for the upload. Install, lint, tests and the
+# build scripts run third-party code, so the secrets leave the environment here
+# and are handed over by name in a subshell. `declare +x` keeps the value in
+# this shell without passing it to children.
+builder_secrets=(CSC_LINK CSC_KEY_PASSWORD CSC_NAME CSC_KEYCHAIN
+  CSC_INSTALLER_LINK CSC_INSTALLER_KEY_PASSWORD
+  APPLE_API_KEY APPLE_API_KEY_ID APPLE_API_ISSUER
+  APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID)
+for secret in GITHUB_TOKEN GH_TOKEN "${builder_secrets[@]}"; do
+  declare +x "$secret" 2>/dev/null || true
+done
+unset GH_TOKEN
+
 die() { printf 'error: %s\n' "$*" >&2; exit 1; }
 
 [ "$(uname -s)" = Darwin ] || die "this script runs on a Mac"
@@ -25,7 +39,10 @@ tag_commit="$(git rev-parse --verify --quiet "refs/tags/$tag^{commit}")" || die 
 [ "$tag_commit" = "$(git rev-parse HEAD)" ] || die "HEAD is not at $tag; run: git checkout $tag"
 [ "v$(node -p 'require("./package.json").version')" = "$tag" ] || die "tag $tag does not match package.json version"
 
-bash scripts/ci.sh
+# The explicit -u list is a second belt: a secret must never be visible here.
+unset_args=()
+for secret in GITHUB_TOKEN GH_TOKEN "${builder_secrets[@]}"; do unset_args+=(-u "$secret"); done
+env "${unset_args[@]}" bash scripts/ci.sh
 
 signing=0
 if [ -n "${CSC_LINK:-}" ] || [ -n "${CSC_NAME:-}" ]; then
@@ -54,7 +71,11 @@ else
 fi
 
 rm -rf release
-pnpm exec electron-builder --mac --publish never
+# Only the signing variables reach electron-builder, never a GitHub token.
+(
+  export "${builder_secrets[@]}"
+  pnpm exec electron-builder --mac --publish never
+)
 
 cd release
 shopt -s nullglob
@@ -73,7 +94,11 @@ cat SHA256SUMS-mac.txt
 
 if [ -n "${GITHUB_TOKEN:-}" ]; then
   printf '\nUploading to a draft release.\n'
-  bash "$root/scripts/release/upload.sh" "$tag" "$root/release"
+  # The token goes to the upload step alone.
+  (
+    export GITHUB_TOKEN
+    bash "$root/scripts/release/upload.sh" "$tag" "$root/release"
+  )
 else
   printf '\nGITHUB_TOKEN is not set: nothing uploaded. Files are in %s\n' "$root/release"
 fi

@@ -5,7 +5,9 @@
 # Usage: GITHUB_TOKEN=... upload.sh <tag> <folder>
 # Optional: GITHUB_REPO (owner/name; default: "repository" in package.json)
 # A new draft gets docs/release-notes-template.md as its notes, to edit before
-# publishing.
+# publishing. The checksums of every uploaded installer are also written into
+# the draft's notes, so a download can be checked without trusting the assets
+# alone (the assets and the notes are separate places).
 set -euo pipefail
 
 die() { printf 'error: %s\n' "$*" >&2; exit 1; }
@@ -106,6 +108,45 @@ for f in "${files[@]}"; do
   fi
   done_list+=("$name")
 done
+
+# Put the checksums in the notes too. The Linux and Windows build and the Mac
+# build upload separately, so this adds to the block a first upload wrote.
+sums=()
+for f in "${files[@]}"; do
+  case "$(basename "$f")" in SHA256SUMS*.txt) sums+=("$f") ;; esac
+done
+if [ "${#sums[@]}" -gt 0 ]; then
+  node -e '
+    const fs = require("fs");
+    const [releaseFile, ...sumFiles] = process.argv.slice(1);
+    const release = JSON.parse(fs.readFileSync(releaseFile, "utf8"));
+    const begin = "<!-- sha256sums:begin -->";
+    const end = "<!-- sha256sums:end -->";
+    const body = release.body ?? "";
+    const from = body.indexOf(begin);
+    const to = body.indexOf(end);
+    const block = from >= 0 && to > from ? body.slice(from + begin.length, to) : "";
+    const lines = new Map();
+    const take = (text) => {
+      for (const line of text.split("\n")) {
+        const m = /^([0-9a-f]{64}) [ *](.+)$/.exec(line.trim());
+        if (m && !lines.has(m[2])) lines.set(m[2], m[1]);
+      }
+    };
+    take(block);
+    for (const file of sumFiles) take(fs.readFileSync(file, "utf8"));
+    const list = [...lines].map(([name, sum]) => `${sum}  ${name}`).join("\n");
+    const section = `${begin}\n\n### SHA-256 checksums\n\nCheck a download against these, for example with \`sha256sum -c\` or \`shasum -a 256 -c\`.\n\n\`\`\`\n${list}\n\`\`\`\n\n${end}`;
+    const next = from >= 0 && to > from
+      ? body.slice(0, from) + section + body.slice(to + end.length)
+      : `${body.replace(/\s+$/, "")}\n\n${section}\n`;
+    process.stdout.write(JSON.stringify({ body: next }));
+  ' "$tmp/release.json" "${sums[@]}" > "$tmp/patch.json"
+  printf 'Writing the checksums into the draft notes.\n'
+  gh PATCH "https://api.github.com/repos/$repo/releases/$release_id" \
+    -H 'Content-Type: application/json' -d "@$tmp/patch.json" > "$tmp/patched.json" ||
+    die "the assets are uploaded, but the checksums could not be added to the notes; add them by hand"
+fi
 
 printf '\nDone. The release is still a DRAFT: check it and publish by hand.\n'
 node -p 'require(process.argv[1]).html_url' "$tmp/release.json"

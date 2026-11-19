@@ -12,6 +12,16 @@
 #   WIN_CSC_LINK, WIN_CSC_KEY_PASSWORD  optional  Windows code signing
 set -euo pipefail
 
+# The secrets are for two steps only: the Windows signing variables for
+# electron-builder, the token for the upload. Everything else (install, lint,
+# tests, the build scripts) runs untrusted-ish third-party code, so the secrets
+# are taken out of the environment here and handed over by name in a subshell.
+# `declare +x` keeps the value in this shell without passing it to children.
+for secret in GITHUB_TOKEN GH_TOKEN WIN_CSC_LINK WIN_CSC_KEY_PASSWORD; do
+  declare +x "$secret" 2>/dev/null || true
+done
+unset GH_TOKEN
+
 die() { printf 'error: %s\n' "$*" >&2; exit 1; }
 
 ref="${RELEASE_REF:-}"
@@ -47,7 +57,9 @@ corepack prepare "$pm" --activate
 pnpm --version
 
 # Checks first (install, lint, typecheck, test, build): no installer from a red tree.
-bash scripts/ci.sh
+# The explicit -u list is a second belt: a secret must never be visible here.
+env -u GITHUB_TOKEN -u GH_TOKEN -u WIN_CSC_LINK -u WIN_CSC_KEY_PASSWORD \
+  -u CSC_LINK -u CSC_KEY_PASSWORD -u CSC_NAME bash scripts/ci.sh
 
 if [ -n "${WIN_CSC_LINK:-}" ] && [ -n "${WIN_CSC_KEY_PASSWORD:-}" ]; then
   printf 'Windows: signing with the supplied certificate.\n'
@@ -60,7 +72,11 @@ fi
 unset CSC_LINK CSC_KEY_PASSWORD CSC_NAME
 
 rm -rf release
-pnpm exec electron-builder --linux --win --x64 --publish never
+# Only the signing variables reach electron-builder, never a GitHub token.
+(
+  export WIN_CSC_LINK WIN_CSC_KEY_PASSWORD
+  pnpm exec electron-builder --linux --win --x64 --publish never
+)
 
 cd release
 shopt -s nullglob
@@ -80,7 +96,11 @@ cat SHA256SUMS.txt
 
 if [ -n "${GITHUB_TOKEN:-}" ]; then
   printf '\nUploading to a draft release.\n'
-  GITHUB_REPO="$repo" bash "$src/scripts/release/upload.sh" "$ref" "$src/release"
+  # The token goes to the upload step alone.
+  (
+    export GITHUB_TOKEN
+    GITHUB_REPO="$repo" bash "$src/scripts/release/upload.sh" "$ref" "$src/release"
+  )
 else
   printf '\nGITHUB_TOKEN is not set: nothing uploaded. Files are in %s\n' "$src/release"
   printf 'This container is temporary, so set the token (Fly app secret) to keep the installers.\n'
