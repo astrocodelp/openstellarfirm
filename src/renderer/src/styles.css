@@ -253,12 +253,12 @@ legend {
 }
 
 /*
- * A heading or a line that takes the focus only so it is read out: its ring
- * stands clear of the words and is rounded, instead of a box tight on the text.
+ * A heading or a line that takes the focus only so a screen reader reads it
+ * when a screen opens: it is not a control, so it shows no ring (a box around
+ * a title looks like a button). The next Tab goes on from there.
  */
-:is(h1, h2, h3, p, section)[tabindex="-1"]:focus-visible {
-  outline-offset: 0.375rem;
-  border-radius: var(--radius-inset);
+:is(h1, h2, h3, p, section)[tabindex="-1"]:focus {
+  outline: none;
 }
 
 /* Where a skip link sends the focus: a region, not a control, so no ring. */
