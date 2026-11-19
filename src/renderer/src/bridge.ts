@@ -242,7 +242,7 @@ function preview(): OpenApi {
         id: input.id ?? id(),
         preset: input.preset,
         name: input.name ?? input.preset,
-        baseUrl: input.baseUrl ?? "",
+        baseUrl: input.baseUrl ?? presetOf(input.preset).baseUrl,
         wire: presetOf(input.preset).wire,
         model: input.model,
         hasKey: Boolean(input.apiKey),

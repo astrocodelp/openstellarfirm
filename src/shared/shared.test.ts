@@ -36,7 +36,7 @@ describe("checkEndpoint", () => {
 
   it("checks every preset's own address", () => {
     for (const preset of PRESETS) {
-      if (preset.id === "custom") continue;
+      if (preset.address !== "fixed") continue;
       expect(checkEndpoint(preset.baseUrl)).toBe(preset.baseUrl);
       expect(isLocalEndpoint(preset.baseUrl)).toBe(preset.local);
     }

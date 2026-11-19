@@ -6,6 +6,7 @@
  * an error is a short sentence that never carries the key.
  */
 
+import type { KeyHeader } from "../../shared/catalog";
 import type { Wire } from "../../shared/types";
 
 export interface ToolCall {
@@ -54,6 +55,8 @@ export interface ModelCall {
   /** How to speak to the service. Missing means "openai". */
   wire?: Wire;
   apiKey?: string;
+  /** The header a key goes in on the OpenAI wire. Missing means "bearer". */
+  auth?: KeyHeader;
   model: string;
   messages: WireMessage[];
   tools?: ToolSpec[];
@@ -64,6 +67,7 @@ export interface ModelCall {
 export interface ListInput {
   baseUrl: string;
   apiKey?: string;
+  auth?: KeyHeader;
   timeoutMs?: number;
   fetchImpl?: typeof fetch;
 }

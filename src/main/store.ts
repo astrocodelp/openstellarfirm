@@ -9,6 +9,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
+import { resolveAddress } from "../shared/address";
 import {
   type AssistantFile,
   cleanAssistant,
@@ -430,9 +431,7 @@ export class Store {
     const model = text(input.model, 200);
     if (!model) throw new Error("Name the model to use.");
     // A preset's address is fixed in code. Only "custom" takes one from the person.
-    const baseUrl = checkEndpoint(
-      preset.id === "custom" ? (input.baseUrl ?? "") : preset.baseUrl,
-    );
+    const baseUrl = resolveAddress(preset.id, input);
     const name = text(input.name, 40) || preset.name;
     const existing = state.sources.find((s) => s.id === input.id);
     if (existing) {

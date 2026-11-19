@@ -401,3 +401,75 @@ describe("the theme", () => {
     expect(old.settings().theme).toBe("system");
   });
 });
+
+describe("model sources from the wider preset list", () => {
+  it("builds a cloud source's address from its checked part", () => {
+    expect(
+      store.saveSource({ preset: "azure", part: "my-resource", model: "d" })
+        .baseUrl,
+    ).toBe("https://my-resource.openai.azure.com/openai/v1");
+    expect(
+      store.saveSource({ preset: "bedrock", part: "eu-west-1", model: "m" })
+        .baseUrl,
+    ).toBe("https://bedrock-runtime.eu-west-1.amazonaws.com/openai/v1");
+    expect(() =>
+      store.saveSource({
+        preset: "azure",
+        part: "evil.example.com",
+        model: "d",
+      }),
+    ).toThrow();
+    expect(() =>
+      store.saveSource({ preset: "bedrock", part: "mars-1", model: "m" }),
+    ).toThrow();
+  });
+
+  it("pins a new router to its address and keeps a LiteLLM gateway typed", () => {
+    expect(
+      store.saveSource({
+        preset: "groq",
+        baseUrl: "https://evil.example.com",
+        model: "m",
+      }).baseUrl,
+    ).toBe("https://api.groq.com/openai/v1");
+    expect(
+      store.saveSource({
+        preset: "litellm",
+        baseUrl: "http://localhost:4000",
+        model: "m",
+      }).baseUrl,
+    ).toBe("http://localhost:4000");
+  });
+
+  it("keeps a source saved before these presets unchanged", () => {
+    writeFileSync(
+      join(dir, "state.json"),
+      JSON.stringify({
+        v: 1,
+        assistants: [],
+        sources: [
+          {
+            id: "22222222-2222-2222-2222-222222222222",
+            preset: "together",
+            name: "Together AI",
+            baseUrl: "https://api.together.ai/v1",
+            wire: "openai",
+            model: "m",
+          },
+          {
+            id: "33333333-3333-3333-3333-333333333333",
+            preset: "custom",
+            name: "Mine",
+            baseUrl: "https://models.example.com/v1",
+            model: "m",
+          },
+        ],
+        settings: { onboarded: true },
+      }),
+    );
+    expect(store.sources().map((s) => [s.preset, s.baseUrl, s.wire])).toEqual([
+      ["together", "https://api.together.ai/v1", "openai"],
+      ["custom", "https://models.example.com/v1", "openai"],
+    ]);
+  });
+});

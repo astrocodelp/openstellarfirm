@@ -1,5 +1,6 @@
 import { type FormEvent, useId, useState } from "react";
-import { PRESETS, presetOf } from "../../shared/catalog";
+import { BEDROCK_REGIONS } from "../../shared/address";
+import { PRESET_GROUPS, PRESETS, presetOf } from "../../shared/catalog";
 import type { AppState, ModelSource, PresetId } from "../../shared/types";
 import { api } from "./bridge";
 import { ErrorLine, message as errorText, OkLine, ScreenHead } from "./ui";
@@ -23,17 +24,19 @@ export function SourceForm({
   const ids = useId();
   const [presetId, setPresetId] = useState<PresetId>(initialPreset);
   const [baseUrl, setBaseUrl] = useState("");
+  const [part, setPart] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [model, setModel] = useState(initialModels[0] ?? "");
   const [models, setModels] = useState<string[]>(initialModels);
   const [busy, setBusy] = useState<"" | "look" | "save">("");
   const [error, setError] = useState("");
   const preset = presetOf(presetId);
-  const custom = preset.id === "custom";
+  const own = preset.address === "own";
   const takesKey = !preset.local;
 
   function pick(next: PresetId) {
     setPresetId(next);
+    setPart("");
     setModels([]);
     setModel("");
     setError("");
@@ -46,6 +49,7 @@ export function SourceForm({
       const found = await api.probeModels({
         preset: presetId,
         baseUrl,
+        part,
         apiKey,
       });
       setModels(found);
@@ -65,7 +69,13 @@ export function SourceForm({
     setError("");
     try {
       onSaved(
-        await api.saveSource({ preset: presetId, baseUrl, apiKey, model }),
+        await api.saveSource({
+          preset: presetId,
+          baseUrl,
+          part,
+          apiKey,
+          model,
+        }),
       );
       setApiKey("");
     } catch (e) {
@@ -84,16 +94,55 @@ export function SourceForm({
           value={presetId}
           onChange={(event) => pick(event.target.value as PresetId)}
         >
-          {PRESETS.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
+          {PRESET_GROUPS.map((group) => (
+            <optgroup key={group.id} label={group.name}>
+              {PRESETS.filter((p) => p.group === group.id).map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </optgroup>
           ))}
         </select>
         <span className="faint">{preset.note}</span>
       </label>
 
-      {custom ? (
+      {preset.address === "azure" ? (
+        <label className="field">
+          <span className="field-label">Resource</span>
+          <input
+            className="input mono"
+            value={part}
+            placeholder="my-resource"
+            spellCheck={false}
+            autoComplete="off"
+            onChange={(event) => setPart(event.target.value)}
+          />
+          <span className="faint">
+            The resource's name, or its address ending in openai.azure.com.
+          </span>
+        </label>
+      ) : null}
+
+      {preset.address === "bedrock" ? (
+        <label className="field">
+          <span className="field-label">Region</span>
+          <select
+            className="input"
+            value={part}
+            onChange={(event) => setPart(event.target.value)}
+          >
+            <option value="">Pick a region</option>
+            {BEDROCK_REGIONS.map((region) => (
+              <option key={region} value={region}>
+                {region}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
+
+      {own ? (
         <label className="field">
           <span className="field-label">Address</span>
           <input
@@ -110,7 +159,7 @@ export function SourceForm({
       {takesKey ? (
         <label className="field">
           <span className="field-label">
-            {custom ? "Key, if it needs one" : "Key"}
+            {preset.needsKey || preset.local ? "Key" : "Key, if it needs one"}
           </span>
           <input
             className="input mono"
@@ -148,15 +197,24 @@ export function SourceForm({
               <option key={m} value={m} />
             ))}
           </datalist>
-          <button
-            type="button"
-            className="btn"
-            disabled={busy !== ""}
-            onClick={() => void look()}
-          >
-            {busy === "look" ? "Looking…" : "Look for models"}
-          </button>
+          {preset.lists ? (
+            <button
+              type="button"
+              className="btn"
+              disabled={busy !== ""}
+              onClick={() => void look()}
+            >
+              {busy === "look" ? "Looking…" : "Look for models"}
+            </button>
+          ) : null}
         </div>
+        {preset.lists ? null : (
+          <span className="faint">
+            {preset.id === "azure"
+              ? "Azure does not list models. Type the name you gave the deployment."
+              : "This service does not list its models here. Type the model's name."}
+          </span>
+        )}
         {models.length > 0 ? (
           <OkLine>
             Found {models.length === 1 ? "1 model" : `${models.length} models`}
@@ -285,13 +343,15 @@ export function ModelsScreen({ state, onChanged, onBack }: ModelsScreenProps) {
                         Make default
                       </button>
                     )}
-                    <button
-                      type="button"
-                      className="btn"
-                      onClick={() => void check(source)}
-                    >
-                      Check
-                    </button>
+                    {presetOf(source.preset).lists ? (
+                      <button
+                        type="button"
+                        className="btn"
+                        onClick={() => void check(source)}
+                      >
+                        Check
+                      </button>
+                    ) : null}
                     <button
                       type="button"
                       className="btn btn-danger"
@@ -320,6 +380,10 @@ export function ModelsScreen({ state, onChanged, onBack }: ModelsScreenProps) {
               onSaved={() => void onChanged()}
             />
           </div>
+          <p className="faint">
+            Not here: Google Vertex AI, which signs in with a service account
+            and not a key, and any service that does not speak the OpenAI way.
+          </p>
         </section>
       </div>
     </div>

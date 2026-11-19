@@ -13,7 +13,8 @@ import {
   session,
   shell,
 } from "electron";
-import { presetOf } from "../shared/catalog";
+import { resolveAddress } from "../shared/address";
+import { headerOf, presetOf } from "../shared/catalog";
 import { cloudCopyUrl, cloudHomeUrl, MAX_LINK_WINDOWS } from "../shared/cloud";
 import { checkEndpoint, isLocalEndpoint } from "../shared/endpoint";
 import { linkUrl } from "../shared/links";
@@ -133,8 +134,7 @@ async function saveSource(input: ModelSourceInput): Promise<ModelSource> {
   const before = input.id
     ? store.sources().find((s) => s.id === input.id)
     : undefined;
-  const needsKey = !preset.local && preset.id !== "custom";
-  if (needsKey && !key && !(before && secrets.has(before.id))) {
+  if (preset.needsKey && !key && !(before && secrets.has(before.id))) {
     throw new Error(`Paste your ${preset.name} key.`);
   }
   const saved = store.saveSource(input);
@@ -148,13 +148,6 @@ async function saveSource(input: ModelSourceInput): Promise<ModelSource> {
     throw error;
   }
   return withKey(saved);
-}
-
-function probeAddress(input: { preset: PresetId; baseUrl?: string }): string {
-  const preset = presetOf(input.preset);
-  return checkEndpoint(
-    preset.id === "custom" ? (input.baseUrl ?? "") : preset.baseUrl,
-  );
 }
 
 async function detectLocal(): Promise<LocalModels> {
@@ -272,6 +265,7 @@ async function answer(
           streamTurn({
             baseUrl: source.baseUrl,
             wire: source.wire,
+            auth: headerOf(source.preset),
             ...(apiKey ? { apiKey } : {}),
             model: assistant.model ?? source.model,
             messages,
@@ -521,11 +515,24 @@ function register(window: BrowserWindow): void {
   });
   handle(
     IPC.probeModels,
-    (_e, input: { preset: PresetId; baseUrl?: string; apiKey?: string }) => {
+    (
+      _e,
+      input: {
+        preset: PresetId;
+        baseUrl?: string;
+        part?: string;
+        apiKey?: string;
+      },
+    ) => {
       const key = input.apiKey?.trim();
+      const preset = presetOf(input.preset);
+      const baseUrl = resolveAddress(input.preset, input);
+      // A service with no model list is not asked: the person names the model.
+      if (!preset.lists) return Promise.resolve([]);
       return listModels({
-        baseUrl: probeAddress(input),
-        wire: presetOf(input.preset).wire,
+        baseUrl,
+        wire: preset.wire,
+        auth: preset.header,
         ...(key ? { apiKey: key } : {}),
       });
     },
@@ -533,16 +540,19 @@ function register(window: BrowserWindow): void {
   handle(IPC.checkSource, async (_e, id: string) => {
     const source = store.source(id);
     const key = await secrets.get(id);
-    if (
-      !key &&
-      !isLocalEndpoint(source.baseUrl) &&
-      source.preset !== "custom"
-    ) {
+    const preset = presetOf(source.preset);
+    if (!key && !isLocalEndpoint(source.baseUrl) && preset.needsKey) {
       throw new Error("This source has no key saved. Add it again.");
+    }
+    if (!preset.lists) {
+      throw new Error(
+        "This service has no list of models to check. Send it a message to try it.",
+      );
     }
     return listModels({
       baseUrl: source.baseUrl,
       wire: source.wire,
+      auth: preset.header,
       ...(key ? { apiKey: key } : {}),
     });
   });
