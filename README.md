@@ -9,8 +9,9 @@ model: one that runs on this machine (Ollama, LM Studio), your own key, or your
 own endpoint. There is no account, no server of ours, and no fee.
 
 > **Early.** An assistant can talk, read and add files in folders you pick,
-> read web pages you allow, use the tools of servers you connect, and look at
-> your screen when you approve. It cannot click, type or use your apps.
+> read web pages you allow, use the tools of servers you connect, look at
+> your screen when you approve, and, if you give it one, use a computer of its
+> own in Docker. It cannot click, type or use your own apps.
 > See [What is built](#what-is-built) and the [Roadmap](#roadmap).
 
 Made by the team behind [StellarFirm](https://stellarfirm.ai), where a whole
@@ -63,6 +64,15 @@ team of AI Agent Assistants works for your company in the cloud.
   check only reads: anything that would need your Approve is left for you.
 - **A look at your screen.** Off until you turn it on for an assistant. Every
   look asks first, and the picture is never saved. It can only look.
+- **A computer of its own, in Docker.** Off until you turn it on for an
+  assistant. A small Linux desktop (a browser, Python, a terminal) runs in a
+  Docker container on this computer, never in a cloud. The assistant clicks,
+  types and runs commands there without asking, because that computer has no
+  network unless you allow it, no capabilities, limits on memory and
+  processors, and no folder of yours but its own exchange folder. Saving a
+  file from it into one of your folders asks every time. You watch it beside
+  the chat, and can pause it or take over. Needs Docker Desktop, Docker
+  Engine, OrbStack, Colima or Podman. See [docs/COMPUTER.md](docs/COMPUTER.md).
 - **Tools on small models too.** A model that cannot call tools asks for them
   in writing, through the same approvals.
 - **Move or back up.** One file with all your assistants, and your chats only
@@ -78,10 +88,13 @@ team of AI Agent Assistants works for your company in the cloud.
 
 ## What is not built yet
 
-- **No control of your computer.** An assistant cannot click, type or use
-  your apps.
-- **No servers started as a command.** A connection is a web address. The app
-  does not start programs.
+- **No control of your own desktop.** An assistant can click and type only on
+  its own computer in Docker, never on your screen or in your apps. Driving
+  your real desktop was considered and not built: it cannot be isolated, and
+  one wrong click there reaches your mail, files and signed-in accounts.
+- **No servers started as a command.** A connection is a web address. The
+  only program the app starts is `docker`, for an assistant whose computer
+  you turned on.
 - **No sign-in with a company (Poppy).** Version 1.0 of the Personal Agent
   Protocol needs an identity that lives on a server, which an app that runs
   only on your computer does not have.
@@ -101,7 +114,7 @@ team of AI Agent Assistants works for your company in the cloud.
 - A remote model address must be `https`. Plain `http` is allowed only for a
   model on this computer. A model call never follows a redirect.
 - The app has no telemetry and loads nothing from a CDN. It talks to the model
-  you set up, the web pages you approved and the connections you added. Three
+  you set up, the web pages you approved and the connections you added. Four
   more calls exist, and each starts only when you ask:
   - **Update check** (off by default). When you turn it on, or press "Check
     now", the app asks GitHub once a day which version is the newest. It sends
@@ -110,8 +123,12 @@ team of AI Agent Assistants works for your company in the cloud.
     your own key.
   - **Look up a company.** Contacts the site you typed, once, and sends
     nothing but the request itself.
-- Links to stellarfirm.ai, composio.dev and this project's pages open in your
-  browser, only on your click.
+  - **Setting up an assistant's computer.** Docker downloads a Debian base
+    image and its packages from Docker Hub and Debian's mirrors, on your
+    click. With its network on, that computer reaches the internet on its
+    own; it is off by default.
+- Links to stellarfirm.ai, composio.dev, Docker's install page and this
+  project's pages open in your browser, only on your click.
 
 The full list of what the code enforces, and what it does not, is in
 [SECURITY.md](SECURITY.md).
@@ -149,8 +166,8 @@ bash scripts/ci.sh   # everything the maintainers check, in one go
 1. **Signed releases** for macOS, Windows and Linux.
 2. **Sign-ins for connections** (OAuth), kept in the keychain.
 3. **More personas and skills** from the community.
-4. **This computer.** Using your apps, with Take over and Pause, once it can
-   be done safely.
+4. **More for its own computer.** Copying a file into it from the chat, more
+   tools in the image, and a virtual machine where one is available.
 5. **Companies.** Acting for you at a company that supports the Personal
    Agent Protocol (Poppy), when the protocol allows agents on a device.
 

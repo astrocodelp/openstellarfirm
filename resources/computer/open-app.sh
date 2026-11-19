@@ -9,5 +9,8 @@ if ! command -v "$1" >/dev/null 2>&1; then
   echo "There is no program called $1 on this computer." >&2
   exit 127
 fi
-setsid "$@" >/dev/null 2>&1 </dev/null &
+# A session of its own, so it outlives the command that opened it. The short
+# wait lets it leave this command's group before the command ends.
+setsid --fork "$@" >/dev/null 2>&1 </dev/null
+sleep 1
 echo "Opened $1."

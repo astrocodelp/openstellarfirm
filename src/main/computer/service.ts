@@ -40,6 +40,9 @@ export const MAX_OUTPUT_CHARS = 12_000;
 export const MAX_COPY_BYTES = 25 * 1024 * 1024;
 export const MAX_SCROLL = 10;
 
+// The pointer is moved without "--sync": on a virtual screen the move and
+// the click arrive in order, and "--sync" waits a long time when the pointer
+// is already at that point.
 const BUTTONS: Record<MouseButton, string> = {
   left: "1",
   middle: "2",
@@ -381,7 +384,6 @@ export class ComputerService {
       [
         "xdotool",
         "mousemove",
-        "--sync",
         String(px),
         String(py),
         "click",
@@ -450,7 +452,6 @@ export class ComputerService {
       [
         "xdotool",
         "mousemove",
-        "--sync",
         String(px),
         String(py),
         "click",

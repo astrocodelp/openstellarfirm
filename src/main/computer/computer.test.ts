@@ -383,7 +383,6 @@ describe("the service", () => {
       execArgs(ID, [
         "xdotool",
         "mousemove",
-        "--sync",
         "10",
         "20",
         "click",

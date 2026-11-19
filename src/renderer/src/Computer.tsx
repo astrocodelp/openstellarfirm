@@ -222,6 +222,7 @@ export function ComputerPanel({
   const [removing, setRemoving] = useState(false);
   const [visible, setVisible] = useState(!document.hidden);
   const screen = useRef<HTMLDivElement>(null);
+  const takeOverButton = useRef<HTMLButtonElement>(null);
   const id = assistant.id;
   const ready = status?.docker === "ready" && status.image;
   const on = view?.container === "on";
@@ -232,6 +233,17 @@ export function ComputerPanel({
     document.addEventListener("visibilitychange", changed);
     return () => document.removeEventListener("visibilitychange", changed);
   }, []);
+
+  // Focus follows the control: into the view when the person takes over, and
+  // back to Take over when they give it back, never left on a removed button.
+  const wasTaken = useRef(false);
+  useEffect(() => {
+    if (taken && !wasTaken.current)
+      screen.current?.focus({ preventScroll: true });
+    if (!taken && wasTaken.current && document.activeElement === document.body)
+      takeOverButton.current?.focus({ preventScroll: true });
+    wasTaken.current = taken;
+  }, [taken]);
 
   // Closing the panel while the person holds the computer gives it back, so
   // the assistant is never left waiting on a view nobody sees.
@@ -529,7 +541,7 @@ export function ComputerPanel({
           <p className="faint" id="computer-hint" role="status">
             {HOLD_LINE[view.hold](name)}
             {taken
-              ? " Click to focus the view. Tab moves out of it; Cmd stands for Ctrl."
+              ? " Tab moves out of the view; Cmd stands for Ctrl."
               : busy
                 ? ` ${name} is working.`
                 : ""}
@@ -577,13 +589,8 @@ export function ComputerPanel({
                 type="button"
                 className="btn"
                 disabled={working}
-                onClick={() =>
-                  void act(async () => {
-                    const next = await api.computerHold(id, "taken");
-                    screen.current?.focus({ preventScroll: true });
-                    return next;
-                  })
-                }
+                ref={takeOverButton}
+                onClick={() => void act(() => api.computerHold(id, "taken"))}
               >
                 Take over
               </button>
