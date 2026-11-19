@@ -253,6 +253,37 @@ export function filterPalette(
   return picked;
 }
 
+/** The palette's list split in two: what can be chosen, and what cannot yet. */
+export interface PaletteRows<T> {
+  /** Reached by the arrows, Enter and a click, in this order. */
+  choosable: T[];
+  /**
+   * Chat results found for earlier words, kept on screen, dimmed, while the
+   * search for the words typed now runs, so the list does not flicker. They
+   * cannot be chosen: they may no longer match.
+   */
+  stale: T[];
+}
+
+/**
+ * Puts the chat results with the rest of the list only when they were found
+ * for the words typed now. `answeredFor` is the search the chat results
+ * answer; the other groups are filtered as the words are typed, so they are
+ * always current.
+ */
+export function arrangePaletteRows<T>(
+  listed: readonly T[],
+  chats: readonly T[],
+  query: string,
+  answeredFor: string,
+): PaletteRows<T> {
+  const typed = query.trim();
+  if (!typed) return { choosable: [...listed], stale: [] };
+  if (answeredFor.trim() === typed)
+    return { choosable: [...listed, ...chats], stale: [] };
+  return { choosable: [...listed], stale: [...chats] };
+}
+
 /** The words a screen reader hears after the list changes. */
 export function resultCount(count: number): string {
   if (count === 0) return "No results";

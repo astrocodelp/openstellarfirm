@@ -12,6 +12,7 @@ import { SEARCH_QUERY_MAX } from "../../shared/search";
 import type { AppState, SearchHit } from "../../shared/types";
 import { api } from "./bridge";
 import {
+  arrangePaletteRows,
   filterPalette,
   GROUP_LABELS,
   GROUP_ORDER,
@@ -156,6 +157,8 @@ export function Palette({
   const input = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<SearchHit[]>([]);
+  /** The words the chat results were found for. */
+  const [hitsFor, setHitsFor] = useState("");
   const [searching, setSearching] = useState(false);
   const [failed, setFailed] = useState(false);
   const [active, setActive] = useState(0);
@@ -185,12 +188,14 @@ export function Palette({
     };
   }, []);
 
-  // The chats are searched once typing pauses; the newest answer wins.
+  // The chats are searched once typing pauses; the newest answer wins. The
+  // results for the last words stay until it comes, marked as stale.
   useEffect(() => {
     const q = query.trim();
     setFailed(false);
     if (!q) {
       setHits([]);
+      setHitsFor("");
       setSearching(false);
       return;
     }
@@ -200,11 +205,15 @@ export function Palette({
       api
         .searchChats(q)
         .then((found) => {
-          if (live) setHits(found);
+          if (live) {
+            setHits(found);
+            setHitsFor(q);
+          }
         })
         .catch(() => {
           if (live) {
             setHits([]);
+            setHitsFor(q);
             setFailed(true);
           }
         })
@@ -230,13 +239,16 @@ export function Palette({
     [state.assistants, state.connections, state.mailAccounts, savable],
   );
 
-  const rows = useMemo<Row[]>(() => {
+  // Assistants, screens and settings are filtered as the words are typed; the
+  // chats only once their search answers. Until then the old chat results are
+  // shown dimmed and cannot be chosen, so Enter never opens a stale match.
+  const { choosable: rows, stale } = useMemo(() => {
     const listed: Row[] = filterPalette(base, query).map((item) => ({ item }));
-    if (!query.trim()) return listed;
+    const chats: Row[] = [];
     for (const hit of hits) {
       const owner = state.assistants.find((a) => a.id === hit.assistantId);
       if (!owner) continue;
-      listed.push({
+      chats.push({
         hit,
         item: {
           id: `message:${hit.messageId}`,
@@ -252,8 +264,8 @@ export function Palette({
         },
       });
     }
-    return listed;
-  }, [base, query, hits, state.assistants]);
+    return arrangePaletteRows(listed, chats, query, hitsFor);
+  }, [base, query, hits, hitsFor, state.assistants]);
 
   // A new search starts at the top of the list.
   // biome-ignore lint/correctness/useExhaustiveDependencies: reset when the words change
@@ -408,6 +420,19 @@ export function Palette({
               ))}
             </Group>
           ))}
+          {stale.length > 0 ? (
+            // Seen, not heard and not chosen: the status line says what was found.
+            <div className="palette-group palette-stale" aria-hidden="true">
+              <div className="palette-group-label">
+                {GROUP_LABELS.chats} · Searching…
+              </div>
+              {stale.map((row) => (
+                <div key={row.item.id} className="palette-option">
+                  <OptionBody row={row} />
+                </div>
+              ))}
+            </div>
+          ) : null}
         </div>
         {failed ? (
           <p className="palette-line faint">
@@ -469,7 +494,6 @@ function Option({
   onPoint(): void;
   onPick(): void;
 }) {
-  const { item, hit } = row;
   return (
     // biome-ignore lint/a11y/useKeyWithClickEvents: the box's arrows and Enter choose an option
     // biome-ignore lint/a11y/useFocusableInteractive: the box keeps the focus; aria-activedescendant points here
@@ -481,6 +505,16 @@ function Option({
       onPointerMove={onPoint}
       onClick={onPick}
     >
+      <OptionBody row={row} />
+    </div>
+  );
+}
+
+/** What an option shows: its mark, its name, and for a chat the words found. */
+function OptionBody({ row }: { row: Row }) {
+  const { item, hit } = row;
+  return (
+    <>
       <span className="palette-mark">
         {item.pet ? (
           <Pet pet={item.pet.pet} color={item.pet.color} size={24} />
@@ -509,7 +543,7 @@ function Option({
           </span>
         ) : null}
       </span>
-    </div>
+    </>
   );
 }
 

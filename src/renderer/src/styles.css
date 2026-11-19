@@ -1789,6 +1789,16 @@ textarea.input {
   cursor: pointer;
 }
 
+/*
+ * Chat results for the last words, while the search for the new ones runs:
+ * still there, so the list does not flicker, but plainly not choosable.
+ */
+.palette-stale {
+  opacity: 0.5;
+  pointer-events: none;
+  user-select: none;
+}
+
 /* The choice: a fill, and an edge that holds 3:1 on its own. */
 .palette-option[aria-selected="true"] {
   background: var(--active);
