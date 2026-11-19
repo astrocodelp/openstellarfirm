@@ -21,7 +21,7 @@ import { headerOf, presetOf } from "../shared/catalog";
 import { checkSettings } from "../shared/checks";
 import { cloudCopyUrl, cloudHomeUrl, MAX_LINK_WINDOWS } from "../shared/cloud";
 import { sentMessages } from "../shared/context";
-import { checkEndpoint, isLocalEndpoint } from "../shared/endpoint";
+import { isLocalEndpoint } from "../shared/endpoint";
 import { linkUrl } from "../shared/links";
 import { codeBlocksOf, linksOf, plainText, safeHref } from "../shared/markdown";
 import { systemPrompt } from "../shared/prompt";

@@ -3,7 +3,9 @@
 # Never publishes. Never overwrites an asset. The token only goes in a header.
 #
 # Usage: GITHUB_TOKEN=... upload.sh <tag> <folder>
-# Optional: GITHUB_REPO (default astrocodelp/worker-bot-open-source)
+# Optional: GITHUB_REPO (owner/name; default: "repository" in package.json)
+# A new draft gets docs/release-notes-template.md as its notes, to edit before
+# publishing.
 set -euo pipefail
 
 die() { printf 'error: %s\n' "$*" >&2; exit 1; }
@@ -11,14 +13,17 @@ die() { printf 'error: %s\n' "$*" >&2; exit 1; }
 [ "$#" -eq 2 ] || die "usage: upload.sh <tag> <folder>"
 tag="$1"
 dir="$2"
-repo="${GITHUB_REPO:-astrocodelp/worker-bot-open-source}"
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+command -v curl >/dev/null || die "curl is needed"
+command -v node >/dev/null || die "node is needed (to read JSON)"
+repo="${GITHUB_REPO:-$(node "$root/scripts/release/repo.mjs")}" || die "could not read the repository from package.json"
+notes="$root/docs/release-notes-template.md"
 
 [ -n "${GITHUB_TOKEN:-}" ] || die "GITHUB_TOKEN is not set"
 [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]] || die "not a release tag: $tag"
 [[ "$repo" =~ ^[0-9A-Za-z._-]+/[0-9A-Za-z._-]+$ ]] || die "bad GITHUB_REPO"
 [ -d "$dir" ] || die "not a folder: $dir"
-command -v curl >/dev/null || die "curl is needed"
-command -v node >/dev/null || die "node is needed (to read JSON)"
+[ -f "$notes" ] || die "missing $notes"
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
@@ -62,12 +67,18 @@ done
 
 if [ -z "$found" ]; then
   printf 'Creating draft release for %s\n' "$tag"
+  # The notes template, with the tag, the version and the repository filled in.
   node -e '
+    const fs = require("fs");
+    const [tag, repo, file] = process.argv.slice(1);
+    const body = fs.readFileSync(file, "utf8")
+      .replaceAll("{{tag}}", tag)
+      .replaceAll("{{version}}", tag.slice(1))
+      .replaceAll("{{repo}}", repo);
     process.stdout.write(JSON.stringify({
-      tag_name: process.argv[1], name: process.argv[1], draft: true, prerelease: /-/.test(process.argv[1]),
-      body: "Draft. Check the SHA256SUMS files before publishing.",
+      tag_name: tag, name: `OpenStellarFirm ${tag}`, draft: true, prerelease: /-/.test(tag), body,
     }));
-  ' "$tag" > "$tmp/new.json"
+  ' "$tag" "$repo" "$notes" > "$tmp/new.json"
   gh POST "https://api.github.com/repos/$repo/releases" -H 'Content-Type: application/json' -d "@$tmp/new.json" > "$tmp/release.json"
 fi
 

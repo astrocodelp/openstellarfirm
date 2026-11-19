@@ -6,17 +6,20 @@
 #
 # Environment:
 #   RELEASE_REF   required  a tag such as v0.1.0
+#   RELEASE_REPO  required  the GitHub repository, owner/name (fly-run.sh sets
+#                           it from package.json)
 #   GITHUB_TOKEN  optional  when set, the installers go to a DRAFT release
 #   WIN_CSC_LINK, WIN_CSC_KEY_PASSWORD  optional  Windows code signing
 set -euo pipefail
-
-repo_url="https://github.com/astrocodelp/worker-bot-open-source.git"
 
 die() { printf 'error: %s\n' "$*" >&2; exit 1; }
 
 ref="${RELEASE_REF:-}"
 [ -n "$ref" ] || die "RELEASE_REF is not set (a tag such as v0.1.0)"
 [[ "$ref" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]] || die "RELEASE_REF is not a release tag"
+repo="${RELEASE_REPO:-}"
+[[ "$repo" =~ ^[0-9A-Za-z._-]+/[0-9A-Za-z._-]+$ ]] || die "RELEASE_REPO is not set (owner/name)"
+repo_url="https://github.com/$repo.git"
 
 command -v node >/dev/null || die "node is not installed in this image"
 node_major="$(node -p 'process.versions.node.split(".")[0]')"
@@ -77,7 +80,7 @@ cat SHA256SUMS.txt
 
 if [ -n "${GITHUB_TOKEN:-}" ]; then
   printf '\nUploading to a draft release.\n'
-  bash "$src/scripts/release/upload.sh" "$ref" "$src/release"
+  GITHUB_REPO="$repo" bash "$src/scripts/release/upload.sh" "$ref" "$src/release"
 else
   printf '\nGITHUB_TOKEN is not set: nothing uploaded. Files are in %s\n' "$src/release"
   printf 'This container is temporary, so set the token (Fly app secret) to keep the installers.\n'

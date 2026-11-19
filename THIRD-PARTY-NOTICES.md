@@ -7,7 +7,7 @@ contains the work of others, under their own licences:
 | What                                                                                                                                                                                             | Licence                                                                                    | Where from                                                                                                                    |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
 | Geist and Geist Mono (fonts)                                                                                                                                                                     | SIL Open Font License 1.1                                                                  | https://github.com/vercel/geist-font, through the `@fontsource-variable/geist` and `@fontsource-variable/geist-mono` packages |
-| React and React DOM                                                                                                                                                                              | MIT                                                                                        | https://github.com/facebook/react                                                                                             |
+| React and React DOM, with the scheduler package inside React DOM                                                                                                                                 | MIT                                                                                        | https://github.com/facebook/react                                                                                             |
 | Electron                                                                                                                                                                                         | MIT                                                                                        | https://github.com/electron/electron                                                                                          |
 | Chromium and Node.js, inside Electron                                                                                                                                                            | BSD-style and MIT, with their own notices                                                  | Electron ships `LICENSES.chromium.html` beside the app                                                                        |
 | PDF.js (`pdfjs-dist` 6.5.438): the reader and its worker                                                                                                                                         | Apache-2.0                                                                                 | https://github.com/mozilla/pdf.js                                                                                             |
@@ -28,6 +28,11 @@ before it is kept.
 
 The fonts are used unchanged. The SIL Open Font License is at
 https://openfontlicense.org.
+
+The full licence text of every entry above is in THIRD-PARTY-LICENSES.txt,
+which the build writes from the packages themselves (`scripts/licences.mjs`)
+and which ships beside the installed app, with LICENSE, NOTICE and this file.
+In the app, Settings, About, "Licences of others' work" opens it.
 
 Build tools (esbuild, Vite, TypeScript, Vitest, Biome, electron-builder) are
 used to make the app and are not part of it.

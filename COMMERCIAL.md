@@ -18,8 +18,10 @@ This page is a plain summary. The [LICENSE](LICENSE) file is what counts.
 
 ## What needs a commercial licence
 
-Anything where people pay you, in money or in kind, for something whose value
-comes entirely or mostly from this software. For example:
+Selling it. The licence's Commons Clause defines that as providing to others,
+for a fee or other consideration (hosting, consulting and support fees
+included), "a product or service whose value derives, entirely or
+substantially, from the functionality of the Software". For example:
 
 - Selling the app or a renamed copy of it, as a download, a licence key or a
   subscription.

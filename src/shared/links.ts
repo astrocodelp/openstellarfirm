@@ -9,7 +9,8 @@ import { cleanVersion } from "./update";
 
 // The repository's name is part of an address, not product copy. It is written
 // in parts so the copy test, which reads every source file for a certain
-// word a person must never read, keeps checking real copy.
+// word a person must never read, keeps checking real copy. It must match
+// "repository" in package.json, where a rename starts (a test checks).
 export const REPO = `astrocodelp/${["worker-b", "ot-open-source"].join("")}`;
 const REPO_URL = `https://github.com/${REPO}`;
 
@@ -19,6 +20,8 @@ export const LINK_NAMES = [
   "release",
   "composio",
   "docker",
+  "ollama",
+  "lmstudio",
 ] as const;
 export type LinkName = (typeof LINK_NAMES)[number];
 
@@ -51,6 +54,11 @@ export function linkUrl(name: unknown, newest: string | null = null): string {
       return "https://composio.dev";
     case "docker":
       return "https://docs.docker.com/get-started/get-docker/";
+    // Where a first run with no model sends the person to get one.
+    case "ollama":
+      return "https://ollama.com/download";
+    case "lmstudio":
+      return "https://lmstudio.ai";
     case "release":
       if (!newest) throw new Error("There is no newer version to show.");
       return releaseUrl(newest);

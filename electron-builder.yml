@@ -7,10 +7,25 @@ directories:
 # Everything the app needs is bundled into dist/, so no node_modules ship.
 files:
   - dist/**
+  # Source maps help a developer, not a person running the app.
+  - "!dist/**/*.map"
   - package.json
   - LICENSE
   - NOTICE
   - THIRD-PARTY-NOTICES.md
+# The licence files again, as plain files beside the app (outside its archive),
+# so anyone can read them: on a Mac in OpenStellarFirm.app/Contents/Resources,
+# elsewhere in the resources folder of the installed app. THIRD-PARTY-LICENSES.txt
+# is written by the build (scripts/licences.mjs).
+extraResources:
+  - from: LICENSE
+    to: LICENSE
+  - from: NOTICE
+    to: NOTICE
+  - from: THIRD-PARTY-NOTICES.md
+    to: THIRD-PARTY-NOTICES.md
+  - from: dist/THIRD-PARTY-LICENSES.txt
+    to: THIRD-PARTY-LICENSES.txt
 asar: true
 npmRebuild: false
 # Fuses switch off, in the shipped program itself, the ways an installed
@@ -49,11 +64,21 @@ win:
     - target: nsis
       arch: [x64]
 linux:
-  category: Utility
-  icon: build/icon.png
+  # Written as Categories=Utility;Office; in the .desktop file.
+  category: Utility;Office
+  # One picture per size (16 to 512), drawn by `pnpm icon`, so a Linux desktop
+  # never has to scale the 1024 picture down itself.
+  icon: build/icons
+  desktop:
+    entry:
+      GenericName: AI assistant
+      Keywords: AI;assistant;chat;LLM;local;offline;Ollama;LM Studio;MCP;
   # The .desktop file is named after desktopName in package.json, and its
-  # StartupWMClass matches the window's class, so a Linux desktop puts the
-  # running window under the app's own launcher and icon.
+  # StartupWMClass is that name too (openstellarfirm), so a Linux desktop puts
+  # the running window under the app's own launcher and icon. Electron takes the
+  # Wayland app id from desktopName, and on X11 sets WM_CLASS to the product
+  # name in lower case (openstellarfirm) and as written (OpenStellarFirm); the
+  # lower-case one is what StartupWMClass matches.
   syncDesktopName: true
   # No deb or rpm yet: they need a maintainer email address the project has not chosen.
   target:
@@ -62,6 +87,10 @@ linux:
     - target: tar.gz
       arch: [x64]
 appImage:
+  # electron-builder names an AppImage x86_64 and every other file x64. One
+  # name for both, so the downloads read alike. Only x64 is built for Linux; a
+  # second Linux architecture needs its own name here.
+  artifactName: OpenStellarFirm-${version}-linux-x64.${ext}
   # electron-builder writes --no-sandbox into the AppImage's .desktop entry by
   # default, which turns Chromium's sandbox off for every window, the reader
   # of attached files too. The AppImage's own launcher adds it only where the

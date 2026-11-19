@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { AppState, LinkName, UpdateCheck } from "../../shared/types";
 import { availableUpdate } from "../../shared/update";
 import { api } from "./bridge";
+import { LicencesButton } from "./Licences";
 import {
   ErrorLine,
   Section,
@@ -121,6 +122,7 @@ export function AboutSection({ version }: { version: string }) {
             <Icon name="external" size={14} />
           </button>
         ))}
+        <LicencesButton />
       </div>
       <ErrorLine>{error}</ErrorLine>
     </Section>

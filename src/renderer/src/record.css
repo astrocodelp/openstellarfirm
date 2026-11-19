@@ -1,5 +1,6 @@
 /*
- * Record how you work, and the person's own skills. Only tokens from
+ * Record how you work, the person's own skills, and the dialogs (.modal) they
+ * and the licence texts open in. Only tokens from
  * styles.css; motion only when the person has not asked for less, and with
  * reduced motion only opacity fades remain.
  */
@@ -23,6 +24,25 @@
 
 .modal-body {
   padding: 1.5rem;
+}
+
+/* The licence texts: long, so they scroll in their own box. */
+.licences-text {
+  max-height: 60dvh;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-field);
+  background: var(--sunken);
+}
+
+.licences-text pre {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: var(--text-caption);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .modal-head {

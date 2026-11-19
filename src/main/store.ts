@@ -25,7 +25,6 @@ import { presetOf } from "../shared/catalog";
 import { cleanLookFor, isCheckEvery, LOOK_FOR_MAX } from "../shared/checks";
 import { cleanComputer } from "../shared/computer";
 import { connectionPresetOf } from "../shared/connection-catalog";
-import { checkEndpoint } from "../shared/endpoint";
 import { plainLine } from "../shared/markdown";
 import {
   checkOwnSkillInput,

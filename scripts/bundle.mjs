@@ -2,6 +2,7 @@ import { copyFile, cp, mkdir, readdir, rm } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { build } from "esbuild";
+import { writeLicences } from "./licences.mjs";
 
 const require = createRequire(import.meta.url);
 
@@ -24,6 +25,9 @@ export async function bundleMain() {
   // The files an assistant's computer is built from. Docker is given a copy
   // in the data folder, as it cannot read inside the app's archive.
   await cp("resources/computer", "dist/computer", { recursive: true });
+  // The licence texts of the work of others the app ships. The page shows
+  // them in Settings, About, and the package puts the file beside the app.
+  await writeLicences();
   await build({
     ...common,
     entryPoints: ["src/main/index.ts"],
