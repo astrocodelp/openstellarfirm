@@ -99,8 +99,9 @@ struct NetCommand {
 // A new version 4 UUID for a turn (X-Pet-Turn), from the hardware random source.
 std::string newTurnId();
 
-// The time for X-Pet-Recorded-At, "2026-10-21T14:02:00Z", or empty when the clock
-// has not been set from the network yet.
+// The time for X-Pet-Recorded-At, "2026-10-21T14:02:00Z", or empty when the clock has
+// not been set yet. The only clock the pet has is the computer's: the Date header of an
+// answer sets it (net/api.h), and the pet asks no time server.
 std::string recordedAtNow();
 
 // The pet's network side: two tasks on core 0.
@@ -123,7 +124,9 @@ std::string recordedAtNow();
 //      200 or 208 for its turn id (syncOutcomeFor); a note the server refuses for
 //      its content stays, marked as refused (NoteQueue::markRefused), and is not
 //      sent again;
-//   7. calls go through Api, which is HTTPS only and follows no redirect.
+//   7. calls go through Api, which is HTTPS only, follows no redirect and holds every
+//      connection to the pinned certificate of the one computer the pet was set up with;
+//      a pairing try gets its computer only from the cable (SetupSubmission::server).
 class NetWorker {
  public:
   struct Parts {

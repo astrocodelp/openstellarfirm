@@ -76,6 +76,15 @@ const char* lineFromAnswer(int status, const char* errorOrNull, const char* line
 // must never make the pet forget itself.)
 bool isForgotten(int status, const char* errorOrNull);
 
+// The two answers that are about the owner's ElevenLabs key and not about the pet: 401
+// "no_access" (the key is missing or was refused) and 402 "out_of_credits" (its quota is used
+// up). Both are told apart from 401 "forgotten" by the body's error name alone, since they
+// share a status: a refused key must never make the pet forget its pairing, and a forgotten
+// pet must never say its key was refused. Each plays its own pack line (the clips
+// "no-access" and "out-of-credits"); the pet stays paired and keeps its notes.
+bool isVoiceKeyRefused(int status, const char* errorOrNull);
+bool isVoiceQuotaUsedUp(int status, const char* errorOrNull);
+
 // Rule 6 of docs/desk-pets-plan.md: OpenStellarFirm has a turn only when it answered 200
 // or 208 ("already received"). A saved note is deleted from the pet after this
 // and after nothing else; every other answer, a network error included, leaves it.
@@ -99,9 +108,10 @@ TurnVerdict turnVerdictFor(int status, const char* errorOrNull);
 const char* clipForSilentReply(PetTurnState state);
 
 // What the pet plays when a notice could not be read aloud (GET /say/<seq>).
-// A pet that is paused (409) and a busy OpenStellarFirm (429) say their own lines
-// from the answer; nothing is retried. Any other failure plays `fallback`, the
-// clip that stands in for the notice (done, message, hello...).
+// A pet that is paused (409), a busy OpenStellarFirm (429), a refused voice key (401
+// no_access) and a used up voice quota (402 out_of_credits) say their own lines from the
+// answer; nothing is retried. Any other failure plays `fallback`, the clip that stands in
+// for the notice (done, message, hello...).
 const char* lineForFailedSay(int status, const char* errorOrNull, const char* lineOrNull, const char* fallback);
 
 // What the sync of saved notes does after the server's answer to one note.
@@ -132,6 +142,19 @@ struct InboxCursor {
 };
 
 InboxCursor inboxCursorAfter(uint32_t after, uint32_t serverNext);
+
+// The time the app's own `Date` header gives, which is the only clock the pet has: it
+// reaches no time server of the internet (the pet talks to the app on the home network and
+// nowhere else), so the time of a saved note comes from the computer it is saved for.
+// `Date: Sun, 06 Nov 1994 08:49:37 GMT`, the one form HTTP servers write (RFC 9110
+// IMF-fixdate). False for any other shape, a date before 2024 or after 2099.
+bool parseHttpDate(const char* text, int64_t& epochSeconds);
+
+// Whether the pet's own clock should be set from a server time: it was never set (before
+// 2024) or it is more than `kClockSlackSeconds` away. A small drift is left alone so a
+// heartbeat does not move the clock for nothing.
+constexpr int64_t kClockSlackSeconds = 5;
+bool shouldSetClock(int64_t deviceSeconds, int64_t serverSeconds);
 
 // The wire names back to the generated enums. Each returns false for a name it
 // does not know and leaves `out` alone.

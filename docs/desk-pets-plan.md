@@ -124,19 +124,36 @@ own. The firmware's third-party libraries are listed in
 
 ## Phases
 
-| Phase | What                                                                                                                                                         | Done when                                                                                                   |
-| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
-| P0    | This plan, NOTICE, the firmware's third-party notices                                                                                                        | Licence text reviewed; CI green                                                                             |
-| P1    | The firmware and print files copied in as they are (not working with the app yet), and the shared protocol code in `src/shared/pets/` with no new dependency | The protocol, audio and spoken-line tests pass here                                                         |
-| P2    | Certificate, the server, the saved state, pairing, the mDNS answer (built, `src/main/pets/`)                                                                 | Tests drive every route over TLS; a public address is refused; no route can decide an approval              |
-| P3    | ElevenLabs, turns, inbox and notices (built, `src/main/pets/`: the voice client, turns, the inbox, spoken notices and the voice pack)                        | A stub voice passes; a refused key says so; a waiting step reaches the pet only as "needs you"              |
-| P4    | Settings: Desk pets, the USB chooser, pet-usb v2 (built: `Settings, Desk pets`, `src/renderer/src/pet-usb-driver.ts`, `src/main/serial-*.ts`)                | The Wi-Fi password reaches only the cable; an old pet is told to update                                     |
-| P5    | Firmware: the computer's address and pin kept on the pet, the pin check, the mDNS fallback, the key line                                                     | Native tests for parsing and the pin; the simulator covers the whole server path; a real board for the rest |
-| P6    | Install and firewall guide, the macOS network prompt                                                                                                         | Checked by hand on macOS and Windows                                                                        |
+| Phase | What                                                                                                                                                                                                          | Done when                                                                                                   |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| P0    | This plan, NOTICE, the firmware's third-party notices                                                                                                                                                         | Licence text reviewed; CI green                                                                             |
+| P1    | The firmware and print files copied in as they are (not working with the app yet), and the shared protocol code in `src/shared/pets/` with no new dependency                                                  | The protocol, audio and spoken-line tests pass here                                                         |
+| P2    | Certificate, the server, the saved state, pairing, the mDNS answer (built, `src/main/pets/`)                                                                                                                  | Tests drive every route over TLS; a public address is refused; no route can decide an approval              |
+| P3    | ElevenLabs, turns, inbox and notices (built, `src/main/pets/`: the voice client, turns, the inbox, spoken notices and the voice pack)                                                                         | A stub voice passes; a refused key says so; a waiting step reaches the pet only as "needs you"              |
+| P4    | Settings: Desk pets, the USB chooser, pet-usb v2 (built: `Settings, Desk pets`, `src/renderer/src/pet-usb-driver.ts`, `src/main/serial-*.ts`)                                                                 | The Wi-Fi password reaches only the cable; an old pet is told to update                                     |
+| P5    | Firmware: the computer's address and pin kept on the pet, the pin check, the mDNS fallback, the key line (built, `firmware/pet/`: `core/server_pin.*`, `net/api.cpp`, pet-usb v2 in `core/usb_setup_rules.*`) | Native tests for parsing and the pin; the simulator covers the whole server path; a real board for the rest |
+| P6    | Install and firewall guide, the macOS network prompt                                                                                                                                                          | Checked by hand on macOS and Windows                                                                        |
 
 A real board is needed for the certificate check inside the firmware, the mDNS
 lookup, the settings kept on the pet, USB setup and audio. Everything else runs
 in CI and in the simulator.
+
+P5 is built and tested without a board, which the simulator does not replace: it is
+not built, so "the simulator covers the whole server path" is still open. What exists
+is `pio test -e native` (the wire, the values, the constant-time pin comparison, what
+a certificate at each depth of a chain is given, the key line) and the three firmware
+images building. What it changed on the pet: there is no server address in the build;
+the pet keeps the address, port, name and fingerprint it was given over the cable (after
+the claim, before the token) and holds **every** connection, the claim and the voice pack
+included, to that certificate inside the TLS handshake, so the token is never written
+to a computer that fails the pin; it asks mDNS for the name when the address stops
+working; it takes its clock from the app's `Date` header and reaches no time server; and
+a refused ElevenLabs key (401 `no_access`) and a used up quota (402 `out_of_credits`)
+are told apart from a forgotten pet by the error name. The phone's setup page pairs
+nothing. The list of what a real board must still show is in
+`firmware/pet/README.md`, "What a real board must still test". Still open: the greeting
+line `setup-join` and the spelled setup network password still describe the phone
+fallback.
 
 Decided by Astro Code on 19 November 2026: the firmware and print files live in
 this repository; the launch pad and the figures are both published; the voice

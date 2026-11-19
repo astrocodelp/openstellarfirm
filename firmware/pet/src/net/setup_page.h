@@ -1,7 +1,11 @@
 #pragma once
 
-// The page the pet serves on its own Wi-Fi network while the owner sets it up
-// (docs/desk-pets-plan.md, "What the owner does"). Everything is in this one string:
+// The page the pet serves on its own Wi-Fi network. It does not set the pet up any more:
+// a phone cannot carry the computer's certificate fingerprint safely, so a pet is paired
+// only over the USB cable (docs/desk-pets-plan.md, "Pairing over the USB cable"), and
+// WifiSetup::handleJoin refuses what the form sends. The page says so and hides the form,
+// which stays in the markup, with its script, until the setup network is built to pair
+// with a pinned computer. Everything is in this one string:
 // no external font, script, stylesheet or image, since the phone has no internet
 // while it is joined to the pet.
 //
@@ -46,10 +50,10 @@ a{color:var(--lime)}
 <body>
 <main>
 <h1>Set up {{NAME}}</h1>
-<p>Tell me your Wi-Fi, and give me the setup code from OpenStellarFirm (Settings, Desk pets, Add a desk pet).</p>
+<p>I cannot be set up from a phone. Plug me into your computer with my USB cable, then open OpenStellarFirm and choose Settings, Desk pets, Add a desk pet.</p>
 <noscript><p class="err">This page needs JavaScript to run.</p></noscript>
 
-<form id="form" autocomplete="off">
+<form id="form" class="hide" autocomplete="off">
 <label for="ssid">Wi-Fi network</label>
 <select id="ssid" name="ssid">
 {{NETWORKS}}

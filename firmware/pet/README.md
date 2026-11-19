@@ -1,16 +1,20 @@
 # OpenStellarFirm desk pet: firmware
 
-> **Not working with the app yet.** The firmware, the print files and the shared
-> protocol code are here; the app side (the server on your computer, pairing,
-> voice and Settings) lands in later phases of
-> [docs/desk-pets-plan.md](../../docs/desk-pets-plan.md), and the firmware still
-> expects an https server until phase P5. So this does not pair with
-> OpenStellarFirm yet. Parts of this page that name the app's screens or the
-> simulator describe where it is going.
+> **Written for the OpenStellarFirm app, not yet run against it on a board.** The
+> app's side (the server on your computer, pairing, voice, Settings, the USB page)
+> is built, and since phase P5 of [docs/desk-pets-plan.md](../../docs/desk-pets-plan.md)
+> the firmware talks to it: it keeps the computer's address and certificate pin, holds
+> every connection to that pin, finds the computer again by its mDNS name, and says
+> what the app tells it about your ElevenLabs key. Everything that needs no board is
+> tested here (`pio test -e native`, and the three firmware images build). **What
+> only a real Arduino Nano ESP32 can show is listed under
+> [What a real board must still test](#what-a-real-board-must-still-test).** The
+> simulator the plan mentions is not built.
 
 The program that runs on the desk pet's Arduino Nano ESP32: **Nova**, **Zib** and
 **Comet** on their launch pad. It starts listening when the owner holds the lime
-light, goes on while they talk, sends what was said to OpenStellarFirm when they stop,
+light, goes on while they talk, sends what was said to the OpenStellarFirm app on the
+owner's own computer when they stop,
 plays the answer, glows and speaks when work is ready or waits for the owner's
 Approve, and keeps notes while there is no Wi-Fi. (The name "desk pet" is
 provisional; every line the pet speaks is in `src/shared/pets/lines.ts`, so a
@@ -159,34 +163,38 @@ drivers as the pet, so a bring-up that works means the pet's drivers work.
 ### Bring-up over USB
 
 Run this after the bring-up checklist, with the **pet** firmware (`nano_esp32`) on the
-board, the boot pack rendered (the confirm code is only spoken), an OpenStellarFirm app that
-has desk pets (a later phase), and Chrome or Edge on the computer the pet is plugged
-into. Nothing about the USB path has run on a unit yet, so write down what you see.
+board, the boot pack rendered (the confirm code is only spoken) and the OpenStellarFirm app
+on the computer the pet is plugged into, with Desk pets turned on in Settings (the
+app's own window uses Web Serial). Nothing about the USB path has run on a unit yet, so
+write down what you see.
 
 1. **Enumeration.** The pad's DATA port shows up as USB `2341:0070`; the CHARGE port, or
    a charge-only cable, shows nothing
    ([the hardware checklist](../../hardware/pets/README.md#bring-up-checklist)).
-2. **Hello.** In Your desk pets press Add a desk pet, then Set up over USB and Connect to
-   my pet. The browser's chooser lists the pet (and nothing else); the page says which
-   figure answered and that it is not set up yet. The pet is not frozen: its lights and
+2. **Hello.** In Settings, Desk pets press Add a desk pet, then Set up over USB and
+   Connect to my pet. The app's chooser lists the pet (and nothing else); the page says
+   which figure answered and that it is not set up yet. The pet's `hello` says version 2
+   (`@pet1 hello 2 ...`): a page that is told version 1 would send the pet nothing. The pet is not frozen: its lights and
    its button keep working while the port is open.
 3. **A page that does not read.** Open the port in a serial monitor and pause it, or open
    it from any program that never reads, for a minute. The pet must keep working (lights,
    a tap, its Wi-Fi), because nothing it writes waits for the computer.
 4. **Scan.** The page lists the 2.4 GHz networks the pet can see, strongest first, and
    takes a hidden name typed in.
-5. **A wrong Wi-Fi password.** Join with a wrong one. The page says the pet could not join
-   (`wifi_failed`), the pet's own setup network is back, and you can try again without
-   unplugging.
+5. **A wrong Wi-Fi password.** Start with a wrong one. The page says the pet could not join
+   (`wifi_failed`) and you can try again without unplugging. The pet forgot the address
+   and fingerprint it was given for that try (a pet that failed keeps no computer).
 6. **The right password.** The page shows Joining, then Asking OpenStellarFirm to pair, then
    Listen to your pet. The pet says its confirm code (a tap of the lime light says it
    again); type it in the card and approve. The pet claims its token, says it is set up,
-   and the page closes the port: the browser keeps no granted device for the site
-   afterwards.
+   and the page closes the port. Unplug and plug the pet back in: it still knows the
+   computer (see [What a real board must still test](#what-a-real-board-must-still-test)).
 7. **A paired pet refuses.** Plug the paired pet in and connect again: the page says it
    is already set up and does nothing else. In a serial monitor type `@pet1 scan` (and
-   the same for `join`, `cancel` and `status`): each answers `@pet1 refused paired`, and
-   `@pet1 hello` answers with `paired`.
+   the same for `server`, `wifi`, `start`, `join`; the values do not matter, they are not
+   read) and `@pet1 cancel`: each answers `@pet1 refused paired`, and `@pet1 hello` answers
+   `@pet1 hello 2 ... paired ...`. On an unpaired pet `@pet1 start K7QXM2PA9T` before the
+   page has sent `server` and `wifi` answers `@pet1 refused not_ready`.
 8. **The cable is pulled.** Pull it in the middle of a try: the page says to plug it back
    in and releases the port.
 9. **No download mode from the cable.** Open the port at 1200 baud (for example
@@ -201,16 +209,15 @@ into. Nothing about the USB path has run on a unit yet, so write down what you s
 10. **Nothing leaks onto the port.** With a serial monitor on the USB port while you
     set up, only `[pet] ...` lines and `@pet1 ...` lines appear: no ESP-IDF line (`E (`
     and a number) and no panic dump, and no Wi-Fi name, password or code in any line.
-11. **Stop on the phone's try.** Connect the page over USB and stop at the network list.
-    Join the pet's own network on a phone, open its page and submit a Wi-Fi there. The
-    USB page follows the states (Joining, Asking OpenStellarFirm to pair, Listen to your
-    pet). Press Stop or Use the pet's Wi-Fi instead on the USB page: the phone's try
-    must carry on to the confirm code and the claim. Then do the same with a try that
-    started over the cable and press Stop: that one must end.
-12. **A setup code works once.** Run a try over the cable to Listen to your pet, press
-    Stop, and Connect again. The card makes a new setup code by itself (Join waits
-    for it) and the second try pairs without a refusal. Switching to the pet's Wi-Fi in
-    the middle of a try shows a new code in the steps, never the one the cable used.
+11. **Stop and start again.** Run a try over the cable up to Listen to your pet and press
+    Stop on the page: the try ends and the pet says nothing more. Connect again: the card
+    makes a new setup code by itself and the second try pairs without a refusal, with
+    nothing left over from the first (the page sends `server`, `wifi` and `start` again).
+12. **The phone's page pairs nothing.** Join the pet's own setup network from a phone
+    (the pet spells its password after a power-on, when it is not set up) and open
+    `http://192.168.4.1/`: the page says the pet cannot be set up from a phone and has no
+    form. A `POST /join` from a script answers 403 and the pet shows no state change on the
+    cable.
 
 ### Development board
 
@@ -235,9 +242,9 @@ wired to it. The laptop stands in for the rest, over the USB cable
 It breaks two rules of the pet on purpose: audio crosses the cable, and so do the
 clip ids, which during setup spell the setup passphrase and the confirm code. So it
 pairs as the hardware `nano-esp32-devboard`, and **it must never be flashed onto a
-pet that will be paired for real**. It talks to the address in
-`PET_API_BASE` (see the next section), so build it with the address of a server that
-speaks the pet's protocol.
+pet that will be paired for real**. It is set up and pinned like a pet (the laptop that
+holds the cable is also the one that runs the app), so it needs the same app and the same
+`server`, `wifi` and `start` lines as a pet.
 
 1. First flash, with the B1 to GND jumper as above:
    `pio run -e devboard_first -t upload`. Later uploads: double-press RST, then
@@ -245,8 +252,9 @@ speaks the pet's protocol.
    but the port never reboots on request).
 2. Open the laptop page for the board (the simulator's Board mode, which is not in
    this repository yet; see the plan) in Chrome or Edge and connect the board.
-3. Type the Wi-Fi name, its password and a setup code, then Join and pair. Listen for
-   the confirm code and type it in OpenStellarFirm.
+3. In the app's Add a desk pet, choose the Wi-Fi, its password and a setup code and start.
+   Listen for the confirm code (the laptop page spells it, since a bare board has no
+   boot pack) and type it in OpenStellarFirm.
 4. Hold the light, talk, let go; the answer plays on the laptop.
 
 Uploads after the first go through the board's in-app DFU (`pio run -e devboard -t
@@ -257,7 +265,8 @@ full. Flash `devboard_first` once, with the jumper, to fix it.
 
 The page's log takes the development commands listed in `src/devboard/bridge.h`
 (`stats`, `where`, `offline-pet`, `forget`, `restart`); `offline-pet` makes the
-board a paired pet with no network, so a recording can be tried with no server.
+board a paired pet with no network (and a made-up computer on record, a reserved address
+and a pin nothing matches), so a recording can be tried with no server.
 
 **Checked on a bare Nano ESP32 (11 November 2026),** over the bridge: boot, the setup
 light and the setup line with the passphrase spelled, a Wi-Fi scan, the talk button,
@@ -279,22 +288,96 @@ itself were found there and fixed:
 Not checked yet: pairing and a turn against a server, and the page itself in Chrome
 (the same lines were driven by a script).
 
-### Pointing a unit at a development server
+### Which computer a pet talks to
 
-The pet's default address is a placeholder (`https://openstellarfirm.example`), so a
-build has to name the server it talks to, until phase P5 makes the app's own address
-and certificate pin part of pairing:
+There is no server address in the build and no flag to set one: `PET_API_BASE` is gone. The
+pet talks to the one computer it was set up with, and only that computer.
 
-```sh
-PLATFORMIO_BUILD_FLAGS='-DPET_API_BASE=\"https://my-dev-host.example\"' pio run -e nano_esp32 -t upload
-```
+1. **The cable tells it.** In Settings, Desk pets, Add a desk pet, the app sends the pet
+   `server <address or -> <port> <fingerprint> <name>` over the USB cable: this computer's
+   private address (or `-` when it has none to give), the port of the app's server, the
+   SHA-256 of the app's certificate (64 lowercase hex digits, the pin) and the computer's
+   mDNS name (`osf-<8 hex>.local`). With `wifi` and `start` it is the whole setup. The pet
+   holds these in RAM until `start` makes a try of them; a cancel, a pulled cable or the
+   end of the power forgets them.
+2. **A pairing try pins it.** The pet joins the Wi-Fi, connects to `https://<address>:<port>`
+   and holds the connection to the pin (below), asks to pair, speaks its confirm code and
+   claims its token. Only after the claim does the pet keep the computer (address, port,
+   fingerprint, name) in its NVS (`srvaddr`, `srvport`, `srvpin`, `srvname`), written
+   before the token so a pet is never left with a token and no pin. A try that fails
+   leaves the pet with no computer.
+3. **A paired pet with no computer is forgotten at boot.** A token with no pin could not
+   connect to anything and never will.
+4. **Every connection is held to the pin.** The pet trusts no certificate authority for the
+   app. See [The pin](#the-pin).
+5. **When the address stops working** (the router gave the computer another one, or another
+   device took the old one) the pet asks mDNS for the computer's name, with the ESP-IDF
+   resolver (`mdns_query_a`, started for the question and stopped after it: the pet
+   advertises nothing). The address that answers is tried with the same pin, and the one
+   that works is kept in NVS. An answer from another device is only a connection the pin
+   refuses. The first try of a call to a stale address waits at most 8 seconds
+   (`kConnectTimeoutMs`) before the name is asked. With `-` as the address the pet goes
+   straight to the name. IPv6 addresses work but link-local ones (`fe80::`, which need a
+   zone) are never given by the app.
+6. **There is no time server.** The pet reaches no host but the computer: the setup
+   used to ask `pool.ntp.org` for the time, which TLS did not need once the pin replaced
+   the certificate authorities (a pinned certificate is accepted whatever its dates, so a
+   pet with the clock at 1970 connects), and which only the time of a saved note used.
+   The pet now takes its clock from the `Date` header of the app's answers
+   (`parseHttpDate`, `shouldSetClock` in `core/api_rules.h`): any answer over the pinned
+   connection sets it when it was never set or is more than 5 seconds off. A pet that
+   has not heard from the app yet leaves `X-Pet-Recorded-At` out, as before.
 
-The pet image has no in-app DFU, so double-press RST before that upload.
-The address must be `https://`: a build with another scheme does not compile
-(rule 7). The pet checks the server's certificate against the ESP-IDF certificate
-bundle, so a development server needs a certificate from a public authority; use
-an https tunnel for a server on your own computer. `-DPET_FIRMWARE_VERSION=\"...\"`
-sets the version the heartbeat reports (at most 20 characters).
+## The pin
+
+`net/api.cpp` sets each call's `crt_bundle_attach` to `attachPin`, and `skip_cert_common_name_check`
+on, so the certificate's names are not what is trusted (the app's certificate is
+self-signed, for an address that changes). During the TLS handshake mbedtls hands every
+certificate of the chain the computer showed to `verifyPin`, the top one first and the
+computer's own (depth 0) last, with the connection in `MBEDTLS_SSL_VERIFY_REQUIRED`:
+
+- at depth 0, `pinAction` (`core/server_pin.h`) compares the SHA-256 of the certificate's
+  DER bytes with the stored fingerprint in constant time (`pinEqual`). A match clears the
+  flags mbedtls raised (an unknown authority, a date that does not fit the pet's clock, a
+  name that does not match) and the handshake goes on. Anything else, and every
+  certificate when the pet holds no pin, sets the flag and returns
+  `MBEDTLS_ERR_X509_CERT_VERIFY_FAILED`: the handshake ends with a fatal alert;
+- at depth 1 and up it has no opinion, and clears the flags so the one decision is the
+  computer's own certificate.
+
+`esp_http_client` writes the request, with its `Authorization: Bearer` header, only after the
+handshake has finished, so **the device token is never written to a computer that failed the
+pin**, on any call: pair, claim, heartbeat, turn, say, inbox and the voice pack download
+(which carries no token but is pinned the same way). The ESP-IDF certificate bundle's own
+attach function is called first only because `MBEDTLS_SSL_VERIFY_REQUIRED` needs a CA chain to
+be set at all (mbedtls answers "No CA Chain is set" otherwise); its callback, the one that
+looks a certificate up among the public authorities, is replaced by `verifyPin`, so the
+bundle never decides anything for the app. The pin is one global (a spinlock guards its 32
+bytes, since the network task and the inbox task can connect together) set by
+`Api::begin` (the stored record), `Api::useServer` (a pairing try) and cleared by
+`Api::dropServer`.
+
+Where it could leak if it were done wrong, and what keeps it from doing that:
+
+| Mistake                                                                                                      | What prevents it here                                                                                                                                                                                                                   |
+| ------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Checking the certificate after `esp_http_client_open` (it has already sent the headers, the token with them) | The check is the handshake's own verify callback, not code that runs after it.                                                                                                                                                          |
+| `MBEDTLS_SSL_VERIFY_OPTIONAL` or `NONE`: the handshake goes on whatever the callback says                    | `attachPin` sets `REQUIRED` itself after the bundle's attach. A host check (below) showed that a callback error is fatal in `OPTIONAL` too, but an `OPTIONAL` flag left set would not be.                                               |
+| A callback that accepts when it has no pin                                                                   | `pinAction` rejects at depth 0 with no pin; `Api::perform` also makes no call with no record.                                                                                                                                           |
+| Trusting a later certificate in the chain and ignoring the first                                             | Only depth 0 decides; the test walks chains with the pinned certificate as an issuer of a forged leaf.                                                                                                                                  |
+| Comparing in time that shows where two digests first differ                                                  | `pinEqual` ORs all 32 bytes.                                                                                                                                                                                                            |
+| Retrying with the token on another address after a connection that did connect                               | `Api::perform` tries the name only when the first attempt did not connect; a connection that was made is the computer's answer or none.                                                                                                 |
+| A redirect that carries the token elsewhere                                                                  | `disable_auto_redirect`, and any 3xx is an error that is never read.                                                                                                                                                                    |
+| A plain `http` call                                                                                          | The address is built by `serverBaseUrl` (always `https://`, always an IPv4 or IPv6 literal and a port), is checked with `isHttpsBase`, and the transport is `HTTP_TRANSPORT_OVER_SSL`. `test_server_pin` reads the source for the rest. |
+
+A host test (not in this repository: it needs the computer's OpenSSL and mbedtls 2.28) ran
+a real in-memory TLS handshake between an mbedtls server with a self-signed P-256
+certificate and a client set up the way `attachPin` sets it, with `verifyPin`'s logic:
+the pinned certificate was accepted (also expired, also not yet valid, with and without a
+hostname), another device's certificate, a pin naming another certificate and no pin were
+refused, and a client with `REQUIRED` and no CA chain at all was refused with "No CA Chain
+is set". The device uses mbedtls 3.6.2, whose verify callback behaves the same; **the
+check inside the real firmware has not run on a board.**
 
 ## How it is put together
 
@@ -306,17 +389,18 @@ machine. The hardware modules are small and call into it:
 src/core/      PURE   pet_app, note_queue, adpcm, wav, light_frames, gestures,
                       vad, recording_plan, recording_writer,
                       api_rules, backoff, heartbeat, voice_pack, text_rules,
-                      usb_setup_rules, line_queue,
+                      usb_setup_rules, server_pin, line_queue,
                       notice_clips, audio_dsp, battery, skin_id, base64url, uuid_format
 src/audio/     mic.*      I2S microphone, 16 kHz, ADPCM as it records, one or two PSRAM
                           slots of about 0.97 MB, the voice detector listening to it
                speaker.*  I2S amplifier, 22.05 kHz, jitter buffer, volume, amp enable
-src/net/       api.*          HTTPS client (esp_http_client), JSON with ArduinoJson 7
-               wifi_setup.*   joining Wi-Fi; the pet's own network and setup page
+src/net/       api.*          HTTPS client (esp_http_client), the pin check, the mDNS fallback,
+                              the computer's clock; JSON with ArduinoJson 7
+               wifi_setup.*   joining Wi-Fi; the pet's own network and its page (which pairs nothing)
                setup_page.h   the page (one string, no external assets)
-               usb_setup.*    setup over the USB cable (pet-usb v1), served by the network task
+               usb_setup.*    setup over the USB cable (pet-usb v2), served by the network task
                net_worker.*   the network task and the inbox task
-src/store/     secrets.*        NVS: Wi-Fi, device secret and token, settings, counters
+src/store/     secrets.*        NVS: Wi-Fi, device secret and token, the computer's record, settings, counters
                note_store_fs.*  saved notes on LittleFS
                voicepack.*      the voice pack on flash and the boot pack, the clip player
 src/ui/        lights.*   the WS2812B chain, 50 Hz
@@ -385,15 +469,15 @@ pet:
 
 ### Where the rules of docs/desk-pets-plan.md are kept
 
-| Rule                                                                                                                                                                                                                                                       | Where                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 1. The pet holds only its device token.                                                                                                                                                                                                                    | `store/secrets.cpp` keeps the token and, only from a pair request until its claim ends, the pet's own secret: `setPaired()` removes the secret when the claim works, every failing way out of `claimToken` removes it, and `setup()` clears any that a restart left. `net/api.cpp` sends the token only as `Authorization: Bearer`.                                                                                            |
-| 2. Pairing needs the setup code, the typed confirm code and a one-time claim.                                                                                                                                                                              | `net/net_worker.cpp` (`pairWith`, `claimToken`): the token is stored only after the claim answers 200; the device secret is new for each try. A join over USB runs the same `pairWith`; the cable carries the setup code in, never the confirm code out.                                                                                                                                                                       |
-| 3. The pet never approves; spoken lines carry no step text or digits.                                                                                                                                                                                      | `core/pet_app.h` has no approve event or action. Lines are clips from the pack; the only characters spoken are the ones the pet spells during setup, the setup network's password and the confirm code, one `char-*` clip per character (`core/voice_pack.h`, `core/setup_access.h`).                                                                                                                                          |
-| 4. The mic records only after the owner holds the lime light, never by itself; it stops on 5 seconds of silence, at 2 minutes or when they press the light again; LED 0 is solid lime whenever it records; the MIC switch cuts its power.                  | `core/pet_app.cpp` (only a `ButtonDown`, the hold, starts a recording; the release does nothing; the limits end it; tested for every state and event, and by a model of the limits), `core/vad.cpp` (the silence), `audio/mic.cpp` (receiver on only between `start()` and `stop()`, lime light first, MIC switch checked), `ui/lights.cpp` (the Listening frame follows the microphone itself), and a watchdog in `main.cpp`. |
-| 5. Every turn is the owner's own message.                                                                                                                                                                                                                  | Server side. The pet sends the recording and nothing else about it.                                                                                                                                                                                                                                                                                                                                                            |
-| 6. No audio is kept on OpenStellarFirm; saved notes are deleted from the pet only after a 200 or 208.                                                                                                                                                      | `core/api_rules.cpp` (`isTurnReceived`, `syncOutcomeFor`, tested for every status), `core/note_queue.cpp` (`confirm` is the only delete; `markRefused` only writes a mark).                                                                                                                                                                                                                                                    |
-| 7. HTTPS only, no redirect with the token; the setup network is WPA2 with a spoken password; the USB cable never carries the confirm code, the token, the device secret or an id, a paired pet answers only hello, and the chip's download mode stays off. | `net/api.cpp`: `static_assert` on `PET_API_BASE`, `isHttpsBase` at start, redirects off in the client, any 3xx is an error and is never read. `core/usb_setup_rules.*` (a paired pet answers only `hello` before any value is read; reply builders that take only fixed words; tested against `usb_vectors.h`) and `net/usb_setup.*`; `Serial.enableReboot(false)` in `main.cpp`; `hw/log.*` is the only writer to the port.   |
+| Rule                                                                                                                                                                                                                                                       | Where                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1. The pet holds only its device token.                                                                                                                                                                                                                    | `store/secrets.cpp` keeps the token and, only from a pair request until its claim ends, the pet's own secret: `setPaired()` removes the secret when the claim works, every failing way out of `claimToken` removes it, and `setup()` clears any that a restart left. `net/api.cpp` sends the token only as `Authorization: Bearer`, only to the one computer whose certificate it was pinned to, after the handshake. The computer's record (address, port, name and pin) is not a secret and is kept beside it.                                                                                                              |
+| 2. Pairing needs the setup code, the typed confirm code and a one-time claim.                                                                                                                                                                              | `net/net_worker.cpp` (`pairWith`, `claimToken`): the token is stored only after the claim answers 200; the device secret is new for each try. A `start` over USB runs `pairWith`; the cable carries the setup code in, never the confirm code out. `pairWith` refuses a submission with no computer to pin.                                                                                                                                                                                                                                                                                                                   |
+| 3. The pet never approves; spoken lines carry no step text or digits.                                                                                                                                                                                      | `core/pet_app.h` has no approve event or action. Lines are clips from the pack; the only characters spoken are the ones the pet spells during setup, the setup network's password and the confirm code, one `char-*` clip per character (`core/voice_pack.h`, `core/setup_access.h`).                                                                                                                                                                                                                                                                                                                                         |
+| 4. The mic records only after the owner holds the lime light, never by itself; it stops on 5 seconds of silence, at 2 minutes or when they press the light again; LED 0 is solid lime whenever it records; the MIC switch cuts its power.                  | `core/pet_app.cpp` (only a `ButtonDown`, the hold, starts a recording; the release does nothing; the limits end it; tested for every state and event, and by a model of the limits), `core/vad.cpp` (the silence), `audio/mic.cpp` (receiver on only between `start()` and `stop()`, lime light first, MIC switch checked), `ui/lights.cpp` (the Listening frame follows the microphone itself), and a watchdog in `main.cpp`.                                                                                                                                                                                                |
+| 5. Every turn is the owner's own message.                                                                                                                                                                                                                  | Server side. The pet sends the recording and nothing else about it.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| 6. No audio is kept on OpenStellarFirm; saved notes are deleted from the pet only after a 200 or 208.                                                                                                                                                      | `core/api_rules.cpp` (`isTurnReceived`, `syncOutcomeFor`, tested for every status), `core/note_queue.cpp` (`confirm` is the only delete; `markRefused` only writes a mark).                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| 7. HTTPS only, no redirect with the token; the setup network is WPA2 with a spoken password; the USB cable never carries the confirm code, the token, the device secret or an id, a paired pet answers only hello, and the chip's download mode stays off. | `net/api.cpp`: every URL is `serverBaseUrl` (an https address and a port, checked with `isHttpsBase`), every connection is held to the pin inside the handshake (`attachPin`, [The pin](#the-pin)), redirects off in the client, any 3xx is an error and is never read. `WifiSetup::handleJoin` refuses a phone's setup, which carries no pin. `core/usb_setup_rules.*` (a paired pet answers only `hello` before any value is read; reply builders that take only fixed words; tested against `usb_vectors.h`) and `net/usb_setup.*`; `Serial.enableReboot(false)` in `main.cpp`; `hw/log.*` is the only writer to the port. |
 
 ### Listening
 
@@ -513,9 +597,12 @@ error the server's turn route can send.
   when that cannot be done (no network, a failure) the pet plays the pack's clip:
   `hello` for the greeting, `message` for any other. A `done` notice with a work title
   is fetched the same way and falls back to `done`.
-- **A notice that cannot be read aloud** says "I'm paused" for a 409 and "OpenStellarFirm
-  is busy" for a 429, and nothing is asked for again; any other failure plays the clip
-  that stands in for the notice.
+- **A notice that cannot be read aloud** says "I'm paused" for a 409, "OpenStellarFirm
+  is busy" for a 429, "my voice key was refused" for a 401 `no_access` and that the voice
+  quota is used up for a 402 `out_of_credits`, and nothing is asked for again; any other
+  failure plays the clip that stands in for the notice. The two 401 answers are told apart
+  by the error name in the body alone (`isForgotten` is only `forgotten`; a refused key
+  never makes the pet forget its pairing).
 - **A `settings` notice** is silent. It asks for a heartbeat, which reads the new
   settings, and when the voice changed the pet downloads the pack of the new voice at
   its next idle moment (a failed try for the old voice does not delay it).
@@ -527,84 +614,72 @@ error the server's turn route can send.
 
 ### The setup network
 
-The first start (a power-on with no pairing, and the 10 second reset hold) opens a
-WPA2 Wi-Fi network called `OpenStellarFirm <Name> <last four hex digits of the MAC>`
-with a captive portal. Its password is 12 characters of the code alphabet in lower
-case (`core/setup_access.h`), made once on the pet from the hardware random numbers
-and kept in NVS (`setuppass`) until the pet is forgotten. The pet says it: the
-`setup-join` clip, then one `char-*` clip per character (`sayLines` in `main.cpp`),
-and a tap or a hold of the lime light says it again. Nothing prints it, and it is
-never logged. The hardware random numbers are true random only while the radio is
-on, so `main.cpp` starts the radio before it makes the password at boot, and
-`doForget()` makes the next one before it turns the radio off. `WifiSetup::start`
-refuses to start with anything but a valid password: the network is never open.
-One phone at a time can be on it. It is the fallback; the first way in is the USB cable
-([Setup over USB](#setup-over-usb)), and the greeting names both: "Hi! To set me up,
-plug me into your computer and open OpenStellarFirm, or join my Wi-Fi network on your
-phone." A USB try switches this network off for its length and brings it back if the
-try fails.
+**It no longer sets a pet up.** Pairing needs the computer's certificate fingerprint, and a
+phone cannot carry that safely (docs/desk-pets-plan.md: "the setup network is left out of the
+first version"), so a pet is paired only over the USB cable. What is left of the network is
+gated, not removed: it still opens on the first start (a power-on with no pairing, and the 10
+second reset hold) and for ten minutes at most after a tap or a hold of the light, with
+nobody finishing (`SetupWindow`, `kSetupWindowMs`), as a WPA2 Wi-Fi network called
+`OpenStellarFirm <Name> <last four hex digits of the MAC>`, with a captive portal, and the
+pet still says its password (12 characters of the code alphabet in lower case,
+`core/setup_access.h`, made once from the hardware random numbers while the radio is on and
+kept in NVS as `setuppass`; `WifiSetup::start` never starts an open network).
 
-The owner's phone joins it with that password and gets the setup page: Wi-Fi network,
-password, setup code. The page is one string in `net/setup_page.h`, no external
-assets; every network name is HTML-escaped and everything else goes in with
-`textContent`. The network's DNS answers every name with the pet's address, so the
-phone's captive portal check finds the page; that would also make a page already
-open in the phone's browser (`http://evil.example`) the same origin as the pet once
-the phone joins, free to add any header. So the handlers answer only a request made
-to the pet's own address (`Host: 192.168.4.1`, the access point's IP literal,
-`setupHostIsAccessPoint`): any other name gets a 302 to `http://192.168.4.1/`
-(`WifiSetup::atMyAddress`, for `/`, `/rescan` and every unknown path), so the page
-only ever runs on the address's origin. Its calls to `/status` and `/join` also
-carry `X-Pet-Setup: 1`, and the handlers (`WifiSetup::fromThePage`,
-`setupRequestAllowed`) answer 403 without it, or with an `Origin` that is not
-`http://` plus that address, so neither a web page on another site (which needs a
-pre-flight the pet never answers, and it sends no CORS header) nor a page the DNS
-rebound to the pet can read the confirm code or drive the form. After the pet joins the Wi-Fi and gets its confirm code, the page
-shows it and the pet says it (`setup-code`, then one `char-*` clip per character).
+What a phone gets there is the page in `net/setup_page.h` (one string, no external
+assets), which says the pet cannot be set up from a phone and to use the cable, with its
+form hidden. `WifiSetup::handleJoin` answers 403 and **reads, keeps and acts on nothing the
+form sends**: no submission, no state change, nothing mirrored to the cable. Even if a
+submission got through, `NetWorker::pairWith` refuses one with no computer to pin
+(`SetupSubmission::hasServer`), so a pet can never pair without a pin. The host checks the
+setup page already had stay: the network's DNS answers every name with the pet's address
+for a phone's captive portal check, and the handlers answer only a request made to the
+pet's own address (`setupHostIsAccessPoint`, `WifiSetup::atMyAddress`), with the header the
+page adds and no foreign `Origin` (`WifiSetup::fromThePage`, `setupRequestAllowed`), so a
+page on another site cannot read or drive it. A USB try switches the network off for its
+length and the pet brings it back if the try fails. A `Forgotten` answer wipes the pet and
+makes it say it was disconnected, but does not open the network; a tap or a hold does.
 
-The network is up while the pet is not paired, for ten minutes at most with nobody
-finishing (`SetupWindow`, `kSetupWindowMs`; a try that does not pair starts the ten
-minutes again, and a try in progress is never cut off). Then the network task
-switches it and the radio off and tells the state machine (`SetupTimedOut`); the pet
-waits, unpaired, and a tap or a hold of the light opens it again. A server that
-answers 401 (`Forgotten`) wipes the pet and makes it say it was disconnected, but
-does not open the network; the same tap or hold does. It is switched off as soon as
-pairing is done. The setup handlers are added to the web server once, however often
-the pet is set up.
+**Still to do** (a founder decision, since the lines are in `src/shared/pets/lines.ts`): the
+greeting `setup-join` still says "...or join my Wi-Fi network on your phone", and the
+pet still spells the network's password after it. Neither is true to what the network
+now does. The page tells the person where to go, so nothing is lost, but the words and the
+spelled password should go with the first rendering of the boot pack.
 
 ### Setup over USB
 
-The first way to set a pet up is the owner's own page over the pet's data USB cable
-(Web Serial in Chrome or Edge, in the app's Add a desk pet; the plan's phase P4 moves
-this to the desktop app, see [docs/desk-pets-plan.md](../../docs/desk-pets-plan.md)).
-The setup network above is the fallback and runs beside it on an unpaired pet; the
-first submission wins. The page sends the Wi-Fi name, the Wi-Fi password and the
-setup code; the pet then does what it does for the setup page (`pairWith`), says its
-confirm code, and makes its one-time claim once the owner has typed the code in
-OpenStellarFirm. Rules 1 to 6 do not change.
+The only way to set a pet up is the app's page over the pet's data USB cable (Web Serial,
+in the app's own window: Settings, Desk pets, Add a desk pet). The app sends the pet the
+computer's address, port, certificate fingerprint and name (`server`), the Wi-Fi name and
+password (`wifi`) and the setup code (`start`); the pet joins the Wi-Fi, connects to the
+computer and pins its certificate, asks it to pair (`pairWith`), says its confirm code and
+makes its one-time claim once the owner has typed the code in OpenStellarFirm. Rules 1 to
+6 do not change.
 
-The wire is **pet-usb v1**. Its words, limits and golden lines come from
-`src/shared/pets/usb.ts` through `include/generated/protocol.h` and
-`usb_vectors.h`; the pure parser is `core/usb_setup_rules.*` (no Arduino header) and
-`net/usb_setup.*` moves bytes between it and the port in the network task.
+The wire is **pet-usb v2** (the pet's `hello` says `2`; a page that finds version 1 sends
+nothing else, and the app tells the owner the pet needs an update). v1's framing, hex,
+limits and rate limit are unchanged, and the v1 `join` line is still read. Its words,
+limits and golden lines come from `src/shared/pets/usb.ts` through
+`include/generated/protocol.h`, `usb_vectors.h` and `usb2_vectors.h`; the pure parser is
+`core/usb_setup_rules.*` (no Arduino header) and `net/usb_setup.*` moves bytes between it
+and the port in the network task.
 
-| What               | How                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| A line             | `@pet1 `, space-separated tokens, a newline; at most 512 bytes before the newline (`PET_USB_MAX_LINE`), printable ASCII. A longer line is thrown away up to the newline and answered `refused bad_line`. A line without the prefix gets no reply and costs nothing against the rate limit (it is the serial monitor, or a stray byte).                                                                                                                                                                                                    |
-| Page to pet        | `hello`, `scan`, `status`, `cancel`, `join <ssidHex> <passwordHex or -> <setupCode>`. The name and password are lowercase hex; `-` is an open network's empty password.                                                                                                                                                                                                                                                                                                                                                                   |
-| Pet to page        | `hello <version> <kind> <firmware> paired\|unpaired open\|closed`, `net <ssidHex> <rssi> open\|locked`, `scan-done <count>`, `state joining\|pairing\|confirm\|done`, `state error <code>`, `refused <reason>`.                                                                                                                                                                                                                                                                                                                           |
-| Codes              | Errors: `wifi_failed`, `code_refused`, `unreachable`, `timed_out`, `save_failed` (the ways `pairWith` and `claimToken` already fail). Refusals: `paired`, `busy`, `bad_line`, `unknown_op`, `rate_limited`, `bad_value`.                                                                                                                                                                                                                                                                                                                  |
-| Checks, in order   | No prefix (ignored), the rate limit (10 lines in any second, `PET_USB_MAX_LINES_PER_SECOND`), the shape, the op, the state, then the values with the setup page's own rules (`isPlausibleSsid`, `isPlausiblePassword`, `normalizeSetupCode`).                                                                                                                                                                                                                                                                                             |
-| Who may do what    | Unpaired: `hello`, `status`, `cancel` always; `scan` and `join` when no try is running (`busy` otherwise). Paired: `hello` only, everything else is `refused paired` before any value is read, so a paired pet on a cable can never be asked to join.                                                                                                                                                                                                                                                                                     |
-| Never on the cable | The device token, the device secret, the device id, a request id or a URL with an id, the confirm code, any echo of the Wi-Fi password or the setup code, the setup network's password, audio, notes, transcripts. The reply builders take only fixed words, counts and a scanned name, and `test_usb_setup` pins it. The state `confirm` only means "listen to your pet": the code is said aloud and typed by the owner, and `WifiSetup::setStatus` keeps it for the setup page alone (the observer that feeds the cable never gets it). |
+| What               | How                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A line             | `@pet1 `, space-separated tokens, a newline; at most 512 bytes before the newline (`PET_USB_MAX_LINE`), printable ASCII. A longer line is thrown away up to the newline and answered `refused bad_line`. A line without the prefix gets no reply and costs nothing against the rate limit (it is the serial monitor, or a stray byte).                                                                                                                                                                                                                                  |
+| Page to pet        | `hello`, `scan`, `status`, `cancel`; `server <address or -> <port> <fingerprint> <name>`, `wifi <ssidHex> <passwordHex or ->`, `start <setupCode>`; v1's `join <ssidHex> <passwordHex or -> <setupCode>`. The name and password are lowercase hex; `-` is an open network's empty password, or no address for the computer.                                                                                                                                                                                                                                             |
+| Pet to page        | `hello <version> <kind> <firmware> paired\|unpaired open\|closed`, `ok server\|wifi\|start`, `net <ssidHex> <rssi> open\|locked`, `scan-done <count>`, `state joining\|pairing\|confirm\|done`, `state error <code>`, `refused <reason>`.                                                                                                                                                                                                                                                                                                                               |
+| Codes              | Errors: `wifi_failed`, `code_refused`, `unreachable`, `timed_out`, `save_failed` (the ways `pairWith` and `claimToken` fail; a pet that cannot use the computer it was given says `unreachable`). Refusals: `paired`, `busy`, `bad_line`, `unknown_op`, `rate_limited`, `bad_value`, `not_ready`.                                                                                                                                                                                                                                                                       |
+| Checks, in order   | No prefix (ignored), the rate limit (10 lines in any second, `PET_USB_MAX_LINES_PER_SECOND`), the shape, the op, the state, then the values (the setup page's own rules for the Wi-Fi and the code, `core/server_pin.h` for the address, port, fingerprint and name), and for `start` that `server` and `wifi` are both staged (`not_ready`).                                                                                                                                                                                                                           |
+| Who may do what    | Unpaired: `hello`, `status`, `cancel` always; `scan`, `server`, `wifi`, `start` and `join` when no try is running (`busy` otherwise). Paired: `hello` only, everything else is `refused paired` before any value is read, so a paired pet on a cable can never be asked to join or be given another computer.                                                                                                                                                                                                                                                           |
+| Staged values      | `server` and `wifi` only stage values in RAM and answer `ok server` and `ok wifi`; `start` takes them into the try and forgets them (the Wi-Fi password never sits in the pet longer than it must), and so do `cancel`, a pulled cable and a power cut. A `join` takes the staged server and is `refused not_ready` without one, so no way of starting a try leaves out the pin.                                                                                                                                                                                        |
+| Never on the cable | The device token, the device secret, the device id, a request id or a URL with an id, the confirm code, any echo of the Wi-Fi password, the setup code, the address or the fingerprint, the setup network's password, audio, notes, transcripts. The reply builders take only fixed words, counts and a scanned name, and `test_usb_setup` pins it. The state `confirm` only means "listen to your pet": the code is said aloud and typed by the owner, and `WifiSetup::setStatus` keeps it for the setup page alone (the observer that feeds the cable never gets it). |
 
-A join runs `NetWorker::pairWith` with the source `Usb`: the setup network is switched
-off for the try (the pet joins the Wi-Fi as a station only, and a scan with the network
-up would disturb a phone already on it) and comes back if the try fails. The cable is
-answered whenever the pet is unpaired, also after the setup network's ten minutes have
-run out: whoever holds the cable is in the room, like a tap of the light. The line
-that carried a join (the Wi-Fi password in hex) is wiped from the buffer as soon as it
-is read.
+A `start` runs `NetWorker::pairWith` with the source `Usb`: the setup network is switched
+off for the try (the pet joins the Wi-Fi as a station only) and comes back if the try
+fails. The cable is answered whenever the pet is unpaired, also after the setup network's
+ten minutes have run out: whoever holds the cable is in the room, like a tap of the light.
+The line that carried the Wi-Fi password in hex is wiped from the buffer as soon as it is
+read.
 
 **The port.** The board is built with `ARDUINO_USB_CDC_ON_BOOT=1`, so the Arduino core
 has already called `Serial.begin()` in `app_main` when `setup()` runs. `setup()` in
@@ -681,7 +756,8 @@ starts for the DFU upload (the only way to update a unit running the pet image),
 ## Voice packs
 
 The pet plays its saved lines from a voice pack: one `.sfvp` file per voice
-(format in `src/core/voice_pack.h`), at `GET <base>/pets/voice/<voice>.sfvp`. The
+(format in `src/core/voice_pack.h`), which the app serves at
+`GET /pets/voice/<voice>.sfvp` on the same pinned connection as every call (no token). The
 pet downloads the pack of its voice after pairing and when the owner changes the
 voice (only while idle, checked and renamed into place from
 `/voice/<voice>.sfvp.tmp`; other voices' packs are deleted), and keeps one.
@@ -691,14 +767,14 @@ pack**: a small pack compiled into the firmware (the setup lines, the 31 charact
 of the code alphabet and the lines that must work offline) in one default voice.
 `include/generated/boot_pack.h` is not in the repository until someone renders it.
 **Without it the firmware still builds and runs, but a unit cannot be set up:** the
-setup network's password and, over USB, the confirm code are told only by voice (every
-`char-*` clip), and a line nobody can say is a short tone, so twelve identical beeps
-tell nobody anything: the phone can never join and the confirm code cannot be heard.
+confirm code (and the setup network's password) are told only by voice (every `char-*`
+clip), and a line nobody can say is a short tone, so eight identical beeps tell nobody
+anything: the confirm code cannot be heard.
 Render it before flashing a unit that will be paired (the renderer is a later phase);
 the build warns when it is missing.
 
 The packs are made on your own ElevenLabs key, never in CI and never published, by the
-app in a later phase of [docs/desk-pets-plan.md](../../docs/desk-pets-plan.md). The
+app ([docs/desk-pets-plan.md](../../docs/desk-pets-plan.md), phase P3). The
 format is described in [tools/voice-pack/README.md](tools/voice-pack/README.md).
 Nothing has been rendered or committed yet, so the pet keeps its boot pack.
 
@@ -708,15 +784,70 @@ Nothing has been rendered or committed yet, so the pet keeps its boot pack.
 Unity suites in `test/` (state machine, queue, ADPCM against the vectors the
 TypeScript package writes, lights, gestures, API rules and the answer table, voice
 pack, text rules, heartbeat policy, the voice detector, the recording writer and slot
-plan, pet-usb (`test_usb_setup`: the line assembler, the parser, the rate limit, the
-paired and busy rules, the reply builders and the log queue, against the golden
-lines in `usb_vectors.h`), and the small pieces: skin ID, battery, base64url, WAV
+plan, pet-usb v1 and v2 (`test_usb_setup`: the line assembler, the parser, the rate limit, the
+paired and busy rules, the staged values and `not_ready`, the reply builders and the log queue,
+against the golden lines in `usb_vectors.h` and `usb2_vectors.h`), the computer's record and
+the pin (`test_server_pin`: the address, port, name and fingerprint rules, the constant-time
+comparison, what a certificate at each depth of a chain is given, the address of a call and
+the mDNS name, and source checks that the client names no server, trusts no authority and
+reaches no time server), the answer table (`test_api_rules`: the refused voice key and the
+used up voice quota told apart from a forgotten pet by the error name, and the date the
+computer's clock comes from), and the small pieces: skin ID, battery, base64url, WAV
 header, the notice plan).
 The hardware modules cannot be unit tested; they are checked by building them in CI
 and by the bring-up firmware on a real board. Tests are offline: no network, no
 board.
 
-## Not checked on hardware
+## What a real board must still test
+
+Nothing below has run on a unit. Each line says what to do and what a pass looks like; the
+USB and audio checks before it ([Bring-up over USB](#bring-up-over-usb)) come first, then
+these, with a computer on the same Wi-Fi that runs OpenStellarFirm with Desk pets on.
+
+1. **The pin on the real TLS stack.** Pair a pet. In the app, Settings, Desk pets, make a new
+   certificate (the pet then holds a pin that is no longer the computer's): the pet's next
+   call must fail like an unreachable computer (a note is saved, the heartbeat does not
+   answer) and **the app's log must show no request carrying the pet's token**. Then pair it
+   again: it works. This is the one test that shows `verifyPin` runs inside the handshake
+   on mbedtls 3.6.2 (the host check used 2.28), that `esp_crt_bundle_attach` leaves the CA
+   chain mbedtls needs for `VERIFY_REQUIRED`, and that a self-signed ECDSA P-256 certificate
+   with no dates the pet can check (its clock is at 1970 before the first answer) is
+   accepted. Also point a second program on the computer's network at the same port with
+   another certificate (for example `openssl s_server` with its own self-signed one, on a
+   second machine given the pet's address): the pet must refuse it, and a `tcpdump` of the
+   handshake must show a fatal alert and no application data.
+2. **The first handshake's cost.** Time a first pair and the first call after a boot: an
+   ECDSA handshake on the ESP32-S3 should take a second or two, which `kConnectTimeoutMs`
+   (8 s) allows for. Look at free internal RAM (the log prints it when a connect fails) with
+   the inbox task's long poll and a turn's upload connecting at once.
+3. **The mDNS fallback.** Pair, then give the computer another address (turn its Wi-Fi off
+   and on, or reserve another address in the router) and restart the app. The pet's next
+   call connects to the old address, fails within 8 seconds, asks `osf-<label>.local` and
+   goes on with the new address; after a power cycle it starts from that address (kept in
+   NVS). Check three things the host cannot: that the router passes multicast to the pet
+   (a guest network or "client isolation" will not), that `mdns_query_a` on this core
+   answers for that name, and that `mdns_init` and `mdns_free` around each question leave
+   no leak (free heap before and after twenty fall backs).
+4. **The server record survives a power cycle,** and a pet paired by firmware that predates
+   this one (no record) is forgotten at its first boot and sets up again over the cable.
+   The record is written before the token and a power cut between them leaves none: pull
+   the power while pairing a few times and check the pet is never left paired with no
+   record (it would be forgotten at boot, never stuck).
+5. **The key line.** With ElevenLabs set to a wrong key in the app the pet's turn and a
+   spoken notice must say "My voice key was refused" and stay paired (a second turn works
+   after the key is fixed, no new pairing); with the quota used up it must say the quota is
+   used up. A forgotten pet (Forget in the app) must say it was disconnected and go back to
+   setup instead: the two 401 answers differ by the error name alone.
+6. **The clock.** After the first answer a saved note carries a real `X-Pet-Recorded-At`
+   (turn the Wi-Fi off, record, turn it on and read the note in the app), and the pet
+   never asks any host but the computer (watch the router's DNS log during a day).
+7. **The phone's page.** From a phone on the pet's setup network, `http://192.168.4.1/` shows
+   the "use the cable" page and no form, and `curl -X POST -H 'X-Pet-Setup: 1'
+   http://192.168.4.1/join -d ssid=x` answers 403 with no state change on the cable.
+8. **IPv6.** The app may give an IPv6 address (`fd..`/`2001:..`): check that one pairs and
+   that a call to it works; the address is put in brackets in the URL.
+
+Not checked on hardware, from before this phase:
 
 - **The voice detector's thresholds** (`core/vad.h`: `kVadAbsoluteFloorRms` 30,
   `kVadNoiseRatio` 3, `kVadHangoverFrames` 6, `kVadOnsetFrames` 3,
@@ -762,8 +893,9 @@ board.
 
 ## Not built yet
 
-- **Production hardening (phase 4).** A development unit keeps the token and the
-  Wi-Fi password in plain NVS. Production units get flash encryption, secure boot
+- **Locked-down units (a later phase).** A development unit keeps the token, the Wi-Fi
+  password and the computer's record in plain NVS (a lost pet holds your Wi-Fi password and
+  its token: Forget it in the app). Later units get flash encryption, secure boot
   and signed over-the-air updates; the partition table already has the two app
   slots, and `UpdateOffered` is in the state machine.
 - A wake word is not planned: the pet starts listening only when the owner holds the

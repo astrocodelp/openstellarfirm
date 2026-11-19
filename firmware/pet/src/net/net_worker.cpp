@@ -52,6 +52,26 @@ constexpr size_t kPackMaxBytes = 3 * 1024 * 1024;
 // The voice pack may not take the room the saved notes need.
 constexpr size_t kPackFlashMargin = 512 * 1024;
 
+// Holds the computer a pairing try was told about in the client for as long as the try
+// lives, and lets go of it on every way out but a pairing that was kept: a try that failed
+// leaves the pet with no computer, never with the half of one.
+class TrialServer {
+ public:
+  explicit TrialServer(Api& api) : api_(api) {}
+  ~TrialServer() {
+    if (!kept_) {
+      api_.dropServer();
+    }
+  }
+  TrialServer(const TrialServer&) = delete;
+  TrialServer& operator=(const TrialServer&) = delete;
+  void keep() { kept_ = true; }
+
+ private:
+  Api& api_;
+  bool kept_ = false;
+};
+
 // Marks a setup try as running for as long as it lives, whatever way the try ends: the
 // cable turns away a scan or a join while it is set.
 class BusyScope {
@@ -443,7 +463,6 @@ void NetWorker::superviseWifi() {
       wifiWasUp_ = true;
       wifiBackoff_.reset();
       WifiLink::saveEnergy();
-      WifiLink::startClock();
       shared_.online.store(true);
       shared_.serverDown.store(false);
       PET_LOG("wifi: joined");
@@ -656,6 +675,17 @@ void NetWorker::serveUsb() {
 bool NetWorker::pairWith(const SetupSubmission& submission, TrySource source) {
   BusyScope busy(trying_);
   usb_.takeCancel();  // a cancel left over from an earlier try is not this try's
+
+  // A pet pairs only with a computer whose certificate it was told to pin, and only the
+  // cable carries that. A submission with no computer (the setup page's, were it ever
+  // accepted again) pairs with nothing: there is no connection to make without a pin.
+  TrialServer trial(api_);
+  if (!submission.hasServer || !api_.useServer(submission.server)) {
+    setup_.setStatus(SetupState::Error, "I can only be set up from OpenStellarFirm over my USB cable.", std::string(),
+                     SetupFailure::Unreachable);
+    post(Event::simple(EventType::PairRefused));
+    return false;
+  }
   post(Event::simple(EventType::SetupSubmitted));
   setup_.setStatus(SetupState::Joining, "Joining your Wi-Fi...");
 
@@ -681,7 +711,6 @@ bool NetWorker::pairWith(const SetupSubmission& submission, TrySource source) {
     return false;
   }
   WifiLink::saveEnergy();
-  WifiLink::startClock();
   shared_.online.store(true);
   post(Event::simple(EventType::WifiUp));
   secrets_.setWifi(submission.ssid, submission.password);
@@ -716,6 +745,9 @@ bool NetWorker::pairWith(const SetupSubmission& submission, TrySource source) {
   post(Event::pairRequested(true));
 
   const bool paired = claimToken(pairOut, source);
+  if (paired) {
+    trial.keep();  // claimToken stored the computer with the token
+  }
 
   xSemaphoreTake(confirmMutex_, portMAX_DELAY);
   confirmCode_.clear();
@@ -751,7 +783,16 @@ bool NetWorker::claimToken(const PairOut& pairOut, TrySource source) {
     ClaimOut claim;
     const ApiResult result = api_.claim(pairOut.requestId, claim);
     if (result.status == 200) {
+      // The computer is stored first, with the address that worked, and then the token:
+      // a pet is never left with a token and no pin to use it against.
+      if (!api_.keepServer()) {
+        secrets_.clearDeviceSecret();
+        setup_.setStatus(SetupState::Error, "I could not save my pairing. Try again.", std::string(), SetupFailure::SaveFailed);
+        post(Event::simple(EventType::PairRefused));
+        return false;
+      }
       if (!secrets_.setPaired(claim.token, claim.deviceId)) {
+        secrets_.clearServer();
         secrets_.clearDeviceSecret();
         setup_.setStatus(SetupState::Error, "I could not save my pairing. Try again.", std::string(), SetupFailure::SaveFailed);
         post(Event::simple(EventType::PairRefused));
@@ -985,6 +1026,7 @@ void NetWorker::doSay(const NetCommand& command) {
 
 void NetWorker::doForget() {
   pairing_.fetch_add(1);
+  api_.dropServer();  // first: nothing connects while the wipe runs
   secrets_.clearAll();
   // A new passphrase for the setup network, so the one a previous owner heard is no
   // good. Made now, while the radio is still on: the hardware random numbers are true

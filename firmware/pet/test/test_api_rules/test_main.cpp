@@ -6,6 +6,7 @@
 #include <string>
 
 #include "core/api_rules.h"
+#include "core/server_pin.h"
 #include "generated/protocol.h"
 
 using namespace pet;
@@ -47,7 +48,7 @@ void test_https_base_refuses_everything_else() {
 }
 
 void test_the_default_base_is_https() {
-  // config.h's default address passes its own check.
+  // The address of a call is built from the computer's stored record and is always https.
   TEST_ASSERT_TRUE(isHttpsBase("https://app.example"));
 }
 
@@ -467,6 +468,97 @@ void test_the_inbox_cursor_follows_the_server_even_when_it_goes_down() {
   TEST_ASSERT_FALSE(fresh.store);
 }
 
+
+void test_a_refused_voice_key_and_a_forgotten_pet_are_told_apart_by_the_body_alone() {
+  // Both are a 401. The error name is the only difference, and it decides everything.
+  TEST_ASSERT_TRUE(isVoiceKeyRefused(401, "no_access"));
+  TEST_ASSERT_FALSE(isVoiceKeyRefused(401, "forgotten"));
+  TEST_ASSERT_FALSE(isForgotten(401, "no_access"));
+  TEST_ASSERT_TRUE(isForgotten(401, "forgotten"));
+  TEST_ASSERT_FALSE(isVoiceKeyRefused(401, nullptr));
+  TEST_ASSERT_FALSE(isVoiceKeyRefused(401, ""));
+  TEST_ASSERT_FALSE(isVoiceKeyRefused(403, "no_access"));
+  TEST_ASSERT_FALSE(isVoiceKeyRefused(200, "no_access"));
+  TEST_ASSERT_TRUE(isVoiceQuotaUsedUp(402, "out_of_credits"));
+  TEST_ASSERT_FALSE(isVoiceQuotaUsedUp(402, "spending_limit"));
+  TEST_ASSERT_FALSE(isVoiceQuotaUsedUp(402, nullptr));
+  TEST_ASSERT_FALSE(isVoiceQuotaUsedUp(500, "out_of_credits"));
+}
+
+void test_the_key_line_and_the_quota_line_are_played_and_the_pet_stays_paired() {
+  // A live turn.
+  TEST_ASSERT_EQUAL_STRING("no-access", lineFromAnswer(401, "no_access", "no-access"));
+  TEST_ASSERT_EQUAL_STRING("no-access", lineFromAnswer(401, "no_access", nullptr));
+  TEST_ASSERT_EQUAL_STRING("out-of-credits", lineFromAnswer(402, "out_of_credits", nullptr));
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(TurnVerdict::Failed), static_cast<int>(turnVerdictFor(401, "no_access")));
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(TurnVerdict::Failed), static_cast<int>(turnVerdictFor(402, "out_of_credits")));
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(TurnVerdict::Forgotten), static_cast<int>(turnVerdictFor(401, "forgotten")));
+  // A note being synced: it is kept and the sync stops, never a forgetting.
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(SyncOutcome::StopRetry), static_cast<int>(syncOutcomeFor(401, "no_access")));
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(SyncOutcome::StopRetry), static_cast<int>(syncOutcomeFor(402, "out_of_credits")));
+  TEST_ASSERT_EQUAL_STRING("no-access", lineForError(401, "no_access"));
+  TEST_ASSERT_EQUAL_STRING("disconnected", lineForError(401, "forgotten"));
+  // A notice that could not be read aloud says why instead of the clip that stands in
+  // for it, and a body cannot make a refused key sound like a forgotten pet.
+  TEST_ASSERT_EQUAL_STRING("no-access", lineForFailedSay(401, "no_access", "no-access", "done"));
+  TEST_ASSERT_EQUAL_STRING("no-access", lineForFailedSay(401, "no_access", "disconnected", "done"));
+  TEST_ASSERT_EQUAL_STRING("out-of-credits", lineForFailedSay(402, "out_of_credits", "out-of-credits", "message"));
+  TEST_ASSERT_EQUAL_STRING("done", lineForFailedSay(401, "forgotten", "disconnected", "done"));
+  TEST_ASSERT_EQUAL_STRING("done", lineForFailedSay(402, "spending_limit", "spending-limit", "done"));
+  // Both lines are clips the pack holds.
+  TEST_ASSERT_NOT_NULL(errorLineId("no-access"));
+  TEST_ASSERT_NOT_NULL(errorLineId("out-of-credits"));
+}
+
+void test_the_server_date_is_read_in_the_one_form_servers_write() {
+  int64_t at = 0;
+  TEST_ASSERT_TRUE(parseHttpDate("Fri, 20 Nov 2026 08:49:37 GMT", at));
+  TEST_ASSERT_EQUAL_INT64(1795164577, at);
+  TEST_ASSERT_TRUE(parseHttpDate("Mon, 01 Jan 2024 00:00:00 GMT", at));
+  TEST_ASSERT_EQUAL_INT64(1704067200, at);
+  TEST_ASSERT_TRUE(parseHttpDate("Thu, 29 Feb 2024 23:59:59 GMT", at));
+  TEST_ASSERT_EQUAL_INT64(1709251199, at);
+  TEST_ASSERT_TRUE(parseHttpDate("Fri, 31 Dec 2032 12:00:00 GMT", at));
+  TEST_ASSERT_EQUAL_INT64(1988107200, at);
+}
+
+void test_a_date_that_is_not_that_form_or_not_a_real_time_is_refused() {
+  int64_t at = 77;
+  const char* refused[] = {nullptr,
+                           "",
+                           "Fri, 20 Nov 2026 08:49:37 UTC",
+                           "Fri, 20 Nov 2026 08:49:37",
+                           "Friday, 20-Nov-26 08:49:37 GMT",
+                           "Fri Nov 20 08:49:37 2026",
+                           "Fri, 20 Nov 2026 08:49:37 GMT ",
+                           "Xyz, 20 Nov 2026 08:49:37 GMT",
+                           "Fri, 20 Foo 2026 08:49:37 GMT",
+                           "Fri, 32 Nov 2026 08:49:37 GMT",
+                           "Fri, 31 Nov 2026 08:49:37 GMT",
+                           "Fri, 30 Feb 2026 08:49:37 GMT",
+                           "Fri, 20 Nov 2026 24:49:37 GMT",
+                           "Fri, 20 Nov 2026 08:60:37 GMT",
+                           "Fri, 20 Nov 2023 08:49:37 GMT",
+                           "Fri, 20 Nov 2100 08:49:37 GMT",
+                           "Fri, 2o Nov 2026 08:49:37 GMT",
+                           "Fri,  20 Nov 2026 08:49:37 GMT"};
+  for (const char* text : refused) {
+    TEST_ASSERT_FALSE_MESSAGE(parseHttpDate(text, at), text == nullptr ? "(null)" : text);
+  }
+  TEST_ASSERT_EQUAL_INT64(77, at);  // untouched
+}
+
+void test_the_clock_is_set_when_it_was_never_set_or_has_drifted() {
+  const int64_t server = 1795164577;
+  TEST_ASSERT_TRUE(shouldSetClock(0, server));         // the chip's clock starts at 1970
+  TEST_ASSERT_TRUE(shouldSetClock(1000000, server));
+  TEST_ASSERT_FALSE(shouldSetClock(server, server));
+  TEST_ASSERT_FALSE(shouldSetClock(server + 5, server));
+  TEST_ASSERT_FALSE(shouldSetClock(server - 5, server));
+  TEST_ASSERT_TRUE(shouldSetClock(server + 6, server));
+  TEST_ASSERT_TRUE(shouldSetClock(server - 6, server));
+}
+
 int main(void) {
   UNITY_BEGIN();
   RUN_TEST(test_https_base_accepts_only_https_with_a_host);
@@ -500,5 +592,10 @@ int main(void) {
   RUN_TEST(test_every_error_line_the_table_can_send_is_accepted_from_a_body);
   RUN_TEST(test_a_notice_that_cannot_be_read_aloud_says_paused_or_busy_and_never_retries);
   RUN_TEST(test_the_inbox_cursor_follows_the_server_even_when_it_goes_down);
+  RUN_TEST(test_a_refused_voice_key_and_a_forgotten_pet_are_told_apart_by_the_body_alone);
+  RUN_TEST(test_the_key_line_and_the_quota_line_are_played_and_the_pet_stays_paired);
+  RUN_TEST(test_the_server_date_is_read_in_the_one_form_servers_write);
+  RUN_TEST(test_a_date_that_is_not_that_form_or_not_a_real_time_is_refused);
+  RUN_TEST(test_the_clock_is_set_when_it_was_never_set_or_has_drifted);
   return UNITY_END();
 }

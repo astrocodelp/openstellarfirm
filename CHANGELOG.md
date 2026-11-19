@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Desk pets, phase 5: the firmware now talks to the app (`firmware/pet/`). It has no server
+  address in the build any more: over the USB cable (pet-usb version 2: `server`, `wifi`,
+  `start`) the app tells the pet this computer's address, port, name and certificate
+  fingerprint, and the pet keeps them after the claim. **Every** connection to the
+  computer, the pairing and the claim included, is held to that certificate inside the
+  TLS handshake (the SHA-256 of the certificate the computer shows must be the stored
+  fingerprint, compared in constant time), so the pet's token is never written to another
+  device on your network, and the pet trusts no certificate authority for the app. When
+  the computer's address changes the pet asks mDNS for its `osf-<label>.local` name and
+  remembers the address that worked. The pet no longer asks a time server for the time
+  (a pinned certificate needs none): it takes the time of a saved note from the app's
+  answers. A refused ElevenLabs key and a used up quota are told apart from a forgotten
+  pet by the error name, so the pet says so and stays paired. The pet's own Wi-Fi setup
+  page no longer pairs anything (a phone cannot carry the fingerprint): setting up is
+  over the cable. New native tests cover the values, the pin and the key line; what only
+  a board can show is listed in `firmware/pet/README.md`.
 - Desk pets, phase 4: Settings now has a Desk pets page (`src/renderer/src/DeskPets.tsx`):
   the switch with the firewall note for your system, your pets (rename, which
   assistant each talks to, its voice, Speak answers, Forget), adding a pet over

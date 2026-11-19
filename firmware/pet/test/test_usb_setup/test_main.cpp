@@ -1,4 +1,4 @@
-// pet-usb v1, the pet's side (core/usb_setup_rules.h), and the line queue the serial
+// pet-usb v1 and v2, the pet's side (core/usb_setup_rules.h), and the line queue the serial
 // port is fed through (core/line_queue.h). Every golden line the TypeScript side
 // writes (generated/usb_vectors.h, from src/shared/pets) is run through the code
 // the firmware runs, so the page and the pet read the same lines.
@@ -14,6 +14,7 @@
 #include "core/line_queue.h"
 #include "core/usb_setup_rules.h"
 #include "generated/protocol.h"
+#include "generated/usb2_vectors.h"
 #include "generated/usb_vectors.h"
 
 using namespace pet;
@@ -658,6 +659,192 @@ void test_clearing_the_queue_drops_what_was_waiting_for_a_computer_that_left() {
   TEST_ASSERT_TRUE(queue.empty());
 }
 
+
+// -- pet-usb v2 --------------------------------------------------------------------------
+
+UsbPolicy policyOf(const PetUsb2RequestVector& row) {
+  UsbPolicy policy;
+  policy.paired = row.paired;
+  policy.busy = row.busy;
+  policy.hasServer = row.hasServer;
+  policy.hasWifi = row.hasWifi;
+  return policy;
+}
+
+void test_every_golden_v2_request_is_read_the_way_the_page_says() {
+  for (int i = 0; i < PET_USB2_REQUEST_VECTOR_COUNT; ++i) {
+    const PetUsb2RequestVector& row = PET_USB2_REQUEST_VECTORS[i];
+    UsbEndpoint endpoint;
+    UsbInbound last;
+    const int events = feed(endpoint, std::string(row.line) + "\n", policyOf(row), last);
+
+    if (std::strcmp(row.outcome, "ignored") == 0) {
+      TEST_ASSERT_EQUAL_INT_MESSAGE(0, events, row.name);
+      continue;
+    }
+    TEST_ASSERT_EQUAL_INT_MESSAGE(1, events, row.name);
+    if (std::strcmp(row.outcome, "refused") == 0) {
+      TEST_ASSERT_TRUE_MESSAGE(last.what == UsbWhat::Refusal, row.name);
+      const int reason = static_cast<int>(last.refusal);
+      TEST_ASSERT_TRUE_MESSAGE(reason >= 0 && reason < PET_USB2_REFUSAL_COUNT, row.name);
+      TEST_ASSERT_EQUAL_STRING_MESSAGE(row.refusal, PET_USB2_REFUSAL_IDS[reason], row.name);
+      continue;
+    }
+    TEST_ASSERT_TRUE_MESSAGE(last.what == UsbWhat::Request, row.name);
+    const int v1 = indexOf(PET_USB_OP_IDS, PET_USB_OP_COUNT, row.op);
+    const int v2 = indexOf(PET_USB2_OP_IDS, PET_USB2_OP_COUNT, row.op);
+    TEST_ASSERT_TRUE_MESSAGE(v1 >= 0 || v2 >= 0, row.name);
+    if (v1 >= 0) {
+      TEST_ASSERT_TRUE_MESSAGE(!last.request.v2 && last.request.op == static_cast<PetUsbOp>(v1), row.name);
+      continue;
+    }
+    TEST_ASSERT_TRUE_MESSAGE(last.request.v2 && last.request.op2 == static_cast<PetUsb2Op>(v2), row.name);
+    if (v2 == PET_USB2_OP_SERVER) {
+      const ServerRecord& server = last.request.server;
+      char hex[kPinHexChars + 1];
+      fingerprintToHex(server.fingerprint, hex);
+      TEST_ASSERT_EQUAL_STRING_MESSAGE(row.address, server.address.c_str(), row.name);
+      TEST_ASSERT_EQUAL_INT_MESSAGE(row.port, server.port, row.name);
+      TEST_ASSERT_EQUAL_STRING_MESSAGE(row.fingerprint, hex, row.name);
+      TEST_ASSERT_EQUAL_STRING_MESSAGE(row.serverName, server.name.c_str(), row.name);
+      TEST_ASSERT_TRUE_MESSAGE(isUsableServer(server), row.name);
+    } else if (v2 == PET_USB2_OP_WIFI) {
+      TEST_ASSERT_EQUAL_UINT_MESSAGE(row.ssidLength, last.request.wifi.ssid.size(), row.name);
+      TEST_ASSERT_EQUAL_MEMORY_MESSAGE(row.ssid, last.request.wifi.ssid.data(), row.ssidLength, row.name);
+      TEST_ASSERT_EQUAL_STRING_MESSAGE(row.password, last.request.wifi.password.c_str(), row.name);
+    } else {
+      TEST_ASSERT_EQUAL_STRING_MESSAGE(row.setupCode, last.request.setupCode.c_str(), row.name);
+    }
+  }
+}
+
+void test_a_carriage_return_before_the_newline_changes_nothing_for_v2_lines_either() {
+  for (int i = 0; i < PET_USB2_REQUEST_VECTOR_COUNT; ++i) {
+    const PetUsb2RequestVector& row = PET_USB2_REQUEST_VECTORS[i];
+    UsbEndpoint plain;
+    UsbEndpoint crlf;
+    UsbInbound a;
+    UsbInbound b;
+    const int plainEvents = feed(plain, std::string(row.line) + "\n", policyOf(row), a);
+    const int crlfEvents = feed(crlf, std::string(row.line) + "\r\n", policyOf(row), b);
+    TEST_ASSERT_EQUAL_INT_MESSAGE(plainEvents, crlfEvents, row.name);
+    if (plainEvents > 0) {
+      TEST_ASSERT_TRUE_MESSAGE(a.what == b.what && a.refusal == b.refusal, row.name);
+      TEST_ASSERT_TRUE_MESSAGE(a.request.server == b.request.server && a.request.setupCode == b.request.setupCode, row.name);
+    }
+  }
+}
+
+size_t buildReply2(const PetUsb2ReplyVector& row, char* out, size_t cap) {
+  if (std::strcmp(row.type, "hello") == 0) {
+    const int kind = indexOf(PET_KIND_IDS, PET_KIND_COUNT, row.kind);
+    TEST_ASSERT_TRUE_MESSAGE(kind >= 0, row.name);
+    return usbHelloLine(out, cap, static_cast<PetKind>(kind), row.firmware, row.paired, row.setupOpen, row.version);
+  }
+  if (std::strcmp(row.type, "ok") == 0) {
+    const int op = indexOf(PET_USB2_OP_IDS, PET_USB2_OP_COUNT, row.op);
+    TEST_ASSERT_TRUE_MESSAGE(op >= 0, row.name);
+    return usbOkLine(out, cap, static_cast<PetUsb2Op>(op));
+  }
+  if (std::strcmp(row.type, "state") == 0) {
+    const int state = indexOf(PET_USB_STATE_IDS, PET_USB_STATE_COUNT, row.state);
+    TEST_ASSERT_TRUE_MESSAGE(state >= 0, row.name);
+    return usbStateLine(out, cap, static_cast<PetUsbState>(state), PET_USB_ERROR_WIFI_FAILED);
+  }
+  if (std::strcmp(row.type, "refused") == 0) {
+    const int reason = indexOf(PET_USB2_REFUSAL_IDS, PET_USB2_REFUSAL_COUNT, row.reason);
+    TEST_ASSERT_TRUE_MESSAGE(reason >= 0, row.name);
+    return usbRefusal2Line(out, cap, static_cast<PetUsb2Refusal>(reason));
+  }
+  TEST_FAIL_MESSAGE(row.name);
+  return 0;
+}
+
+void test_every_golden_v2_reply_is_built_the_way_the_page_expects() {
+  for (int i = 0; i < PET_USB2_REPLY_VECTOR_COUNT; ++i) {
+    const PetUsb2ReplyVector& row = PET_USB2_REPLY_VECTORS[i];
+    char out[kUsbReplyCapacity];
+    const std::string expected = std::string(row.line) + "\n";
+    TEST_ASSERT_EQUAL_UINT_MESSAGE(expected.size(), buildReply2(row, out, sizeof(out)), row.name);
+    TEST_ASSERT_EQUAL_STRING_MESSAGE(expected.c_str(), out, row.name);
+    // Exactly the room it needs, and not one byte less.
+    TEST_ASSERT_EQUAL_UINT_MESSAGE(expected.size(), buildReply2(row, out, expected.size() + 1), row.name);
+    TEST_ASSERT_EQUAL_UINT_MESSAGE(0, buildReply2(row, out, expected.size()), row.name);
+  }
+}
+
+void test_a_hello_says_the_version_it_is_given_and_only_a_sane_one() {
+  char out[kUsbReplyCapacity];
+  const size_t n = usbHelloLine(out, sizeof(out), PET_KIND_CAT, "0.2.0", true, false, PET_USB2_VERSION);
+  TEST_ASSERT_TRUE(n > 0);
+  TEST_ASSERT_EQUAL_STRING("@pet1 hello 2 cat 0.2.0 paired closed\n", out);
+  // No version argument is the v1 hello, as before.
+  usbHelloLine(out, sizeof(out), PET_KIND_CAT, "0.2.0", true, false);
+  TEST_ASSERT_EQUAL_STRING("@pet1 hello 1 cat 0.2.0 paired closed\n", out);
+  TEST_ASSERT_EQUAL_UINT(0, usbHelloLine(out, sizeof(out), PET_KIND_CAT, "0.2.0", true, false, 0));
+  TEST_ASSERT_EQUAL_UINT(0, usbHelloLine(out, sizeof(out), PET_KIND_CAT, "0.2.0", true, false, 1000));
+}
+
+void test_the_v2_builders_refuse_a_word_outside_their_lists() {
+  char out[kUsbReplyCapacity];
+  TEST_ASSERT_EQUAL_UINT(0, usbOkLine(out, sizeof(out), static_cast<PetUsb2Op>(PET_USB2_OP_COUNT)));
+  TEST_ASSERT_EQUAL_UINT(0, usbOkLine(out, sizeof(out), static_cast<PetUsb2Op>(-1)));
+  TEST_ASSERT_EQUAL_UINT(0, usbRefusal2Line(out, sizeof(out), static_cast<PetUsb2Refusal>(PET_USB2_REFUSAL_COUNT)));
+  TEST_ASSERT_EQUAL_UINT(0, usbRefusal2Line(nullptr, 40, PET_USB2_REFUSAL_NOT_READY));
+  // The v1 builder still stops at its own list: not_ready is a v2 word.
+  TEST_ASSERT_EQUAL_UINT(0, usbRefusedLine(out, sizeof(out), kUsbRefusalNotReady));
+}
+
+void test_no_v2_reply_has_a_place_for_the_address_the_pin_the_wifi_or_the_code() {
+  // Every v2 reply is a fixed word and a fixed word: build all of them and look for what
+  // the page sent in none.
+  const std::string sent[] = {"192.168.1.20", "4801", "a1b2c3d4e5f60718", "osf-3fa91c0d", "hunter22", "K7QXM2PA9T"};
+  char out[kUsbReplyCapacity];
+  std::vector<std::string> replies;
+  for (int op = 0; op < PET_USB2_OP_COUNT; ++op) {
+    replies.emplace_back(out, usbOkLine(out, sizeof(out), static_cast<PetUsb2Op>(op)));
+  }
+  for (int reason = 0; reason < PET_USB2_REFUSAL_COUNT; ++reason) {
+    replies.emplace_back(out, usbRefusal2Line(out, sizeof(out), static_cast<PetUsb2Refusal>(reason)));
+  }
+  for (const std::string& reply : replies) {
+    TEST_ASSERT_TRUE(reply.size() > 0 && reply.size() < kUsbReplyCapacity);
+    for (const std::string& word : sent) {
+      TEST_ASSERT_TRUE_MESSAGE(reply.find(word) == std::string::npos, reply.c_str());
+    }
+  }
+}
+
+void test_a_start_needs_both_stages_and_a_join_without_them_is_still_a_valid_v1_line() {
+  UsbPolicy ready;
+  ready.hasServer = true;
+  ready.hasWifi = true;
+  UsbPolicy onlyServer;
+  onlyServer.hasServer = true;
+  UsbParse parse = parseUsbLine("@pet1 start K7QXM2PA9T", 22, ready);
+  TEST_ASSERT_TRUE(parse.kind == UsbParseKind::Request && parse.request.v2);
+  parse = parseUsbLine("@pet1 start K7QXM2PA9T", 22, onlyServer);
+  TEST_ASSERT_TRUE(parse.kind == UsbParseKind::Refused && parse.refusal == kUsbRefusalNotReady);
+  // The join of v1 is read as v1 reads it, staged or not: the pet's glue decides what to do
+  // with a join that has no server.
+  const char* join = "@pet1 join 486f6d652057692d4669 68756e7465723232 K7QXM2PA9T";
+  parse = parseUsbLine(join, std::strlen(join), UsbPolicy());
+  TEST_ASSERT_TRUE(parse.kind == UsbParseKind::Request && !parse.request.v2 && parse.request.op == PET_USB_OP_JOIN);
+}
+
+void test_a_server_line_longer_than_any_the_page_writes_is_one_bad_line() {
+  // 5 tokens is the most a line has; a sixth is bad_line, a seventh too, none of it read.
+  UsbPolicy idle;
+  const std::string base = std::string("@pet1 server 192.168.1.20 4801 ") + std::string(64, 'a') + " osf-3fa91c0d.local";
+  TEST_ASSERT_TRUE(parseUsbLine(base.c_str(), base.size(), idle).kind == UsbParseKind::Request);
+  const std::string six = base + " x";
+  UsbParse parse = parseUsbLine(six.c_str(), six.size(), idle);
+  TEST_ASSERT_TRUE(parse.kind == UsbParseKind::Refused && parse.refusal == PET_USB_REFUSAL_BAD_LINE);
+  const std::string seven = base + " x y";
+  parse = parseUsbLine(seven.c_str(), seven.size(), idle);
+  TEST_ASSERT_TRUE(parse.kind == UsbParseKind::Refused && parse.refusal == PET_USB_REFUSAL_BAD_LINE);
+}
+
 // -- What the code says -------------------------------------------------------------------
 
 void test_no_log_line_of_the_usb_code_can_name_a_secret() {
@@ -843,6 +1030,14 @@ int main(void) {
   RUN_TEST(test_a_line_that_does_not_fit_is_dropped_whole_and_leaves_the_rest_alone);
   RUN_TEST(test_the_queue_wraps_and_hands_out_each_run_separately);
   RUN_TEST(test_clearing_the_queue_drops_what_was_waiting_for_a_computer_that_left);
+  RUN_TEST(test_every_golden_v2_request_is_read_the_way_the_page_says);
+  RUN_TEST(test_a_carriage_return_before_the_newline_changes_nothing_for_v2_lines_either);
+  RUN_TEST(test_every_golden_v2_reply_is_built_the_way_the_page_expects);
+  RUN_TEST(test_a_hello_says_the_version_it_is_given_and_only_a_sane_one);
+  RUN_TEST(test_the_v2_builders_refuse_a_word_outside_their_lists);
+  RUN_TEST(test_no_v2_reply_has_a_place_for_the_address_the_pin_the_wifi_or_the_code);
+  RUN_TEST(test_a_start_needs_both_stages_and_a_join_without_them_is_still_a_valid_v1_line);
+  RUN_TEST(test_a_server_line_longer_than_any_the_page_writes_is_one_bad_line);
   RUN_TEST(test_no_log_line_of_the_usb_code_can_name_a_secret);
   RUN_TEST(test_the_setup_status_mirrored_to_the_cable_has_no_place_for_the_page_text_or_the_confirm_code);
   RUN_TEST(test_the_port_is_set_up_so_the_computer_cannot_reboot_the_chip);

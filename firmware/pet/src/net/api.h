@@ -1,11 +1,15 @@
 #pragma once
 
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
+
 #include <cstddef>
 #include <cstdint>
 #include <string>
 #include <vector>
 
 #include "core/byte_source.h"
+#include "core/server_pin.h"
 #include "generated/protocol.h"
 
 namespace pet {
@@ -106,25 +110,55 @@ class ByteSink {
   virtual bool write(const uint8_t* bytes, size_t len) = 0;
 };
 
-// The pet's HTTPS client for /api/pets/*, on ESP-IDF's esp_http_client.
+// The pet's HTTPS client for /api/pets/*, on ESP-IDF's esp_http_client, talking to the one
+// computer it was set up with (core/server_pin.h).
 //
 // Rule 7 of docs/desk-pets-plan.md: HTTPS only, and a redirect is never followed.
-//   * PET_API_BASE must be an https:// address: a build with another one does not
-//     compile, and begin() checks the rest (no user name, no space) at run time.
-//   * Every URL is the base plus a fixed path (numbers and validated voice ids
-//     only), so the device token can only be sent to the configured host.
+//   * There is no server address in the build. The computer's address, port, mDNS name and
+//     certificate fingerprint come from the cable (pet-usb v2), are used for the pairing
+//     try (useServer), and are kept on the pet when the claim worked (keepServer). Every
+//     URL is "https://<address>:<port>" and a fixed path (numbers and validated voice ids
+//     only), so the device token can only be sent to that one computer.
+//   * The pet trusts no certificate authority for it. Every connection, whatever the call
+//     (pairing, claim, heartbeat, turn, say, inbox, voice pack), is held inside the TLS
+//     handshake to the pin: the SHA-256 of the DER certificate the computer shows must be
+//     the stored fingerprint (net/api.cpp, attachPin), or the handshake fails and not one
+//     byte of the request is written. The token goes out in the request's headers, which
+//     esp_http_client writes only after the handshake, so it can never reach a computer
+//     that is not the pinned one. A pet with no record connects to nothing.
 //   * Redirects are turned off in the client, and any 3xx answer is an error: the
 //     Location it names is never fetched, so the token never follows it.
+//   * When the address that worked before does not connect (the computer got another one
+//     from the router), the pet asks mDNS for the computer's name, tries what answers
+//     (the pin still decides) and remembers the address that worked. An answer from
+//     another device is just a connection the pin refuses.
 //   * The token is sent only as "Authorization: Bearer", only on the calls that
 //     need it (not on pairing and not on the public voice pack download), and is
 //     never logged.
-// The server's certificate is checked against the ESP-IDF certificate bundle.
+//   * The only clock the pet has is the computer's: the `Date` header of an answer sets it
+//     (core/api_rules.h, parseHttpDate), so a saved note has a time and the pet reaches no
+//     time server.
 //
 // Each call makes its own connection and its own client, so the network task and
 // the inbox task can call at the same time.
 class Api {
  public:
+  // Reads the computer the pet was paired with, if any. False only when the client could
+  // not be made (no memory). A pet that is not paired has no computer yet, and every call
+  // it tries fails with -1 until useServer.
   bool begin(Secrets& secrets);
+
+  // The computer for a pairing try, as the cable gave it: the pet pins this certificate
+  // for pair and claim. Not stored. False (and nothing used) for a record the pet
+  // would not use. A try that did not pair calls dropServer; one that did calls keepServer.
+  bool useServer(const ServerRecord& record);
+  // Stores the record in use (with the address that worked) with the token, so the pet
+  // finds the computer again after a restart. False when it could not be saved.
+  bool keepServer();
+  // Forgets the computer in use, stored or not: a try that failed, a forgetting. The next
+  // call connects to nothing.
+  void dropServer();
+  bool hasServer();
 
   ApiResult pair(const std::string& setupCode, PetKind kind, PairOut& out);
   ApiResult claim(const std::string& requestId, ClaimOut& out);
@@ -153,11 +187,19 @@ class Api {
   struct Captured;
 
  private:
+  struct Attempt;
   ApiResult perform(const Call& call, Receiver* receiver);
-  std::string url(const std::string& path) const;
+  Attempt performAt(const Call& call, Receiver* receiver, const std::string& address, uint16_t port, const std::string& token);
+  void rememberAddress(const std::string& address);
+  bool snapshot(ServerRecord& out);
 
   Secrets* secrets_ = nullptr;
-  std::string base_;
+  // The computer in use, guarded by lock_ (both network tasks call). `stored_` says the
+  // record in use is the one on flash, so a new address is written there too.
+  SemaphoreHandle_t lock_ = nullptr;
+  ServerRecord server_;
+  bool have_ = false;
+  bool stored_ = false;
 };
 
 }  // namespace pet

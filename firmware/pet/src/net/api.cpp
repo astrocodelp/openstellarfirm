@@ -5,7 +5,12 @@
 #include <esp_heap_caps.h>
 #include <esp_http_client.h>
 #include <esp_system.h>
+#include <mbedtls/sha256.h>
+#include <mbedtls/ssl.h>
+#include <mbedtls/x509_crt.h>
+#include <mdns.h>
 #include <strings.h>
+#include <sys/time.h>
 
 #include <algorithm>
 #include <cmath>
@@ -13,6 +18,7 @@
 #include <cstring>
 #include <ctime>
 #include <memory>
+#include <mutex>
 #include <new>
 #include <utility>
 
@@ -28,12 +34,13 @@ namespace pet {
 
 namespace {
 
-// Rule 7 at build time: a PET_API_BASE that is not https:// does not compile.
-constexpr bool startsWithHttps(const char* s) {
-  return s[0] == 'h' && s[1] == 't' && s[2] == 't' && s[3] == 'p' && s[4] == 's' && s[5] == ':' && s[6] == '/' &&
-         s[7] == '/';
-}
-static_assert(startsWithHttps(PET_API_BASE), "PET_API_BASE must be an https:// address (rule 7 of docs/desk-pets-plan.md)");
+// The connect phase of a call (the TCP connection and the TLS handshake with its pin check)
+// is given this long, then the call's own timeout takes over for the writes and reads. A
+// stale address then costs a few seconds before the name is asked, not a turn's whole
+// minute and a half.
+constexpr int kConnectTimeoutMs = 8000;
+// How long mDNS is asked for the computer's name.
+constexpr uint32_t kNameLookupMs = 2000;
 
 constexpr size_t kChunk = 4096;
 constexpr size_t kErrorBodyMax = 1024;
@@ -130,6 +137,15 @@ struct Api::Captured {
   std::string line;  // still percent-encoded
   std::string chat;
   std::string run;
+  std::string date;  // the computer's own clock, "Fri, 20 Nov 2026 08:49:37 GMT"
+};
+
+struct Api::Attempt {
+  ApiResult result;
+  // The connection was made, the pin held and the request went out: the computer, and no
+  // other, answered (or did not answer in time). False before that, and then nothing was
+  // sent.
+  bool connected = false;
 };
 
 struct Api::Call {
@@ -230,27 +246,248 @@ esp_err_t onHttpEvent(esp_http_client_event_t* event) {
     captured->chat.assign(event->header_value, std::min<size_t>(std::strlen(event->header_value), 80));
   } else if (strcasecmp(event->header_key, PET_HEADER_RUN) == 0) {
     captured->run.assign(event->header_value, std::min<size_t>(std::strlen(event->header_value), 80));
+  } else if (strcasecmp(event->header_key, "Date") == 0) {
+    captured->date.assign(event->header_value, std::min<size_t>(std::strlen(event->header_value), 40));
   }
   return ESP_OK;
+}
+
+// -- The pin -----------------------------------------------------------------------------
+//
+// One computer at a time, so one pin for the whole client. The handshakes of the network
+// task and the inbox task can run together, so the pin is read and written under a
+// spinlock that is held for the copy of 32 bytes and nothing else.
+portMUX_TYPE gPinLock = portMUX_INITIALIZER_UNLOCKED;
+uint8_t gPin[kPinBytes] = {0};
+bool gPinKnown = false;
+
+void setPin(const ServerRecord* record) {
+  portENTER_CRITICAL(&gPinLock);
+  if (record != nullptr) {
+    std::memcpy(gPin, record->fingerprint, kPinBytes);
+    gPinKnown = true;
+  } else {
+    std::memset(gPin, 0, kPinBytes);
+    gPinKnown = false;
+  }
+  portEXIT_CRITICAL(&gPinLock);
+}
+
+// mbedtls calls this once for each certificate of the chain the computer showed, the top
+// one first and the computer's own (depth 0) last, while the handshake is still going and
+// before the pet writes anything. What it returns decides the handshake, because the
+// connection is set to MBEDTLS_SSL_VERIFY_REQUIRED: a non-zero return, or flags left set
+// at the end, abort it with a fatal alert.
+//
+// The chain is not what the pet trusts, so the flags mbedtls raised about it (an unknown
+// authority, an expired or not yet valid certificate, a name that does not match: the
+// app's certificate is self-signed and the pet has no clock to start with) are cleared at
+// every depth. The one thing that decides is the computer's own certificate: its SHA-256
+// must be the pin. A certificate that is not rejects the handshake here.
+int verifyPin(void* /*context*/, mbedtls_x509_crt* crt, int depth, uint32_t* flags) {
+  uint8_t digest[kPinBytes];
+  const uint8_t* leaf = nullptr;
+  if (depth == 0 && crt != nullptr && crt->raw.p != nullptr && crt->raw.len > 0 &&
+      mbedtls_sha256(crt->raw.p, crt->raw.len, digest, 0) == 0) {
+    leaf = digest;
+  }
+  uint8_t expected[kPinBytes];
+  bool known = false;
+  portENTER_CRITICAL(&gPinLock);
+  std::memcpy(expected, gPin, kPinBytes);
+  known = gPinKnown;
+  portEXIT_CRITICAL(&gPinLock);
+
+  const PinAction action = pinAction(depth, known, expected, leaf);
+  std::memset(expected, 0, sizeof(expected));
+  if (action == PinAction::Reject) {
+    if (flags != nullptr) {
+      *flags |= MBEDTLS_X509_BADCERT_NOT_TRUSTED;
+    }
+    return MBEDTLS_ERR_X509_CERT_VERIFY_FAILED;
+  }
+  if (flags != nullptr) {
+    *flags = 0;
+  }
+  return 0;
+}
+
+// What esp_http_client calls to set up the connection's trust (config.crt_bundle_attach).
+// The ESP-IDF bundle's own attach function does what MBEDTLS_SSL_VERIFY_REQUIRED needs to
+// run the check at all, and is the only thing taken from it: its callback, the one that
+// would look the computer's certificate up among the public authorities, is replaced here
+// by verifyPin, so the bundle never decides anything for the app. Nothing is returned as
+// success if the replacement could not be made.
+esp_err_t attachPin(void* conf) {
+  if (conf == nullptr) {
+    return ESP_ERR_INVALID_ARG;
+  }
+  const esp_err_t attached = esp_crt_bundle_attach(conf);
+  if (attached != ESP_OK) {
+    return attached;
+  }
+  mbedtls_ssl_config* ssl = static_cast<mbedtls_ssl_config*>(conf);
+  mbedtls_ssl_conf_authmode(ssl, MBEDTLS_SSL_VERIFY_REQUIRED);
+  mbedtls_ssl_conf_verify(ssl, &verifyPin, nullptr);
+  return ESP_OK;
+}
+
+// -- The computer's name ----------------------------------------------------------------
+
+// Asks mDNS for `osf-<8 hex>.local`. Only the A question; the answer is four bytes, written
+// back as a plain IPv4 address. The responder is started for the question and stopped after
+// it, so the pet advertises nothing and holds no memory for it between falls back. False
+// for no answer.
+bool askName(const std::string& name, std::string& address) {
+  static std::mutex lookup;  // one question at a time: the responder is started and stopped around it
+  const std::string host = mdnsHostOf(name);
+  if (host.empty()) {
+    return false;
+  }
+  std::lock_guard<std::mutex> only(lookup);
+  if (mdns_init() != ESP_OK) {
+    return false;
+  }
+  esp_ip4_addr_t found = {};
+  const esp_err_t asked = mdns_query_a(host.c_str(), kNameLookupMs, &found);
+  mdns_free();
+  if (asked != ESP_OK || found.addr == 0) {
+    return false;
+  }
+  // The four bytes are in network order, the first number of the address first.
+  const uint8_t* bytes = reinterpret_cast<const uint8_t*>(&found.addr);
+  address = ipv4Text(bytes);
+  return true;
+}
+
+// The computer's clock, from the Date header of an answer that came over the pinned
+// connection. The pet has no other: it asks no time server.
+void adoptServerDate(const std::string& date) {
+  int64_t at = 0;
+  if (date.empty() || !parseHttpDate(date.c_str(), at)) {
+    return;
+  }
+  if (!shouldSetClock(static_cast<int64_t>(time(nullptr)), at)) {
+    return;
+  }
+  struct timeval now = {};
+  now.tv_sec = static_cast<time_t>(at);
+  settimeofday(&now, nullptr);
 }
 
 }  // namespace
 
 bool Api::begin(Secrets& secrets) {
   secrets_ = &secrets;
-  base_ = PET_API_BASE;
-  if (!isHttpsBase(base_.c_str())) {
-    PET_LOG("api: PET_API_BASE is not an https address, no call will be made");
-    base_.clear();
-    return false;
+  if (lock_ == nullptr) {
+    lock_ = xSemaphoreCreateMutex();
+    if (lock_ == nullptr) {
+      return false;
+    }
+  }
+  ServerRecord stored;
+  const bool known = secrets.server(stored);
+  xSemaphoreTake(lock_, portMAX_DELAY);
+  have_ = known;
+  stored_ = known;
+  server_ = known ? stored : ServerRecord();
+  xSemaphoreGive(lock_);
+  setPin(known ? &stored : nullptr);
+  if (!known) {
+    PET_LOG("api: no computer is set up, no call will be made");
   }
   return true;
 }
 
-std::string Api::url(const std::string& path) const { return joinUrl(base_, path); }
+bool Api::useServer(const ServerRecord& record) {
+  if (lock_ == nullptr || !isUsableServer(record)) {
+    return false;
+  }
+  xSemaphoreTake(lock_, portMAX_DELAY);
+  server_ = record;
+  have_ = true;
+  stored_ = false;
+  xSemaphoreGive(lock_);
+  setPin(&record);
+  return true;
+}
 
+bool Api::keepServer() {
+  if (lock_ == nullptr || secrets_ == nullptr) {
+    return false;
+  }
+  xSemaphoreTake(lock_, portMAX_DELAY);
+  const ServerRecord record = server_;
+  const bool have = have_;
+  xSemaphoreGive(lock_);
+  if (!have || !secrets_->setServer(record)) {
+    return false;
+  }
+  xSemaphoreTake(lock_, portMAX_DELAY);
+  stored_ = server_ == record;
+  xSemaphoreGive(lock_);
+  return true;
+}
+
+void Api::dropServer() {
+  if (lock_ == nullptr) {
+    return;
+  }
+  setPin(nullptr);  // first, so no handshake from here on can be accepted
+  xSemaphoreTake(lock_, portMAX_DELAY);
+  server_ = ServerRecord();
+  have_ = false;
+  stored_ = false;
+  xSemaphoreGive(lock_);
+}
+
+bool Api::hasServer() {
+  if (lock_ == nullptr) {
+    return false;
+  }
+  xSemaphoreTake(lock_, portMAX_DELAY);
+  const bool have = have_;
+  xSemaphoreGive(lock_);
+  return have;
+}
+
+bool Api::snapshot(ServerRecord& out) {
+  if (lock_ == nullptr) {
+    return false;
+  }
+  xSemaphoreTake(lock_, portMAX_DELAY);
+  const bool have = have_;
+  if (have) {
+    out = server_;
+  }
+  xSemaphoreGive(lock_);
+  return have;
+}
+
+// A new address that worked is kept in memory and, when the record in use is the stored
+// one, on flash too, so the next boot starts from it. Only a change is written.
+void Api::rememberAddress(const std::string& address) {
+  if (lock_ == nullptr) {
+    return;
+  }
+  xSemaphoreTake(lock_, portMAX_DELAY);
+  const bool changed = have_ && server_.address != address;
+  if (changed) {
+    server_.address = address;
+  }
+  const bool store = changed && stored_;
+  xSemaphoreGive(lock_);
+  if (store && secrets_ != nullptr) {
+    secrets_->setServerAddress(address);
+  }
+}
+
+// One call: to the computer's address, and, when that does not connect, to the address
+// its name now has. The pin is checked on each connection; nothing is sent to a
+// computer that fails it.
 ApiResult Api::perform(const Call& call, Receiver* receiver) {
-  if (base_.empty()) {
+  ServerRecord server;
+  if (!snapshot(server)) {
     return failure(-1, "", "");
   }
 
@@ -263,15 +500,51 @@ ApiResult Api::perform(const Call& call, Receiver* receiver) {
     }
   }
 
-  const std::string target = url(call.path);
+  std::string address = server.address;
+  Attempt attempt;
+  attempt.result.status = -1;
+  bool triedAddress = false;
+  if (!address.empty()) {
+    attempt = performAt(call, receiver, address, server.port, token);
+    triedAddress = true;
+  }
+  if (!attempt.connected && shouldAskName(server, triedAddress)) {
+    std::string found;
+    if (askName(server.name, found) && found != address) {
+      address = found;
+      attempt = performAt(call, receiver, address, server.port, token);
+    }
+  }
+  std::fill(token.begin(), token.end(), '\0');
+  if (attempt.connected) {
+    rememberAddress(address);
+  }
+  return attempt.result;
+}
+
+Api::Attempt Api::performAt(const Call& call, Receiver* receiver, const std::string& address, uint16_t port,
+                            const std::string& token) {
+  Attempt attempt;
+  attempt.result.status = -1;
+  // Always https, and always a plain address and a port: nothing from an answer or from
+  // the call's own path can change where this goes.
+  const std::string base = serverBaseUrl(address, port);
+  if (!isHttpsBase(base.c_str())) {
+    return attempt;
+  }
+  const std::string target = joinUrl(base, call.path);
   Captured captured;
   esp_http_client_config_t config = {};
   config.url = target.c_str();
   config.user_agent = "OpenStellarFirmPet/" PET_FIRMWARE_VERSION;
   config.method = call.method;
-  config.timeout_ms = call.timeoutMs;
+  config.timeout_ms = std::min(call.timeoutMs, kConnectTimeoutMs);  // raised once the connection is made
   config.transport_type = HTTP_TRANSPORT_OVER_SSL;
-  config.crt_bundle_attach = esp_crt_bundle_attach;
+  // No public certificate authority is trusted for the app: the connection is held to the
+  // pin inside the handshake (attachPin). The name in the certificate is not what is
+  // trusted, so it is not checked.
+  config.crt_bundle_attach = &attachPin;
+  config.skip_cert_common_name_check = true;
   // Never follow a redirect: the token must not go anywhere else. A 3xx answer is
   // handled below as an error.
   config.disable_auto_redirect = true;
@@ -283,7 +556,7 @@ ApiResult Api::perform(const Call& call, Receiver* receiver) {
 
   esp_http_client_handle_t client = esp_http_client_init(&config);
   if (client == nullptr) {
-    return failure(-1, "", "");
+    return attempt;
   }
   if (call.contentType != nullptr) {
     esp_http_client_set_header(client, "Content-Type", call.contentType);
@@ -298,11 +571,9 @@ ApiResult Api::perform(const Call& call, Receiver* receiver) {
     std::string bearer = "Bearer " + token;
     esp_http_client_set_header(client, "Authorization", bearer.c_str());
     std::fill(bearer.begin(), bearer.end(), '\0');
-    std::fill(token.begin(), token.end(), '\0');
   }
 
-  ApiResult result;
-  result.status = -1;
+  ApiResult& result = attempt.result;
   const size_t bodyLength = call.body != nullptr ? call.body->size() : call.jsonBody.size();
 
   const esp_err_t opened = esp_http_client_open(client, static_cast<int>(bodyLength));
@@ -313,6 +584,12 @@ ApiResult Api::perform(const Call& call, Receiver* receiver) {
             static_cast<unsigned long>(heap_caps_get_free_size(MALLOC_CAP_INTERNAL)),
             static_cast<unsigned long>(heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL)),
             static_cast<unsigned long>(uxTaskGetStackHighWaterMark(nullptr)));
+  } else {
+    // The handshake passed, so the certificate was the pinned one, and the request is out.
+    // From here the call's own timeout counts, and the call is the computer's answer or
+    // none: it is never tried on another address.
+    esp_http_client_set_timeout_ms(client, call.timeoutMs);
+    attempt.connected = true;
   }
   if (good && bodyLength > 0) {
     std::unique_ptr<uint8_t[]> piece;
@@ -358,17 +635,18 @@ ApiResult Api::perform(const Call& call, Receiver* receiver) {
     result.status = contentLength == -ESP_ERR_HTTP_EAGAIN ? -2 : -1;
     esp_http_client_close(client);
     esp_http_client_cleanup(client);
-    return result;
+    return attempt;
   }
 
   const int status = esp_http_client_get_status_code(client);
   result.status = status;
+  adoptServerDate(captured.date);
   if (isRedirect(status)) {
     // Not followed, not read, and nothing from the answer is used.
     copyText(result.error, sizeof(result.error), "redirect");
     esp_http_client_close(client);
     esp_http_client_cleanup(client);
-    return result;
+    return attempt;
   }
 
   const bool success = status >= 200 && status < 300;
@@ -400,7 +678,7 @@ ApiResult Api::perform(const Call& call, Receiver* receiver) {
   if (!success) {
     parseError(errorBody.body, result);
   }
-  return result;
+  return attempt;
 }
 
 // -- The calls -------------------------------------------------------------------

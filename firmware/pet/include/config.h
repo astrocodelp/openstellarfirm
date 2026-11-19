@@ -7,16 +7,12 @@
 // recording, the heartbeat, the upload size) come from generated/protocol.h and
 // are never repeated here.
 
-// Where the pet talks to. HTTPS only (rule 7): the firmware refuses to start a
-// call when this is not an https:// address (isHttpsBase in core/api_rules.h).
-// To point a unit at a development server, build with
-//   PLATFORMIO_BUILD_FLAGS='-DPET_API_BASE=\"https://my-dev-host.example\"'
-// A server on plain http is not supported; use an https tunnel.
-#ifndef PET_API_BASE
-// A placeholder until phase P5 of docs/desk-pets-plan.md: the app's own address and
-// certificate pin are then learned at pairing. Until then a build names its server.
-#define PET_API_BASE "https://openstellarfirm.example"
-#endif
+// There is no server address in the build. The pet talks to the one OpenStellarFirm
+// computer it was set up with: Settings, Desk pets, Add a desk pet tells it, over the USB
+// cable, that computer's address, port, mDNS name and certificate fingerprint (pet-usb v2,
+// core/usb_setup_rules.h). It keeps them after pairing (store/secrets.h), connects only
+// over https, and holds every connection to that certificate (net/api.h). A build never
+// names a host, so a pet cannot be flashed to talk to anything else.
 
 // The development board build (env devboard, src/devboard/bridge.h) pairs as a
 // hardware of its own, so it is never taken for a pet, and plays one figure, since a

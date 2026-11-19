@@ -1,19 +1,31 @@
 #pragma once
 
-// pet-usb v1, the pet's side: the small line protocol OpenStellarFirm web speaks to a
-// pet over its data USB cable while the person sets it up (Web Serial in Chrome or
-// Edge). The page sends the Wi-Fi name, the Wi-Fi password and the setup code it made;
-// from there the pet joins the Wi-Fi, asks OpenStellarFirm to pair over HTTPS and speaks
-// its confirm code, exactly as it does for the setup network. This file is the whole
-// wire, with no Arduino header so it is tested on the computer; net/usb_setup.cpp
-// only moves bytes between it and the port. The words, the limits and the golden
-// lines come from the same generator as the page's side (src/shared/pets/usb.ts,
-//  generated/protocol.h and generated/usb_vectors.h), and test_usb_setup
-// runs every golden line through the code below.
+// pet-usb, the pet's side: the small line protocol the OpenStellarFirm app speaks to a
+// pet over its data USB cable while the person sets it up (Web Serial in the app's own
+// window). This file is the whole wire, with no Arduino header so it is tested on the
+// computer; net/usb_setup.cpp only moves bytes between it and the port. The words, the
+// limits and the golden lines come from the same generator as the page's side
+// (src/shared/pets/usb.ts, generated/protocol.h, generated/usb_vectors.h and
+// generated/usb2_vectors.h), and test_usb_setup runs every golden line of both versions
+// through the code below.
+//
+// Version 2 is what the pet speaks and what it says in `hello`. The page sends the
+// computer's address, port, certificate fingerprint and name (`server`), the Wi-Fi name
+// and password (`wifi`), and then `start` with the setup code it made; the first two only
+// stage values in the pet's memory, so the Wi-Fi password and the setup code never share
+// a line with the address and the pin. From `start` the pet joins the Wi-Fi, connects to
+// the computer, pins its certificate, asks it to pair and speaks its confirm code.
+// Version 1's `join` (the Wi-Fi, the password and the code in one line) is still read, but
+// carries no computer: the pet uses the one `server` staged, and refuses a `join` with
+// none (`not_ready`), because a pet never pairs with a computer it was not told to pin.
 //
 //   page to pet:  hello | scan | status | cancel
-//                 join <ssidHex> <passwordHex or -> <setupCode>
+//                 server <address or -> <port> <fingerprint> <name>
+//                 wifi <ssidHex> <passwordHex or ->
+//                 start <setupCode>
+//                 join <ssidHex> <passwordHex or -> <setupCode>           (v1)
 //   pet to page:  hello <version> <kind> <firmware> paired|unpaired open|closed
+//                 ok server|wifi|start
 //                 net <ssidHex> <rssi> open|locked
 //                 scan-done <count>
 //                 state joining|pairing|confirm|done
@@ -24,13 +36,14 @@
 // bytes before the newline; a longer one is thrown away up to the newline. The Wi-Fi
 // name and password travel as lower case hex. The pet checks a line in this order: no
 // prefix (no reply), the rate limit, the shape (bad_line), the op (unknown_op), the
-// state (paired, busy), then the values (bad_value). A paired pet answers only hello
-// and never looks at the values of anything else.
+// state (paired, busy), the values (bad_value), and for `start` that both stages are
+// there (not_ready). A paired pet answers only hello and never looks at the values of
+// anything else; a try that is running turns away scan, join, server, wifi and start.
 //
 // Never across the cable, in either direction: the device token, the device secret,
 // the device id, a request id or a URL with an id, the confirm code, an echo of the
-// Wi-Fi password or the setup code, the setup passphrase, audio, notes and
-// transcripts. The state "confirm" only means "listen to your pet". The reply
+// Wi-Fi password, the setup code or the address and fingerprint the page sent, the setup
+// passphrase, audio, notes and transcripts. The state "confirm" only means "listen to your pet". The reply
 // builders below take only enums, counts, a network name from a scan and a figure's
 // version string, and check every slot against the fixed words, so there is no
 // argument a password, a code or an id could be passed in (never-echo by
@@ -40,19 +53,28 @@
 #include <cstdint>
 #include <string>
 
+#include "core/server_pin.h"
 #include "generated/protocol.h"
 
 namespace pet {
 
 // What the pet knows about itself when a line arrives.
 struct UsbPolicy {
-  bool paired = false;  // a paired pet answers hello and nothing else
-  bool busy = false;    // a setup try is running (or a join is waiting): no scan or join
+  bool paired = false;     // a paired pet answers hello and nothing else
+  bool busy = false;       // a setup try is running (or a start is waiting): no scan, join, server, wifi or start
+  bool hasServer = false;  // `server` was accepted and is staged
+  bool hasWifi = false;    // `wifi` was accepted and is staged
 };
 
 // Whether the pet turns this op away in this state, before it looks at any value.
 // False when the op is allowed; otherwise `why` is paired or busy.
 bool usbRefuses(PetUsbOp op, UsbPolicy policy, PetUsbRefusal& why);
+bool usbRefuses2(PetUsb2Op op, UsbPolicy policy, PetUsbRefusal& why);
+
+// The one refusal version 2 adds, `start` before `server` and `wifi`. It is the value
+// PET_USB2_REFUSAL_NOT_READY (6), which a PetUsbRefusal (0 to 5) can carry as a cast; the
+// builder that names it is usbRefusal2Line.
+constexpr PetUsbRefusal kUsbRefusalNotReady = static_cast<PetUsbRefusal>(PET_USB2_REFUSAL_NOT_READY);
 
 // -- Lines in --------------------------------------------------------------------------
 
@@ -108,9 +130,22 @@ struct UsbJoin {
   std::string code;
 };
 
+// What `wifi` stages: the Wi-Fi's name and password, checked like a join's.
+struct UsbWifi {
+  std::string ssid;
+  std::string password;
+};
+
 struct UsbRequest {
+  // A version 1 op. For a version 2 op (`v2`) it stays PET_USB_OP_HELLO and `op2` says which.
   PetUsbOp op = PET_USB_OP_HELLO;
   UsbJoin join;  // only for PET_USB_OP_JOIN
+
+  bool v2 = false;
+  PetUsb2Op op2 = PET_USB2_OP_SERVER;
+  ServerRecord server;    // only for `server`: address (empty for "-"), port, pin and name
+  UsbWifi wifi;           // only for `wifi`
+  std::string setupCode;  // only for `start`, normalized
 };
 
 enum class UsbParseKind : uint8_t {
@@ -187,7 +222,13 @@ constexpr size_t kUsbReplyCapacity = 96;
 
 // hello: `firmware` must have the shape of a version ("0.1.0", "1.2.3-rc.1"), at most
 // PET_USB_FIRMWARE_MAX_CHARS characters, which is also what keeps any other text out.
-size_t usbHelloLine(char* out, size_t cap, PetKind kind, const char* firmware, bool paired, bool setupOpen);
+// `version` is the protocol version the pet speaks (1 to 999): the firmware says
+// PET_USB2_VERSION.
+size_t usbHelloLine(char* out, size_t cap, PetKind kind, const char* firmware, bool paired, bool setupOpen,
+                    int version = PET_USB_VERSION);
+
+// ok: a version 2 op was accepted ("ok server", "ok wifi", "ok start").
+size_t usbOkLine(char* out, size_t cap, PetUsb2Op op);
 
 // net: one network a scan found. The name is its raw bytes (1 to 32, no control
 // character) and goes out as hex; `rssi` is clamped to 0 .. -127.
@@ -201,5 +242,7 @@ size_t usbStateLine(char* out, size_t cap, PetUsbState state, PetUsbError error)
 
 // refused: why a line was not acted on.
 size_t usbRefusedLine(char* out, size_t cap, PetUsbRefusal reason);
+// The same for any reason of version 2, not_ready included.
+size_t usbRefusal2Line(char* out, size_t cap, PetUsb2Refusal reason);
 
 }  // namespace pet

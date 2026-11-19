@@ -170,6 +170,14 @@ bool isForgotten(int status, const char* errorOrNull) {
   return status == 401 && errorOrNull != nullptr && std::strcmp(errorOrNull, "forgotten") == 0;
 }
 
+bool isVoiceKeyRefused(int status, const char* errorOrNull) {
+  return status == 401 && errorOrNull != nullptr && std::strcmp(errorOrNull, "no_access") == 0;
+}
+
+bool isVoiceQuotaUsedUp(int status, const char* errorOrNull) {
+  return status == 402 && errorOrNull != nullptr && std::strcmp(errorOrNull, "out_of_credits") == 0;
+}
+
 bool isTurnReceived(int status) { return status == 200 || status == 208; }
 
 TurnVerdict turnVerdictFor(int status, const char* errorOrNull) {
@@ -203,6 +211,12 @@ const char* clipForSilentReply(PetTurnState state) {
 }
 
 const char* lineForFailedSay(int status, const char* errorOrNull, const char* lineOrNull, const char* fallback) {
+  if (isVoiceKeyRefused(status, errorOrNull)) {
+    return PET_LINE_NO_ACCESS;
+  }
+  if (isVoiceQuotaUsedUp(status, errorOrNull)) {
+    return PET_LINE_OUT_OF_CREDITS;
+  }
   if (status == 429) {
     return lineFromAnswer(status, errorOrNull, lineOrNull);  // "busy", unless the body names another
   }
@@ -251,5 +265,74 @@ bool noticeKindFromWire(const char* name, PetNoticeKind& out) {
 }
 
 bool petKindFromWire(const char* name, PetKind& out) { return fromNames(name, PET_KIND_IDS, PET_KIND_COUNT, out); }
+
+namespace {
+
+// Days from 1970-01-01 to a civil date (Howard Hinnant's algorithm).
+int64_t daysFromCivil(int64_t year, int month, int day) {
+  year -= month <= 2 ? 1 : 0;
+  const int64_t era = (year >= 0 ? year : year - 399) / 400;
+  const int64_t yearOfEra = year - era * 400;
+  const int64_t dayOfYear = (153 * (month + (month > 2 ? -3 : 9)) + 2) / 5 + day - 1;
+  const int64_t dayOfEra = yearOfEra * 365 + yearOfEra / 4 - yearOfEra / 100 + dayOfYear;
+  return era * 146097 + dayOfEra - 719468;
+}
+
+bool digits(const char* at, int count, int& value) {
+  value = 0;
+  for (int i = 0; i < count; ++i) {
+    if (at[i] < '0' || at[i] > '9') {
+      return false;
+    }
+    value = value * 10 + (at[i] - '0');
+  }
+  return true;
+}
+
+}  // namespace
+
+bool parseHttpDate(const char* text, int64_t& epochSeconds) {
+  // "Sun, 06 Nov 1994 08:49:37 GMT": exactly 29 characters.
+  static const char* const kDays[] = {"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"};
+  static const char* const kMonths[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+  if (text == nullptr || std::strlen(text) != 29 || text[3] != ',' || text[4] != ' ' || text[7] != ' ' || text[11] != ' ' ||
+      text[16] != ' ' || text[19] != ':' || text[22] != ':' || std::strcmp(text + 25, " GMT") != 0) {
+    return false;
+  }
+  bool dayKnown = false;
+  for (const char* name : kDays) {
+    dayKnown = dayKnown || std::strncmp(text, name, 3) == 0;
+  }
+  int month = 0;
+  for (int i = 0; i < 12; ++i) {
+    if (std::strncmp(text + 8, kMonths[i], 3) == 0) {
+      month = i + 1;
+    }
+  }
+  int day = 0;
+  int year = 0;
+  int hour = 0;
+  int minute = 0;
+  int second = 0;
+  if (!dayKnown || month == 0 || !digits(text + 5, 2, day) || !digits(text + 12, 4, year) || !digits(text + 17, 2, hour) ||
+      !digits(text + 20, 2, minute) || !digits(text + 23, 2, second)) {
+    return false;
+  }
+  static const int kMonthDays[] = {31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+  if (year < 2024 || year > 2099 || day < 1 || day > kMonthDays[month - 1] || hour > 23 || minute > 59 || second > 60) {
+    return false;
+  }
+  epochSeconds = daysFromCivil(year, month, day) * 86400 + hour * 3600 + minute * 60 + (second > 59 ? 59 : second);
+  return true;
+}
+
+bool shouldSetClock(int64_t deviceSeconds, int64_t serverSeconds) {
+  constexpr int64_t kFirst2024 = 1704067200;
+  if (deviceSeconds < kFirst2024) {
+    return true;
+  }
+  const int64_t difference = deviceSeconds > serverSeconds ? deviceSeconds - serverSeconds : serverSeconds - deviceSeconds;
+  return difference > kClockSlackSeconds;
+}
 
 }  // namespace pet

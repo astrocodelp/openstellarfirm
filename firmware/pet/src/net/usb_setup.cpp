@@ -4,6 +4,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
+#include <algorithm>
 #include <utility>
 #include <vector>
 
@@ -67,9 +68,19 @@ bool UsbSetup::sendPaced(const char* line, size_t length, uint32_t deadlineMs) {
   }
 }
 
+void UsbSetup::sendOk(PetUsb2Op op) {
+  char line[kUsbReplyCapacity];
+  send(line, usbOkLine(line, sizeof(line), op));
+}
+
+void UsbSetup::sendNotReady() {
+  char line[kUsbReplyCapacity];
+  send(line, usbRefusal2Line(line, sizeof(line), PET_USB2_REFUSAL_NOT_READY));
+}
+
 void UsbSetup::sendHello(const Info& info) {
   char line[kUsbReplyCapacity];
-  const size_t length = usbHelloLine(line, sizeof(line), kind_, PET_FIRMWARE_VERSION, info.paired, info.setupOpen);
+  const size_t length = usbHelloLine(line, sizeof(line), kind_, PET_FIRMWARE_VERSION, info.paired, info.setupOpen, PET_USB2_VERSION);
   if (length == 0) {
     // A build that sets PET_FIRMWARE_VERSION to something that is not a version number.
     PET_LOG("usb: the firmware version is not shaped like a version, so there is no hello");
@@ -116,7 +127,58 @@ void UsbSetup::doScan(const Info& info) {
   }
 }
 
+namespace {
+
+// Overwrites a string's bytes before it lets go of them: the Wi-Fi password was held in it.
+void wipe(std::string& text) {
+  std::fill(text.begin(), text.end(), '\0');
+  text.clear();
+}
+
+}  // namespace
+
+void UsbSetup::clearStaged() {
+  hasServer_ = false;
+  stagedServer_ = ServerRecord();
+  hasWifi_ = false;
+  wipe(stagedWifi_.ssid);
+  wipe(stagedWifi_.password);
+}
+
 void UsbSetup::handle(const UsbRequest& request, const Info& info) {
+  if (request.v2) {
+    switch (request.op2) {
+      case PET_USB2_OP_SERVER:
+        stagedServer_ = request.server;
+        hasServer_ = true;
+        sendOk(PET_USB2_OP_SERVER);
+        break;
+      case PET_USB2_OP_WIFI:
+        stagedWifi_ = request.wifi;
+        hasWifi_ = true;
+        sendOk(PET_USB2_OP_WIFI);
+        break;
+      case PET_USB2_OP_START:
+        // The parser checked both stages are there; the glue does not take its word for it.
+        if (!hasServer_ || !hasWifi_) {
+          sendNotReady();
+          break;
+        }
+        pending_ = SetupSubmission();
+        pending_.ssid = stagedWifi_.ssid;
+        pending_.password = stagedWifi_.password;
+        pending_.code = request.setupCode;
+        pending_.hasServer = true;
+        pending_.server = stagedServer_;
+        clearStaged();
+        have_ = true;
+        cancel_ = false;
+        PET_LOG("usb: a start was accepted");
+        sendOk(PET_USB2_OP_START);
+        break;
+    }
+    return;
+  }
   switch (request.op) {
     case PET_USB_OP_HELLO:
       sendHello(info);
@@ -133,6 +195,7 @@ void UsbSetup::handle(const UsbRequest& request, const Info& info) {
           have_ = false;
           pending_ = SetupSubmission();
         }
+        clearStaged();  // what server and wifi staged is forgotten
         sendStatus(info);
       }
       break;
@@ -140,9 +203,19 @@ void UsbSetup::handle(const UsbRequest& request, const Info& info) {
       doScan(info);
       break;
     case PET_USB_OP_JOIN:
+      // A version 1 join carries no computer. It is only a try when a server was staged;
+      // otherwise there is no certificate to pin and the pet will not pair.
+      if (!hasServer_) {
+        sendNotReady();
+        break;
+      }
+      pending_ = SetupSubmission();
       pending_.ssid = request.join.ssid;
       pending_.password = request.join.password;
       pending_.code = request.join.code;
+      pending_.hasServer = true;
+      pending_.server = stagedServer_;
+      clearStaged();
       have_ = true;
       cancel_ = false;
       PET_LOG("usb: a join was accepted");
@@ -160,6 +233,10 @@ void UsbSetup::service(const Info& info) {
     endpoint_.reset();
   }
 
+  if (!connected) {
+    clearStaged();  // the cable was pulled: nothing of an earlier connection is kept
+  }
+
   UsbInbound inbound;
   for (size_t budget = kReadBudget; budget > 0 && serialInAvailable() > 0; --budget) {
     const int c = serialInRead();
@@ -170,13 +247,15 @@ void UsbSetup::service(const Info& info) {
     UsbPolicy policy;
     policy.paired = info.paired;
     policy.busy = info.busy || have_;
+    policy.hasServer = hasServer_;
+    policy.hasWifi = hasWifi_;
     // The time is read for each byte: a scan in the middle of a chunk takes seconds.
     if (!endpoint_.push(static_cast<uint8_t>(c), millis(), policy, inbound)) {
       continue;
     }
     if (inbound.what == UsbWhat::Refusal) {
       char line[kUsbReplyCapacity];
-      send(line, usbRefusedLine(line, sizeof(line), inbound.refusal));
+      send(line, usbRefusal2Line(line, sizeof(line), static_cast<PetUsb2Refusal>(inbound.refusal)));
     } else if (inbound.what == UsbWhat::Request) {
       handle(inbound.request, info);
     }
@@ -200,6 +279,7 @@ void UsbSetup::dropSubmission() {
   }
   have_ = false;
   pending_ = SetupSubmission();
+  clearStaged();
   char line[kUsbReplyCapacity];
   send(line, usbRefusedLine(line, sizeof(line), PET_USB_REFUSAL_BUSY));
 }

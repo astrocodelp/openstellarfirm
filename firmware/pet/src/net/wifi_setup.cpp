@@ -118,7 +118,6 @@ void WifiLink::drop() {
   WiFi.mode(WIFI_OFF);
 }
 
-void WifiLink::startClock() { configTime(0, 0, "pool.ntp.org", "time.google.com"); }
 
 // -- WifiSetup --------------------------------------------------------------------
 
@@ -296,35 +295,15 @@ void WifiSetup::handleRescan() {
   server_->send(302, "text/plain", "");
 }
 
+// The page cannot set the pet up: pairing needs the computer's certificate fingerprint,
+// which only the USB cable carries (pet-usb v2). So nothing a form sends is read, kept or
+// acted on, and no submission, state change or message about one ever leaves here. The
+// pet's try waits for the cable (net/usb_setup.h).
 void WifiSetup::handleJoin() {
   if (!fromThePage()) {
     return;
   }
-  if (state_ != SetupState::Ready && state_ != SetupState::Error) {
-    replyMessage(409, "I am busy with the last try. Wait a moment.");
-    return;
-  }
-  SetupSubmission entry;
-  entry.ssid = server_->arg("ssid").c_str();
-  entry.password = server_->arg("pass").c_str();
-  const std::string typedCode = server_->arg("code").c_str();
-
-  if (!isPlausibleSsid(entry.ssid)) {
-    replyMessage(400, "Pick a Wi-Fi network, or type its name.");
-    return;
-  }
-  if (!isPlausiblePassword(entry.password)) {
-    replyMessage(400, "A Wi-Fi password has 8 to 63 characters. Leave it empty for a network with no password.");
-    return;
-  }
-  if (!normalizeSetupCode(typedCode, entry.code)) {
-    replyMessage(400, "The setup code is 10 letters and digits. Copy it from OpenStellarFirm.");
-    return;
-  }
-  submission_ = entry;
-  have_ = true;
-  setStatus(SetupState::Joining, "Joining your Wi-Fi...");
-  replyMessage(200, "ok");
+  replyMessage(403, "I cannot be set up from a phone. Use my USB cable and OpenStellarFirm on your computer.");
 }
 
 }  // namespace pet
