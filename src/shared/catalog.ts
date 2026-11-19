@@ -180,7 +180,7 @@ export interface Preset {
   note: string;
 }
 
-const KEY = "Your own key. You name the model.";
+const KEY = "Your own key, from your account there.";
 
 function hosted(
   id: PresetId,
@@ -383,7 +383,7 @@ export const PRESETS: Preset[] = [
     "Amazon Bedrock",
     "clouds",
     "",
-    "A Bedrock API key, and the region it was made in. You name the model.",
+    "A Bedrock API key, and the region it was made in.",
     {
       address: "bedrock",
       suggested: [

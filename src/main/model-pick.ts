@@ -1,4 +1,5 @@
 import type { ModelInfo, ModelPick } from "../shared/types";
+import { tokens } from "./wires/common";
 
 /**
  * Picks the model a first run starts with, from what a program on this
@@ -17,6 +18,8 @@ interface Facts {
   can: Set<string>;
   /** When it was put on this computer, in milliseconds; 0 when not known. */
   at: number;
+  /** How many tokens it takes in, when the program says. */
+  context?: number;
 }
 
 /** How many models are asked about, at most, so a long list stays quick. */
@@ -46,6 +49,18 @@ async function json(
   return response.json();
 }
 
+/**
+ * The window Ollama's /api/show gives in model_info, under the model's family
+ * (such as "llama.context_length"), as its API documentation shows.
+ */
+function contextOf(info: unknown): number | undefined {
+  if (typeof info !== "object" || info === null) return undefined;
+  for (const [key, value] of Object.entries(info)) {
+    if (key.endsWith(".context_length")) return tokens(value);
+  }
+  return undefined;
+}
+
 async function ollamaFacts(
   root: string,
   names: string[],
@@ -70,6 +85,7 @@ async function ollamaFacts(
   return Promise.all(
     names.slice(0, MAX_ASKED).map(async (name) => {
       let can = new Set<string>();
+      let context: number | undefined;
       try {
         const shown = (await json(
           fetchImpl,
@@ -80,17 +96,23 @@ async function ollamaFacts(
             body: JSON.stringify({ model: name }),
           },
           timeoutMs,
-        )) as { capabilities?: unknown };
+        )) as { capabilities?: unknown; model_info?: unknown };
         if (Array.isArray(shown.capabilities))
           can = new Set(
             shown.capabilities.filter(
               (c): c is string => typeof c === "string",
             ),
           );
+        context = contextOf(shown.model_info);
       } catch {
         // An older Ollama says nothing about what a model can do.
       }
-      return { name, can, at: when.get(name) ?? 0 };
+      return {
+        name,
+        can,
+        at: when.get(name) ?? 0,
+        ...(context ? { context } : {}),
+      };
     }),
   );
 }
@@ -244,6 +266,7 @@ export async function describeLocalModels(
       ...(f?.can.has("tools") ? { tools: true } : {}),
       ...(f?.can.has("vision") ? { pictures: true } : {}),
       ...(f && f.at > 0 ? { created: f.at } : {}),
+      ...(f?.context && !model.context ? { context: f.context } : {}),
     });
   }
   const pick = pickFrom(facts, names);

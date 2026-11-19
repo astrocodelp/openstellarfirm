@@ -20,7 +20,7 @@ const models: ModelInfo[] = [
 const closed: PickerState = { open: false, active: -1 };
 
 describe("the model picker's order", () => {
-  it("puts the recommended model first, then the newest, then the rest by name", () => {
+  it("puts the recommended model first, then the newest, then the rest as listed", () => {
     expect(orderModels(models, "gemma3:4b").map((m) => m.id)).toEqual([
       "gemma3:4b",
       "llama3.2:3b",
@@ -28,6 +28,8 @@ describe("the model picker's order", () => {
       "qwen3:8b",
     ]);
     expect(orderModels(models).map((m) => m.id)[0]).toBe("llama3.2:3b");
+    const undated: ModelInfo[] = [{ id: "b" }, { id: "a" }, { id: "c" }];
+    expect(orderModels(undated).map((m) => m.id)).toEqual(["b", "a", "c"]);
   });
 });
 

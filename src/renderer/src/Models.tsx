@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useId, useState } from "react";
+import { type FormEvent, useEffect, useId, useRef, useState } from "react";
 import { BEDROCK_REGIONS } from "../../shared/address";
 import { PRESET_GROUPS, PRESETS, presetOf } from "../../shared/catalog";
 import { noKeychainNote } from "../../shared/keychain";
@@ -369,8 +369,13 @@ function SourceModelEdit({
       aria-label={`Change the model for ${source.name}`}
       onSubmit={save}
       onKeyDown={(event) => {
-        // Esc with the list closed puts the row back as it was.
-        if (event.key === "Escape" && !event.defaultPrevented) onClose();
+        // Esc with the list closed puts the row back as it was, and goes no
+        // further, so the screen around it stays open.
+        if (event.key === "Escape" && !event.defaultPrevented) {
+          event.preventDefault();
+          event.stopPropagation();
+          onClose();
+        }
       }}
     >
       <div className="field">
@@ -448,14 +453,20 @@ export function ModelsScreen({ state, onChanged }: ModelsScreenProps) {
   const [removing, setRemoving] = useState<string | null>(null);
   /** The source whose model is being changed, under its row. */
   const [editing, setEditing] = useState<string | null>(null);
+  const returnTo = useRef<string | null>(null);
 
   /** Closes a model change and puts the focus back on the button that opened it. */
   function closeEdit(sourceId: string) {
+    returnTo.current = sourceId;
     setEditing(null);
-    requestAnimationFrame(() =>
-      document.getElementById(`look-${sourceId}`)?.focus(),
-    );
   }
+
+  // Once the change is closed, the focus goes back to its button.
+  useEffect(() => {
+    if (editing !== null || !returnTo.current) return;
+    document.getElementById(`look-${returnTo.current}`)?.focus();
+    returnTo.current = null;
+  }, [editing]);
 
   async function check(source: ModelSource) {
     setChecks((c) => ({ ...c, [source.id]: { ok: true, text: "Checking…" } }));

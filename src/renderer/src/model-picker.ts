@@ -11,7 +11,8 @@ export const MAX_SHOWN = 200;
 
 /**
  * The order a list is shown in: the recommended model first, then the newest
- * where the list says when each was made, then the rest by name.
+ * where the list says when each was made, then the rest in the list's own
+ * order (by name for a service's list; as written for suggestions).
  */
 export function orderModels(
   models: ModelInfo[],
@@ -24,8 +25,7 @@ export function orderModels(
     }
     const at = a.created ?? 0;
     const bt = b.created ?? 0;
-    if (at !== bt) return bt - at;
-    return a.id.localeCompare(b.id);
+    return bt - at;
   });
 }
 

@@ -84,6 +84,12 @@ export function ModelPicker({
     setState({ open: true, active: Math.max(at, 0) });
   }, [looking, models, error, openWhenFound, recommended, value]);
 
+  // An open list is brought into view, so its last rows are not under the
+  // window's edge.
+  useEffect(() => {
+    if (open) list.current?.scrollIntoView({ block: "nearest" });
+  }, [open]);
+
   // The highlighted row is always in view, inside the list only.
   useEffect(() => {
     if (!open || state.active < 0) return;
@@ -242,7 +248,8 @@ function ModelOption({
   onPoint(): void;
   onPick(): void;
 }) {
-  const facts = modelFacts(model);
+  // The name, when the list gives one, then what the model can do.
+  const about = [model.name, modelFacts(model)].filter(Boolean).join(" · ");
   return (
     // biome-ignore lint/a11y/useKeyWithClickEvents: the box's arrows and Enter choose an option
     // biome-ignore lint/a11y/useFocusableInteractive: the box keeps the focus; aria-activedescendant points here
@@ -260,14 +267,15 @@ function ModelOption({
       <span className="model-option-mark">
         {chosen ? <Icon name="check" size={14} /> : null}
       </span>
-      <span className="model-option-id mono">{model.id}</span>
-      {model.name ? (
-        <span className="model-option-name">{model.name}</span>
-      ) : null}
-      {recommended ? (
-        <span className="model-option-tag">Recommended</span>
-      ) : null}
-      {facts ? <span className="model-option-facts">{facts}</span> : null}
+      <span className="model-option-text">
+        <span className="model-option-line">
+          <span className="model-option-id mono">{model.id}</span>
+          {recommended ? (
+            <span className="model-option-tag">Recommended</span>
+          ) : null}
+        </span>
+        {about ? <span className="model-option-about">{about}</span> : null}
+      </span>
     </div>
   );
 }
