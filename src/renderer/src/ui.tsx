@@ -286,8 +286,9 @@ export async function crossFadeTheme(
 /**
  * The question before something that cannot be undone, shown in place. Focus
  * moves into it (to the element marked data-autofocus, else its first button),
- * Escape closes it, and when it closes focus goes back to whatever now stands
- * where it was: the button that opened it.
+ * Escape closes it, and when it closes focus goes back to the button that
+ * opened it when that button is still there, else to whatever now stands where
+ * the question was.
  */
 export function useInlineConfirm<T extends HTMLElement>(onClose: () => void) {
   const ref = useRef<T>(null);
@@ -296,6 +297,12 @@ export function useInlineConfirm<T extends HTMLElement>(onClose: () => void) {
     const parent = node?.parentElement;
     if (!node || !parent) return;
     const index = Array.prototype.indexOf.call(parent.children, node);
+    // The button that opened it, which may stay beside it on the page.
+    const opener =
+      document.activeElement instanceof HTMLElement &&
+      !node.contains(document.activeElement)
+        ? document.activeElement
+        : null;
     const first =
       node.querySelector<HTMLElement>("[data-autofocus]") ??
       node.querySelector<HTMLElement>("button:not(:disabled)");
@@ -305,7 +312,16 @@ export function useInlineConfirm<T extends HTMLElement>(onClose: () => void) {
       setTimeout(() => {
         const lost =
           !document.activeElement || document.activeElement === document.body;
-        if (!lost || !parent.isConnected) return;
+        if (!lost) return;
+        if (
+          opener?.isConnected &&
+          !opener.matches(":disabled") &&
+          opener.getClientRects().length > 0
+        ) {
+          opener.focus({ preventScroll: true });
+          return;
+        }
+        if (!parent.isConnected) return;
         const slot = parent.children[index];
         const target = slot?.matches("button:not(:disabled)")
           ? (slot as HTMLElement)

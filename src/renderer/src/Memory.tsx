@@ -21,6 +21,7 @@ import type {
 } from "../../shared/types";
 import { refocusIfLost } from "./a11y";
 import { api } from "./bridge";
+import { Markdown } from "./Markdown";
 import {
   ErrorLine,
   message as errorText,
@@ -549,33 +550,34 @@ export function contextUse(input: {
   return { tokens: used, window, share: contextShare(used, window) };
 }
 
+/**
+ * The line under the chat's head: how full the model's window is, and the
+ * question Clear chat asks, or the summary being made. The meter is there from
+ * the start whenever the model's window is known, so the first message never
+ * moves the chat; with no meter and nothing to ask, the line takes no room.
+ * Clear chat and Summarise and continue live in the head's More menu.
+ */
 export function ContextBar({
   tools,
   use,
-  hasMessages,
-  busy,
+  clearing,
+  onKeep,
+  onCleared,
 }: {
   tools: ChatTools;
   use: ReturnType<typeof contextUse>;
-  hasMessages: boolean;
-  /** True while it is answering: the chat cannot change then. */
-  busy: boolean;
+  /** True while Clear chat asks whether to clear. */
+  clearing: boolean;
+  /** Keep it, or Escape: the question goes and the focus goes back to More. */
+  onKeep(): void;
+  /** The chat was cleared: the question goes, and the focus is the box's. */
+  onCleared(): void;
 }) {
-  const [clearing, setClearing] = useState(false);
-  const clearButton = useRef<HTMLButtonElement>(null);
   const stopButton = useRef<HTMLButtonElement>(null);
-  /** Keep it or Esc: the focus goes back to Clear chat, which opened the question. */
-  const backToClear = useRef(false);
   const percent =
     use.share === undefined ? undefined : Math.round(use.share * 100);
 
-  useEffect(() => {
-    if (clearing || !backToClear.current) return;
-    backToClear.current = false;
-    clearButton.current?.focus({ preventScroll: true });
-  }, [clearing]);
-
-  // The Summarise button that had the focus became this line: Stop takes it.
+  // The menu item that started a summary is gone: Stop takes a lost focus.
   useEffect(() => {
     if (!tools.summarising) return;
     const active = document.activeElement;
@@ -583,48 +585,41 @@ export function ContextBar({
       stopButton.current?.focus({ preventScroll: true });
   }, [tools.summarising]);
 
-  function keep() {
-    backToClear.current = true;
-    setClearing(false);
-  }
+  const meter =
+    percent !== undefined && use.window ? (
+      <div
+        className="context-meter"
+        title={`About ${tokens.format(use.tokens)} of ${tokens.format(use.window)} tokens, counted at about ${CHARS_PER_TOKEN} characters a token.`}
+        data-level={
+          use.share !== undefined && use.share >= OFFER_SUMMARY_AT
+            ? "high"
+            : "normal"
+        }
+      >
+        {/* The native meter is for assistive technology; the bar beside it is drawn. */}
+        <meter
+          className="visually-hidden"
+          min={0}
+          max={100}
+          value={percent}
+          aria-label={`The model's window is about ${percent}% full`}
+        />
+        <span className="context-track" aria-hidden="true">
+          <span
+            className="context-fill"
+            style={{ transform: `scaleX(${use.share ?? 0})` }}
+          />
+        </span>
+        <span className="faint" aria-hidden="true">
+          About {percent}% full
+        </span>
+      </div>
+    ) : null;
 
-  // Always in place, empty before the first message, so the chat below never
-  // jumps down when the first message is sent.
-  if (!hasMessages && !tools.error)
-    return <div className="context-bar" data-empty="true" />;
+  if (!meter && !tools.summarising && !clearing) return null;
   return (
     <div className="context-bar">
-      {percent !== undefined && use.window ? (
-        <div
-          className="context-meter"
-          title={`About ${tokens.format(use.tokens)} of ${tokens.format(use.window)} tokens, counted at about ${CHARS_PER_TOKEN} characters a token.`}
-          data-level={
-            use.share !== undefined && use.share >= OFFER_SUMMARY_AT
-              ? "high"
-              : "normal"
-          }
-        >
-          {/* The native meter is for assistive technology; the bar beside it is drawn. */}
-          <meter
-            className="visually-hidden"
-            min={0}
-            max={100}
-            value={percent}
-            aria-label={`The model's window is about ${percent}% full`}
-          />
-          <span className="context-track" aria-hidden="true">
-            <span
-              className="context-fill"
-              style={{ transform: `scaleX(${use.share ?? 0})` }}
-            />
-          </span>
-          <span className="faint" aria-hidden="true">
-            About {percent}% full
-          </span>
-        </div>
-      ) : (
-        <span className="grow" />
-      )}
+      {meter ?? <span className="grow" />}
 
       {tools.summarising ? (
         <p className="activity context-working" role="status">
@@ -643,7 +638,7 @@ export function ContextBar({
         <InlineConfirm
           className="context-confirm"
           label="Clear this chat"
-          onClose={keep}
+          onClose={onKeep}
         >
           <span>Clear this chat? Its notes stay.</span>
           <button
@@ -652,7 +647,7 @@ export function ContextBar({
             disabled={tools.working}
             onClick={() =>
               void tools.clear().then((ok) => {
-                if (ok) setClearing(false);
+                if (ok) onCleared();
               })
             }
           >
@@ -662,34 +657,11 @@ export function ContextBar({
             data-autofocus
             type="button"
             className="btn btn-small"
-            onClick={keep}
+            onClick={onKeep}
           >
             Keep it
           </button>
         </InlineConfirm>
-      ) : hasMessages ? (
-        <div className="wrap context-actions">
-          {/* The offer below the chat asks the same, so it is not asked twice. */}
-          {offerShown(tools, use.share) ? null : (
-            <button
-              type="button"
-              className="btn btn-small"
-              disabled={busy || tools.working}
-              onClick={() => void tools.summarise()}
-            >
-              Summarise and continue
-            </button>
-          )}
-          <button
-            ref={clearButton}
-            type="button"
-            className="btn btn-small"
-            disabled={busy || tools.working}
-            onClick={() => setClearing(true)}
-          >
-            Clear chat
-          </button>
-        </div>
       ) : null}
     </div>
   );
@@ -761,7 +733,9 @@ export function SummaryBlock({
           ? "Summary of earlier messages"
           : "Earlier messages, summed up"}
       </p>
-      <p className="summary-text">{summary.text}</p>
+      <div className="summary-text md">
+        <Markdown text={summary.text} />
+      </div>
       {pending ? (
         <>
           <p className="faint">

@@ -1,7 +1,12 @@
 import { type FormEvent, useId, useState } from "react";
 import { BEDROCK_REGIONS } from "../../shared/address";
 import { PRESET_GROUPS, PRESETS, presetOf } from "../../shared/catalog";
-import type { AppState, ModelSource, PresetId } from "../../shared/types";
+import type {
+  AppState,
+  ModelPick,
+  ModelSource,
+  PresetId,
+} from "../../shared/types";
 import { api } from "./bridge";
 import {
   ErrorLine,
@@ -14,6 +19,8 @@ import {
 interface SourceFormProps {
   initialPreset?: PresetId;
   initialModels?: string[];
+  /** The model to start with, and why: said under the field while it is chosen. */
+  initialPick?: ModelPick;
   submitLabel: string;
   keychain: boolean;
   onSaved(source: ModelSource): void;
@@ -23,6 +30,7 @@ interface SourceFormProps {
 export function SourceForm({
   initialPreset = "ollama",
   initialModels = [],
+  initialPick,
   submitLabel,
   keychain,
   onSaved,
@@ -32,20 +40,30 @@ export function SourceForm({
   const [baseUrl, setBaseUrl] = useState("");
   const [part, setPart] = useState("");
   const [apiKey, setApiKey] = useState("");
-  const [model, setModel] = useState(initialModels[0] ?? "");
+  const [model, setModel] = useState(
+    initialPick?.model ?? initialModels[0] ?? "",
+  );
   const [models, setModels] = useState<string[]>(initialModels);
+  /** True once Look for models ran here; models handed in were already told. */
+  const [looked, setLooked] = useState(false);
   const [busy, setBusy] = useState<"" | "look" | "save">("");
   const [error, setError] = useState("");
   /** True when the error is about the model's name, so it is tied to that field. */
   const [modelError, setModelError] = useState(false);
   const preset = presetOf(presetId);
   const own = preset.address === "own";
+  /** The model picked to start with, while it is still the one chosen. */
+  const picked =
+    initialPick && presetId === initialPreset && model === initialPick.model
+      ? initialPick
+      : undefined;
   const takesKey = !preset.local;
 
   function pick(next: PresetId) {
     setPresetId(next);
     setPart("");
     setModels([]);
+    setLooked(false);
     setModel("");
     setError("");
     setModelError(false);
@@ -63,6 +81,7 @@ export function SourceForm({
         apiKey,
       });
       setModels(found);
+      setLooked(true);
       if (found.length === 0) {
         setError("It answered, but listed no models. Type the model's name.");
         setModelError(true);
@@ -215,6 +234,7 @@ export function SourceForm({
             aria-describedby={
               [
                 preset.lists ? "" : `${ids}-model-note`,
+                picked ? `${ids}-pick` : "",
                 modelError ? `${ids}-error` : "",
               ]
                 .filter(Boolean)
@@ -248,10 +268,16 @@ export function SourceForm({
               : "This service does not list its models here. Type the model's name."}
           </span>
         )}
-        {models.length > 0 ? (
+        {looked && models.length > 0 ? (
           <OkLine>
             Found {models.length === 1 ? "1 model" : `${models.length} models`}
           </OkLine>
+        ) : null}
+        {picked ? (
+          <span className="faint" id={`${ids}-pick`}>
+            Picked {picked.model} because {picked.reason} You can type or pick
+            another.
+          </span>
         ) : null}
       </div>
 

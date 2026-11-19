@@ -41,6 +41,8 @@ const api: OpenApi = {
   pendingAttachments: (id) => call(IPC.pendingAttachments, id),
   openAttachment: (id, attachmentId) =>
     call(IPC.openAttachment, id, attachmentId),
+  attachmentPreview: (id, attachmentId) =>
+    call(IPC.attachmentPreview, id, attachmentId),
   ocrLanguages: () => call(IPC.ocrLanguages),
   downloadOcrLanguage: (code) => call(IPC.downloadOcrLanguage, code),
   cancelOcrLanguage: (code) => call(IPC.cancelOcrLanguage, code),
@@ -82,6 +84,9 @@ const api: OpenApi = {
   searchChats: (query) => call(IPC.searchChats, query),
   exportChat: (id) => call(IPC.exportChat, id),
   copyMessage: (id, messageId) => call(IPC.copyMessage, id, messageId),
+  copyCode: (id, messageId, index) => call(IPC.copyCode, id, messageId, index),
+  openAnswerLink: (id, messageId, href) =>
+    call(IPC.openAnswerLink, id, messageId, href),
   memory: (id) => call(IPC.memory, id),
   addNote: (id, text) => call(IPC.addNote, id, text),
   editNote: (id, noteId, text) => call(IPC.editNote, id, noteId, text),

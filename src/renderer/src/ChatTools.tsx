@@ -43,9 +43,12 @@ function CopyGlyph({ size = 14 }: { size?: number }) {
 export function CopyButton({
   onCopy,
   onError,
+  label = "Copy this answer",
 }: {
   onCopy(): Promise<void>;
   onError(message: string): void;
+  /** What it copies, as a screen reader and the tooltip say it. */
+  label?: string;
 }) {
   const [copied, setCopied] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -67,8 +70,8 @@ export function CopyButton({
       <button
         type="button"
         className="copy-btn"
-        aria-label={copied ? "Copied" : "Copy this answer"}
-        title="Copy this answer"
+        aria-label={copied ? "Copied" : label}
+        title={label}
         onClick={() => void copy()}
       >
         {copied ? <Icon name="check" size={14} /> : <CopyGlyph />}
@@ -81,16 +84,15 @@ export function CopyButton({
   );
 }
 
-/** "Save this chat": the system's save dialog, then a short "Saved". */
-export function SaveChatButton({
-  disabled,
-  onSave,
-  onError,
-}: {
-  disabled: boolean;
-  onSave(): Promise<boolean>;
-  onError(message: string): void;
-}) {
+/**
+ * "Save this chat": the system's save dialog, then a short "Saved". The menu
+ * item that starts it closes at once, so the state lives here, and the head
+ * shows "Saved" for a moment.
+ */
+export function useSaveChat(
+  onSave: (() => Promise<boolean>) | undefined,
+  onError: (message: string) => void,
+) {
   const [state, setState] = useState<"idle" | "saving" | "saved">("idle");
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   /** A second press while the save dialog is open does nothing. */
@@ -98,7 +100,7 @@ export function SaveChatButton({
   useEffect(() => () => clearTimeout(timer.current), []);
 
   async function save() {
-    if (saving.current) return;
+    if (!onSave || saving.current) return;
     saving.current = true;
     setState("saving");
     try {
@@ -118,26 +120,23 @@ export function SaveChatButton({
     }
   }
 
+  return { state, save, can: onSave !== undefined };
+}
+
+/** What a save says: a short "Saved" in the head, and a sentence for a screen reader. */
+export function SaveChatStatus({
+  state,
+}: {
+  state: "idle" | "saving" | "saved";
+}) {
   return (
     <>
-      {/* Not disabled while saving: a disabled button drops the focus to the page. */}
-      <button
-        type="button"
-        className="btn"
-        disabled={disabled}
-        aria-disabled={state === "saving" || undefined}
-        title={
-          disabled ? "There is nothing in this chat to save yet" : undefined
-        }
-        onClick={() => void save()}
-      >
-        <Icon name={state === "saved" ? "check" : "download"} size={16} />
-        {state === "saving"
-          ? "Saving…"
-          : state === "saved"
-            ? "Saved"
-            : "Save this chat"}
-      </button>
+      {state === "saved" ? (
+        <span className="ok-line head-saved" aria-hidden="true">
+          <Icon name="check" size={14} />
+          Saved
+        </span>
+      ) : null}
       <span className="visually-hidden" role="status">
         {state === "saved" ? "The chat was saved as a Markdown file." : ""}
       </span>

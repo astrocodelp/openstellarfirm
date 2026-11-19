@@ -1,5 +1,10 @@
 import { useEffect, useState } from "react";
-import type { LocalModels, ModelSource, PresetId } from "../../shared/types";
+import type {
+  LocalModels,
+  ModelPick,
+  ModelSource,
+  PresetId,
+} from "../../shared/types";
 import { api } from "./bridge";
 import { SourceForm } from "./Models";
 import { Icon, Nova, OkLine } from "./ui";
@@ -36,12 +41,26 @@ export function Welcome({ keychain, onDone, onCloud }: WelcomeProps) {
     };
   }, []);
 
-  const found: { preset: PresetId; name: string; models: string[] } | null =
-    local?.ollama?.length
-      ? { preset: "ollama", name: "Ollama", models: local.ollama }
-      : local?.lmstudio?.length
-        ? { preset: "lmstudio", name: "LM Studio", models: local.lmstudio }
-        : null;
+  const found: {
+    preset: PresetId;
+    name: string;
+    models: string[];
+    pick: ModelPick | undefined;
+  } | null = local?.ollama?.length
+    ? {
+        preset: "ollama",
+        name: "Ollama",
+        models: local.ollama,
+        pick: local.picks?.ollama,
+      }
+    : local?.lmstudio?.length
+      ? {
+          preset: "lmstudio",
+          name: "LM Studio",
+          models: local.lmstudio,
+          pick: local.picks?.lmstudio,
+        }
+      : null;
 
   return (
     <main className="welcome" id="main" tabIndex={-1}>
@@ -103,7 +122,11 @@ export function Welcome({ keychain, onDone, onCloud }: WelcomeProps) {
         <SourceForm
           key={found?.preset ?? (local ? "none" : "looking")}
           {...(found
-            ? { initialPreset: found.preset, initialModels: found.models }
+            ? {
+                initialPreset: found.preset,
+                initialModels: found.models,
+                ...(found.pick ? { initialPick: found.pick } : {}),
+              }
             : {})}
           submitLabel="Continue"
           keychain={keychain}

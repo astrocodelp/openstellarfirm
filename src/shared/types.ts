@@ -423,6 +423,15 @@ export interface AppState {
 export interface LocalModels {
   ollama: string[] | null;
   lmstudio: string[] | null;
+  /** The model a first run starts with for each, and why it was picked. */
+  picks?: { ollama?: ModelPick; lmstudio?: ModelPick };
+}
+
+/** A model picked to start with, and the end of a sentence saying why. */
+export interface ModelPick {
+  model: string;
+  /** Such as "it can use tools and read pictures." */
+  reason: string;
 }
 
 export interface ChatDelta {
@@ -521,6 +530,11 @@ export interface OpenApi {
   pendingAttachments(assistantId: string): Promise<PendingAttachment[]>;
   /** Opens a sent file with the system's default app, by id, on the person's click. */
   openAttachment(assistantId: string, attachmentId: string): Promise<void>;
+  /** A small picture of a sent picture, made again by the app; null for other files. */
+  attachmentPreview(
+    assistantId: string,
+    attachmentId: string,
+  ): Promise<string | null>;
   /** The languages the reader on this computer knows or can learn. */
   ocrLanguages(): Promise<OcrLanguage[]>;
   /**
@@ -620,6 +634,22 @@ export interface OpenApi {
   exportChat(assistantId: string): Promise<boolean>;
   /** Copies one saved message to the clipboard. The page sends ids, not text. */
   copyMessage(assistantId: string, messageId: string): Promise<void>;
+  /** Copies one code block of a saved answer, by its index in the answer. */
+  copyCode(
+    assistantId: string,
+    messageId: string,
+    index: number,
+  ): Promise<void>;
+  /**
+   * Opens a link from a saved answer in the browser, after the person said
+   * yes on the page. The app opens it only when that answer holds the link
+   * and it is http or https.
+   */
+  openAnswerLink(
+    assistantId: string,
+    messageId: string,
+    href: string,
+  ): Promise<void>;
   /** An assistant's memory: whether it is on, and its notes. */
   memory(assistantId: string): Promise<AssistantMemory>;
   addNote(assistantId: string, text: string): Promise<AssistantMemory>;
@@ -712,6 +742,7 @@ export const IPC = {
   removeAttachment: "attachment:remove",
   pendingAttachments: "attachment:pending",
   openAttachment: "attachment:open",
+  attachmentPreview: "attachment:preview",
   ocrLanguages: "ocr:languages",
   downloadOcrLanguage: "ocr:download",
   cancelOcrLanguage: "ocr:cancel",
@@ -750,6 +781,8 @@ export const IPC = {
   searchChats: "chat:search",
   exportChat: "chat:export",
   copyMessage: "chat:copy",
+  copyCode: "chat:copy-code",
+  openAnswerLink: "chat:open-link",
   memory: "memory:get",
   addNote: "memory:note:add",
   editNote: "memory:note:edit",

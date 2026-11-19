@@ -66,6 +66,40 @@ function KindMark({ kind }: { kind: AttachmentKind }) {
   );
 }
 
+/**
+ * A sent picture's small picture, made again by the app from the stored file
+ * by its id. Until it comes, and for any other file, the plain mark, in the
+ * same box, so nothing moves when it arrives.
+ */
+function SentThumb({
+  assistantId,
+  file,
+}: {
+  assistantId: string;
+  file: AttachmentRef;
+}) {
+  const picture = file.kind !== "pdf" && file.kind !== "text";
+  const [src, setSrc] = useState<string | null>(null);
+  useEffect(() => {
+    if (!picture) return;
+    let live = true;
+    api
+      .attachmentPreview(assistantId, file.id)
+      .then((made) => {
+        if (live) setSrc(made);
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [assistantId, file.id, picture]);
+  return src ? (
+    <img className="attach-thumb" src={src} alt="" />
+  ) : (
+    <KindMark kind={file.kind} />
+  );
+}
+
 /** The files waiting in one assistant's box, kept by the app. */
 export function useAttachments(assistantId: string) {
   const [files, setFiles] = useState<PendingAttachment[]>([]);
@@ -278,7 +312,7 @@ export function SentFiles({
                   .catch((e) => setProblem(errorText(e)));
               }}
             >
-              <KindMark kind={file.kind} />
+              <SentThumb assistantId={assistantId} file={file} />
               <span className="attach-text">
                 <span className="attach-name">{file.name}</span>
                 <span className="attach-meta">

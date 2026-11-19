@@ -388,6 +388,7 @@ function preview(): OpenApi {
     removeAttachment: async () => {},
     pendingAttachments: async () => [],
     openAttachment: async () => {},
+    attachmentPreview: async () => null,
     ...previewLanguages(),
     stop: async () => {},
     pending: async () => null,
@@ -592,6 +593,8 @@ function preview(): OpenApi {
       ),
     exportChat: async () => false,
     copyMessage: async () => {},
+    copyCode: async () => {},
+    openAnswerLink: async () => {},
     onDelta: () => () => {},
     onDone: (listener) => {
       doneListeners.add(listener);
