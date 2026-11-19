@@ -404,8 +404,8 @@ function SourceModelEdit({
         />
         {preset.deployments ? (
           <span className="faint" id={`${ids}-note`}>
-            These are the models your resource can use. Type your deployment's
-            name if it is different.
+            These are the models your resource can use; type your deployment's
+            name if it differs.
           </span>
         ) : list?.from === "suggested" ? (
           <span className="faint" id={`${ids}-note`}>
