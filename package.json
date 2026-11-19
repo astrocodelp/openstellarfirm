@@ -31,6 +31,7 @@
     "lint": "biome check .",
     "format": "biome check --write .",
     "icon": "electron scripts/icon.mjs",
+    "pets:header": "node scripts/pets-header.mjs",
     "package": "pnpm build && electron-builder --publish never -c.mac.identity=null",
     "package:mac": "pnpm build && electron-builder --mac --publish never -c.mac.identity=null",
     "package:win": "pnpm build && electron-builder --win --x64 --publish never",

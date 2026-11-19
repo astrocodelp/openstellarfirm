@@ -9,6 +9,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Desk pets, phase 4: Settings now has a Desk pets page (`src/renderer/src/DeskPets.tsx`):
+  the switch with the firewall note for your system, your pets (rename, which
+  assistant each talks to, its voice, Speak answers, Forget), adding a pet over
+  its USB cable, the ElevenLabs key (write only), the notes pets kept, and a new
+  certificate. Pairing speaks pet-usb version 2 (`src/shared/pets/usb.ts`): the
+  app tells the pet this computer's address, port, name and certificate
+  fingerprint, and your Wi-Fi name and password, and the password goes only over
+  the cable, never to the app's main process (a test pins it). A pet with older
+  firmware is told it needs an update and is sent nothing. The window may now use
+  Web Serial, only for the app's own page and only for the Arduino Nano ESP32,
+  with a small chooser when several are plugged in; every other permission stays
+  refused. Messages a pet sent are marked "From a desk pet" in the chat.
+- Desk pets, phase 3: a pet can now talk and be told things (`src/main/pets/`).
+  What you say is heard with ElevenLabs Scribe on your own key, sent to the
+  assistant you chose as your own message (marked as from a desk pet, through
+  the same approval rules as a typed one) and the answer is spoken back with
+  ElevenLabs Flash, without numbers, amounts or links. The pet hears "done",
+  "stopped", "needs you" and a check's update, and only "needs you" for a step
+  that waits: it can never approve one. Its built-in lines are made on your
+  key as a voice pack, kept in the app's data folder. A refused or used-up key
+  is said by the pet and shown in the app's status. Still no Settings screen
+  for it; that comes next.
+- Desk pets, phase 2: the app can now be a desk pet's server (`src/main/pets/`):
+  the certificate made by the app and kept in the keychain, an HTTPS server
+  that only answers addresses on your own network, pairing with a setup code
+  and a confirm code you type, and the mDNS name. It stays off, with no port
+  open, until a later release adds the Settings switch.
+- Desk pets: the firmware, the 3D print files and the protocol code for Nova,
+  Zib and Comet, a small desk figure on an Arduino Nano ESP32, are here
+  (`firmware/`, `hardware/` and `src/shared/pets/`). They pair with the app in
+  a later release; the plan and the phases are in
+  [docs/desk-pets-plan.md](docs/desk-pets-plan.md). `pnpm pets:header` writes
+  the C++ headers the firmware shares with the protocol code.
 - The first run asks whether to be told about new versions. With the update
   check on, the app looks each time it starts (at most once every ten
   minutes) and once a day while it stays open, shows one system notice for

@@ -224,6 +224,12 @@ Check it: `sha256sum -c SHA256SUMS.txt --ignore-missing`.
   `#`), which a browser never sends to a server, but the full address stays in
   your browser's history and on your clipboard if you copy it, so treat it as
   you would the brief itself.
+- **Desk pets (off until you turn them on).** Settings, Desk pets: set up a
+  small desk figure over its USB cable, choose which assistant it talks to and
+  its voice, and keep your own ElevenLabs key for it. Your Wi-Fi password goes
+  over the cable to the pet and nowhere else, and a pet never approves
+  anything. The firmware side of this release is still being finished
+  ([docs/desk-pets-plan.md](docs/desk-pets-plan.md)).
 - **Light and dark**, following your computer or your choice.
 - **Accessibility first.** More contrast, less motion, underlined links, a
   stronger focus ring, more space for reading, larger click targets, and read
@@ -337,18 +343,20 @@ the scripts in [docs/RELEASING.md](docs/RELEASING.md).
 
 ## How it is laid out
 
-| Folder               | What                                                                                                                                                                                                                     |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `src/shared`         | Types, the pets, skills and model presets, the address checks, the system prompt, the assistant file format, the links to StellarFirm. No Node or DOM imports.                                                           |
-| `src/main`           | The main process: the JSON store, sealed keys, the model wires, the folder, web, connection and screen tools, the loop that runs them, and the gate that asks you.                                                       |
-| `src/preload`        | The only bridge between the page and the main process.                                                                                                                                                                   |
-| `src/reader`         | The hidden window that opens PDFs and reads pictures on this computer, with PDF.js and Tesseract.js.                                                                                                                     |
-| `src/renderer`       | The React screens, built on tokens in three stylesheets: `styles.css` (the tokens and most screens), `gallery.css` (the connections gallery) and `record.css` (Record how you work, your own skills, and their dialogs). |
-| `resources/computer` | The Dockerfile and scripts an assistant's own computer is built from.                                                                                                                                                    |
-| `personas`           | Starter personas, one JSON file each.                                                                                                                                                                                    |
-| `build`              | The app icon, its Linux sizes, and the macOS entitlements.                                                                                                                                                               |
-| `scripts`            | Build, licence, checks and release scripts.                                                                                                                                                                              |
-| `docs`               | Releasing, the release notes template, an assistant's computer, and the maintainer assistant's instructions.                                                                                                             |
+| Folder                 | What                                                                                                                                                                                                                                                        |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/shared`           | Types, the pets (and `src/shared/pets/`, the desk pet protocol), skills and model presets, the address checks, the system prompt, the assistant file format, the links to StellarFirm. No Node or DOM imports.                                              |
+| `src/main`             | The main process: the JSON store, sealed keys, the model wires, the folder, web, connection and screen tools, the loop that runs them, and the gate that asks you.                                                                                          |
+| `src/main/pets`        | Desk pets (off by default): the certificate, the HTTPS server for pets on your network, the saved state, pairing, the mDNS name, turns, notices and the voice on your own ElevenLabs key; no Electron import.                                               |
+| `src/preload`          | The only bridge between the page and the main process.                                                                                                                                                                                                      |
+| `src/reader`           | The hidden window that opens PDFs and reads pictures on this computer, with PDF.js and Tesseract.js.                                                                                                                                                        |
+| `src/renderer`         | The React screens, built on tokens in three stylesheets: `styles.css` (the tokens and most screens), `gallery.css` (the connections gallery) and `record.css` (Record how you work, your own skills, and their dialogs).                                    |
+| `firmware`, `hardware` | The desk pet: the firmware for its Arduino Nano ESP32 and the 3D print files and build guide for Nova, Zib and Comet. The app's side is built; the firmware's new pairing steps come in a later release ([docs/desk-pets-plan.md](docs/desk-pets-plan.md)). |
+| `resources/computer`   | The Dockerfile and scripts an assistant's own computer is built from.                                                                                                                                                                                       |
+| `personas`             | Starter personas, one JSON file each.                                                                                                                                                                                                                       |
+| `build`                | The app icon, its Linux sizes, and the macOS entitlements.                                                                                                                                                                                                  |
+| `scripts`              | Build, licence, checks and release scripts.                                                                                                                                                                                                                 |
+| `docs`                 | Releasing, the release notes template, an assistant's computer, and the maintainer assistant's instructions.                                                                                                                                                |
 
 ## Roadmap
 

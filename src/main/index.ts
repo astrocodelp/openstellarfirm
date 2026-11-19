@@ -21,9 +21,12 @@ import { headerOf, presetOf } from "../shared/catalog";
 import { checkSettings } from "../shared/checks";
 import { cloudCopyUrl, cloudHomeUrl, MAX_LINK_WINDOWS } from "../shared/cloud";
 import { sentMessages } from "../shared/context";
+import type { DeskPetConfig } from "../shared/desk-pets";
 import { isLocalEndpoint } from "../shared/endpoint";
 import { linkUrl } from "../shared/links";
 import { codeBlocksOf, linksOf, plainText, safeHref } from "../shared/markdown";
+import { isPetVoiceId, type PetVoiceId } from "../shared/pets/kinds";
+import { petRoleId } from "../shared/pets/lines";
 import { systemPrompt } from "../shared/prompt";
 import { type Theme, windowBackground } from "../shared/theme";
 import {
@@ -111,6 +114,8 @@ import {
   type WireMessage,
 } from "./models";
 import { OcrLanguages } from "./ocr-languages";
+import type { PetOutcome, PetRun, PetTurnHost } from "./pets/backend";
+import { PetService } from "./pets/service";
 import { modelPicture, previewOf } from "./picture";
 import { lookupCompany } from "./poppy";
 import { Reader, ReaderError, registerReaderScheme } from "./reader";
@@ -119,6 +124,12 @@ import { electronScreen } from "./screen-capture";
 import { searchQuery, searchStore } from "./search";
 import { keychainUsable, Secrets } from "./secrets";
 import { newSeen, type Seen } from "./seen";
+import { SerialChooser } from "./serial-chooser";
+import {
+  isPetBoard,
+  serialDeviceAllowed,
+  serialPermissionAllowed,
+} from "./serial-rules";
 import { modelsOf } from "./source-models";
 import { Store } from "./store";
 import {
@@ -147,6 +158,33 @@ function str(value: unknown, max = 4096): string {
     throw new Error("That is not allowed.");
   }
   return value;
+}
+
+/** What the page may set about one desk pet; anything else is left out. */
+function petConfigInput(value: unknown): DeskPetConfig {
+  if (typeof value !== "object" || value === null) {
+    throw new Error("That is not allowed.");
+  }
+  const v = value as Record<string, unknown>;
+  const out: {
+    assistantId?: string | null;
+    voice?: PetVoiceId;
+    speakAnswers?: boolean;
+  } = {};
+  if (v.assistantId !== undefined) {
+    out.assistantId = v.assistantId === null ? null : str(v.assistantId, 200);
+  }
+  if (v.voice !== undefined) {
+    const voice = str(v.voice, 20);
+    if (!isPetVoiceId(voice)) throw new Error("That voice is not known.");
+    out.voice = voice;
+  }
+  if (v.speakAnswers !== undefined) {
+    if (typeof v.speakAnswers !== "boolean")
+      throw new Error("That is not allowed.");
+    out.speakAnswers = v.speakAnswers;
+  }
+  return out;
 }
 
 /** What the page may send to list a source's models before it is saved. */
@@ -194,6 +232,62 @@ let attachments: Attachments;
 let reader: Reader;
 let languages: OcrLanguages;
 let computers: ComputerService;
+let petService: PetService | undefined;
+
+/** Built on first use, so with Desk pets off nothing of it exists. */
+function pets(): PetService {
+  petService ??= new PetService({
+    file: join(app.getPath("userData"), "desk-pets.json"),
+    secrets,
+    turns: petHost,
+  });
+  return petService;
+}
+
+/** The role a desk pet names for an assistant, or none when it has no known one. */
+function petRoleOf(assistant: Assistant): string | undefined {
+  const id = petRoleId(assistant.group);
+  return id === undefined || id === "assistant" ? undefined : id;
+}
+
+/**
+ * What the desk pets lend from the app: whom they talk to, and a way to send
+ * the owner's spoken words as a message through `begin`, the very path a typed
+ * message takes, so the same approval gate holds. It hands the pets no way to
+ * answer a step that waits: only a signal that one does.
+ */
+const petHost: PetTurnHost = {
+  target: (wanted) => {
+    const all = store.assistants();
+    const found =
+      (wanted ? all.find((a) => a.id === wanted) : undefined) ??
+      all.find((a) => a.id === store.settings().mainAssistantId) ??
+      all[0];
+    return found ? { id: found.id, role: petRoleOf(found) } : null;
+  },
+  busy: (id) => running.has(id) || waiting.has(id),
+  start: async (id, text): Promise<PetRun> => {
+    if (!mainWindow || mainWindow.isDestroyed())
+      throw new Error("The window is not open.");
+    const { message, end, needsYou } = begin(mainWindow, id, text, [], "pet");
+    const outcome: Promise<PetOutcome> = end.then((result) => result);
+    return { chat: id, run: message.id, outcome, needsYou };
+  },
+};
+let mainWindow: BrowserWindow | undefined;
+/** Answers the page's USB requests, once the session is set up. */
+let serialChooser: SerialChooser | undefined;
+
+/** How an answer ended, for the desk pets' notices. */
+type AnswerEnd =
+  | { kind: "answered"; text: string }
+  | { kind: "failed" }
+  | { kind: "stopped" };
+
+/** Called when a step of an assistant's run starts to wait for the person. */
+const needsYouSignals = new Map<string, () => void>();
+/** The message that started the run now answering, by assistant. */
+const runIds = new Map<string, string>();
 const running = new Map<string, AbortController>();
 /** The step that waits for the person, by assistant. One at a time each. */
 const waiting = new Map<
@@ -308,6 +402,20 @@ function send(
   text: string,
   ids: string[],
 ): ChatMessage {
+  return begin(window, assistantId, text, ids).message;
+}
+
+/**
+ * Sends a message and starts the answer. A typed message and a desk pet's
+ * spoken one both come through here, so both meet the same gate.
+ */
+function begin(
+  window: BrowserWindow,
+  assistantId: string,
+  text: string,
+  ids: string[],
+  from?: "pet",
+): { message: ChatMessage; end: Promise<AnswerEnd>; needsYou: Promise<void> } {
   const body = typeof text === "string" ? text.trim().slice(0, 20_000) : "";
   if (!body && ids.length === 0) throw new Error("Type a message first.");
   if (running.has(assistantId))
@@ -323,9 +431,23 @@ function send(
     undefined,
     new Date(),
     refs,
+    from,
   );
-  void answer(window, assistant);
-  return message;
+  let signal: () => void = () => {};
+  const needsYou = new Promise<void>((resolve) => {
+    signal = resolve;
+  });
+  needsYouSignals.set(assistant.id, signal);
+  runIds.set(assistant.id, message.id);
+  const end = answer(window, assistant, message.id)
+    .catch((): AnswerEnd => ({ kind: "failed" }))
+    .finally(() => {
+      if (needsYouSignals.get(assistant.id) === signal) {
+        needsYouSignals.delete(assistant.id);
+        runIds.delete(assistant.id);
+      }
+    });
+  return { message, end, needsYou };
 }
 
 /** Every language the reader knows, for one job. */
@@ -457,6 +579,17 @@ function askPerson(
       },
     });
     tell(window, IPC.approval, { assistantId, card });
+    // A desk pet is told only that a step waits, never which, and has no way
+    // to answer it: the card above is decided in the app alone.
+    needsYouSignals.get(assistantId)?.();
+    const waitingAssistant = store
+      .assistants()
+      .find((a) => a.id === assistantId);
+    petService?.notify("approval", {
+      role: waitingAssistant ? petRoleOf(waitingAssistant) : undefined,
+      chat: assistantId,
+      ...(runIds.has(assistantId) ? { run: runIds.get(assistantId) } : {}),
+    });
   });
 }
 
@@ -808,7 +941,8 @@ async function answerHistory(
 async function answer(
   window: BrowserWindow,
   assistant: Assistant,
-): Promise<void> {
+  runId?: string,
+): Promise<AnswerEnd> {
   const controller = new AbortController();
   running.set(assistant.id, controller);
   let full = "";
@@ -871,6 +1005,17 @@ async function answer(
   } catch {
     // The assistant was removed while it was answering: nothing to keep.
   }
+  const end: AnswerEnd =
+    failed || controller.signal.aborted
+      ? { kind: failed ? "failed" : "stopped" }
+      : { kind: "answered", text: full };
+  // Every paired desk pet hears how it ended: the work is done, or it stopped.
+  petService?.notify(end.kind === "answered" ? "done" : "stopped", {
+    role: petRoleOf(assistant),
+    chat: assistant.id,
+    ...(runId ? { run: runId } : {}),
+  });
+  return end;
 }
 
 /**
@@ -943,6 +1088,7 @@ async function runCheck(window: BrowserWindow): Promise<"done" | "stopped"> {
     );
     if (!failed) {
       store.markCheckUpdate(main.id);
+      petService?.notify("message", { chat: main.id });
       if (settings.notify && Notification.isSupported()) {
         const notice = new Notification({ title: updateNotice(main.name) });
         notice.on("click", () => {
@@ -1643,6 +1789,34 @@ app.whenReady().then(() => {
     // A sweep that fails leaves files for the next start.
   }
   computers = createComputers(dir, join(__dirname, "../computer"));
+  handle(IPC.petsStatus, () => pets().status());
+  handle(IPC.petsTurnOn, () => pets().turnOn());
+  handle(IPC.petsTurnOff, () => pets().turnOff());
+  handle(IPC.petsNewCertificate, () => pets().newCertificate());
+  handle(IPC.petsStartAdding, () => pets().startAdding());
+  handle(IPC.petsConfirm, (_event, code: string) => pets().confirm(code));
+  handle(IPC.petsForget, (_event, id: string) => pets().forget(id));
+  handle(IPC.petsRename, (_event, id: string, name: string) =>
+    pets().rename(id, name),
+  );
+  // The key goes in and never comes back out: the page is told only whether
+  // one is saved.
+  handle(IPC.petsSetVoiceKey, (_event, key: unknown) =>
+    pets().setVoiceKey(str(key, 512)),
+  );
+  handle(IPC.petsClearVoiceKey, () => pets().clearVoiceKey());
+  handle(IPC.petsSetConfig, (_event, id: unknown, config: unknown) =>
+    pets().setConfig(str(id, 200), petConfigInput(config)),
+  );
+  handle(IPC.petsDiscardDraft, (_event, id: unknown) =>
+    pets().discardDraft(str(id, 200)),
+  );
+  handle(IPC.serialChosen, (_event, requestId: unknown, portId: unknown) => {
+    serialChooser?.answer(requestId, portId);
+  });
+  // Left on at the last quit: start again. With the switch off nothing is
+  // built and no port is opened.
+  if (PetService.savedOn(join(dir, "desk-pets.json"))) void pets().resume();
   // A computer nobody has used for a while is stopped. Docker is asked
   // nothing until a computer was started in this run of the app.
   setInterval(() => {
@@ -1668,10 +1842,65 @@ app.whenReady().then(() => {
   applyTheme(store.settings().theme);
   nativeTheme.on("updated", paintWindows);
   if (process.platform === "darwin") app.dock?.setIcon(windowIcon);
+  // The one thing it may use is Web Serial, to set a desk pet up over its USB
+  // cable: the `serial` permission for the app's own page in the main window,
+  // and only the Arduino Nano ESP32's own USB identity as a device. Every other
+  // ask is refused.
+  const pageRules = { pageUrl, devUrl, packaged: app.isPackaged };
+  const fromMain = (contents: Electron.WebContents | null) =>
+    contents !== null && contents === mainWindow?.webContents;
   session.defaultSession.setPermissionRequestHandler(
-    (_contents, _permission, done) => done(false),
+    (contents, permission, done, details) =>
+      done(
+        serialPermissionAllowed(
+          {
+            permission,
+            requestingUrl: details.requestingUrl,
+            isMainFrame: details.isMainFrame,
+            fromMainWindow: fromMain(contents),
+          },
+          pageRules,
+        ),
+      ),
   );
-  session.defaultSession.setPermissionCheckHandler(() => false);
+  session.defaultSession.setPermissionCheckHandler(
+    (contents, permission, _origin, details) =>
+      serialPermissionAllowed(
+        {
+          permission,
+          requestingUrl: details.requestingUrl,
+          isMainFrame: details.isMainFrame,
+          fromMainWindow: fromMain(contents),
+        },
+        pageRules,
+      ),
+  );
+  session.defaultSession.setDevicePermissionHandler((details) =>
+    serialDeviceAllowed(details),
+  );
+  // The USB chooser: Chromium lists the serial ports and the app answers. Only
+  // desk pet boards count; with several, the page asks the person.
+  const chooser = new SerialChooser({
+    newId: randomUUID,
+    ask: (choice) => {
+      const window = mainWindow;
+      if (!window || window.isDestroyed()) return false;
+      tell(window, IPC.serialChoose, choice);
+      return true;
+    },
+  });
+  serialChooser = chooser;
+  session.defaultSession.on(
+    "select-serial-port",
+    (event, portList, contents, callback) => {
+      event.preventDefault();
+      if (!fromMain(contents)) return callback("");
+      chooser.select(
+        portList.filter((port) => isPetBoard(port)),
+        callback,
+      );
+    },
+  );
   // The window's page makes no network request of its own (it talks to the
   // app through the bridge), so anything but the app's own files is
   // cancelled, as in the reader. The dev server is allowed only from source.
@@ -1690,6 +1919,7 @@ app.whenReady().then(() => {
     Menu.buildFromTemplate(menuTemplate(process.platform, app.isPackaged)),
   );
   const window = createWindow();
+  mainWindow = window;
   appWindow = window;
   // The hidden reader is a window too; it must not keep the app open.
   window.on("closed", () => reader.dispose());
@@ -1722,7 +1952,10 @@ app.on("before-quit", (event) => {
   event.preventDefault();
   stoppedComputers = true;
   void Promise.race([
-    computers.stopAll().catch(() => {}),
+    Promise.all([
+      computers.stopAll().catch(() => {}),
+      petService?.shutdown().catch(() => {}),
+    ]),
     new Promise((resolve) => setTimeout(resolve, 15_000)),
   ]).finally(() => app.quit());
 });

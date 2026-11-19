@@ -419,6 +419,17 @@ export function ChatView(props: ChatViewProps) {
           </p>
         ) : null}
       </div>
+    ) : m.role === "user" && m.from === "pet" ? (
+      <div key={m.id} className="user-turn" data-message-id={m.id}>
+        <p className="from-note">From a desk pet</p>
+        <p
+          className={
+            fresh(m) ? "bubble bubble-user enter" : "bubble bubble-user"
+          }
+        >
+          {m.text}
+        </p>
+      </div>
     ) : m.role === "user" ? (
       <p
         key={m.id}

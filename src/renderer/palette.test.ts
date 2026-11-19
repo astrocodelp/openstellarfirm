@@ -56,6 +56,7 @@ describe("the palette's list", () => {
       "Models",
       "Connections",
       "Mail",
+      "Desk pets",
       "Move or back up",
     ]);
     expect(labels(shown)).not.toContain("Appearance");

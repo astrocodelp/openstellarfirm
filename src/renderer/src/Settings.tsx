@@ -5,6 +5,7 @@ import type { AppState, SendKey, TextSize } from "../../shared/types";
 import { AccessibilitySection } from "./Accessibility";
 import { BackupScreen } from "./Backup";
 import { ConnectionsScreen } from "./Connections";
+import { DeskPetsScreen } from "./DeskPets";
 import { MailScreen } from "./Mail";
 import { ModelsScreen } from "./Models";
 import { ApprovalsSection, DataSection } from "./SettingsData";
@@ -162,6 +163,8 @@ function SettingsPage({
       );
     case "mail":
       return <MailScreen state={state} onChanged={onChanged} />;
+    case "deskpets":
+      return <DeskPetsScreen state={state} />;
     case "accessibility":
       return (
         <PageFrame page="accessibility">

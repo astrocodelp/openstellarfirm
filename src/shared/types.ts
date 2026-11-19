@@ -13,6 +13,12 @@ import type {
   ComputerStatus,
   ComputerView,
 } from "./computer";
+import type {
+  DeskPetConfig,
+  DeskPetConfirm,
+  DeskPetSetupCode,
+  DeskPetsStatus,
+} from "./desk-pets";
 import type { OcrDownloadProgress } from "./download-progress";
 import type { LinkName } from "./links";
 import type { AssistantMemory, MemoryNote } from "./memory";
@@ -228,6 +234,12 @@ export interface ChatMessage {
    * the app started (not something the person typed), "update" is the reply.
    */
   check?: "request" | "update";
+  /**
+   * Set when this message was the person's own words spoken to a desk pet. It
+   * is sent and approved exactly like a typed one; the mark only says where it
+   * came from. Older saved chats have none.
+   */
+  from?: "pet";
   /**
    * A summary of older messages, written by the assistant's own model.
    * "pending" until the person keeps it; the older messages stay until then.
@@ -783,6 +795,43 @@ export interface OpenApi {
   /** The picture kept after one step on its computer; null once it is gone. */
   computerFrame(assistantId: string, frameId: string): Promise<string | null>;
   onComputerState(listener: (state: ComputerState) => void): () => void;
+  /** Desk pets: the switch, the certificate, the pets and the pairing. Off until turned on. */
+  petsStatus(): Promise<DeskPetsStatus>;
+  petsTurnOn(): Promise<DeskPetsStatus>;
+  petsTurnOff(): Promise<DeskPetsStatus>;
+  /** Replaces the certificate and forgets every paired pet. */
+  petsNewCertificate(): Promise<DeskPetsStatus>;
+  /** Makes the setup code the owner gives a new pet. */
+  petsStartAdding(): Promise<DeskPetSetupCode>;
+  /** The confirm code the pet said, typed by the owner. */
+  petsConfirm(code: string): Promise<DeskPetConfirm>;
+  petsForget(id: string): Promise<DeskPetsStatus>;
+  petsRename(id: string, name: string): Promise<DeskPetsStatus>;
+  /** Saves the ElevenLabs key. Write-only: the status says only that one is set. */
+  petsSetVoiceKey(key: string): Promise<DeskPetsStatus>;
+  petsClearVoiceKey(): Promise<DeskPetsStatus>;
+  /** Which assistant a pet talks to, its voice and whether it speaks answers. */
+  petsSetConfig(id: string, config: DeskPetConfig): Promise<DeskPetsStatus>;
+  petsDiscardDraft(id: string): Promise<DeskPetsStatus>;
+  /**
+   * The USB chooser. While the page asks the browser for a serial port, the
+   * app tells it which desk pet boards it found when there is more than one;
+   * the page answers with the pick, or null to cancel. Nothing else is asked.
+   */
+  onSerialChoose(listener: (request: SerialChoice) => void): () => void;
+  serialChosen(requestId: string, portId: string | null): Promise<void>;
+}
+
+/** One board the app found while the page asked for a USB port. */
+export interface SerialChoiceItem {
+  readonly portId: string;
+  /** What to show: the system's name for the port. */
+  readonly name: string;
+}
+
+export interface SerialChoice {
+  readonly requestId: string;
+  readonly ports: readonly SerialChoiceItem[];
 }
 
 export const IPC = {
@@ -889,6 +938,20 @@ export const IPC = {
   computerList: "computer:list",
   computerFrame: "computer:frame",
   computerState: "computer:state",
+  petsStatus: "pets:status",
+  petsTurnOn: "pets:on",
+  petsTurnOff: "pets:off",
+  petsNewCertificate: "pets:certificate",
+  petsStartAdding: "pets:add",
+  petsConfirm: "pets:confirm",
+  petsForget: "pets:forget",
+  petsRename: "pets:rename",
+  petsSetVoiceKey: "pets:voice-key",
+  petsClearVoiceKey: "pets:voice-key-clear",
+  petsSetConfig: "pets:config",
+  petsDiscardDraft: "pets:discard-draft",
+  serialChoose: "serial:choose",
+  serialChosen: "serial:chosen",
 } as const;
 
 /** Every answer over IPC, so an error arrives as a plain sentence. */

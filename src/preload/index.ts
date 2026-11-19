@@ -133,6 +133,21 @@ const api: OpenApi = {
   computerRunning: () => call(IPC.computerRunning),
   computerList: () => call(IPC.computerList),
   computerFrame: (id, frameId) => call(IPC.computerFrame, id, frameId),
+  petsStatus: () => call(IPC.petsStatus),
+  petsTurnOn: () => call(IPC.petsTurnOn),
+  petsTurnOff: () => call(IPC.petsTurnOff),
+  petsNewCertificate: () => call(IPC.petsNewCertificate),
+  petsStartAdding: () => call(IPC.petsStartAdding),
+  petsConfirm: (code) => call(IPC.petsConfirm, code),
+  petsForget: (id) => call(IPC.petsForget, id),
+  petsRename: (id, name) => call(IPC.petsRename, id, name),
+  petsSetVoiceKey: (key) => call(IPC.petsSetVoiceKey, key),
+  petsClearVoiceKey: () => call(IPC.petsClearVoiceKey),
+  petsSetConfig: (id, config) => call(IPC.petsSetConfig, id, config),
+  petsDiscardDraft: (id) => call(IPC.petsDiscardDraft, id),
+  onSerialChoose: (listener) => listen(IPC.serialChoose, listener),
+  serialChosen: (requestId, portId) =>
+    call(IPC.serialChosen, requestId, portId),
   onComputerState: (listener) => listen(IPC.computerState, listener),
 };
 

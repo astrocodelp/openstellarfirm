@@ -6,6 +6,7 @@ import type {
   ComputerView,
 } from "../../shared/computer";
 import { catalogEntry, catalogPreset } from "../../shared/connection-catalog";
+import type { DeskPetsStatus } from "../../shared/desk-pets";
 import type { OcrDownloadProgress } from "../../shared/download-progress";
 import { cleanNoteText } from "../../shared/memory";
 import { searchChats } from "../../shared/search";
@@ -689,6 +690,7 @@ function preview(): OpenApi {
           container: computers.has(a.id) ? ("on" as const) : ("none" as const),
         })),
     computerFrame: async () => null,
+    ...deskPetsPreview(),
     onComputerState: (listener) => {
       stateListeners.add(listener);
       return () => stateListeners.delete(listener);
@@ -698,3 +700,58 @@ function preview(): OpenApi {
 }
 
 export const api: OpenApi = window.stellarOpen ?? preview();
+
+/** The preview has no desk pet server: every call says so in one plain sentence. */
+function deskPetsPreview(): Pick<
+  OpenApi,
+  | "petsStatus"
+  | "petsTurnOn"
+  | "petsTurnOff"
+  | "petsNewCertificate"
+  | "petsStartAdding"
+  | "petsConfirm"
+  | "petsForget"
+  | "petsRename"
+  | "petsSetVoiceKey"
+  | "petsClearVoiceKey"
+  | "petsSetConfig"
+  | "petsDiscardDraft"
+  | "onSerialChoose"
+  | "serialChosen"
+> {
+  const off: DeskPetsStatus = {
+    enabled: false,
+    running: false,
+    port: null,
+    mdnsName: "osf-preview.local",
+    mdnsRunning: false,
+    fingerprint: null,
+    addresses: [],
+    pets: [],
+    pending: null,
+    drafts: [],
+    voiceKey: false,
+    voiceProblem: null,
+    setupExpiresAt: null,
+    problem: null,
+  };
+  const unavailable = async (): Promise<never> => {
+    throw new Error("Desk pets work in the app, not in this preview.");
+  };
+  return {
+    petsStatus: async () => off,
+    petsTurnOn: unavailable,
+    petsTurnOff: async () => off,
+    petsNewCertificate: unavailable,
+    petsStartAdding: unavailable,
+    petsConfirm: unavailable,
+    petsForget: async () => off,
+    petsRename: unavailable,
+    petsSetVoiceKey: unavailable,
+    petsClearVoiceKey: async () => off,
+    petsSetConfig: unavailable,
+    petsDiscardDraft: async () => off,
+    onSerialChoose: () => () => undefined,
+    serialChosen: async () => undefined,
+  };
+}

@@ -1,0 +1,6 @@
+# PlatformIO build output and editor state. Never committed.
+.pio/
+.vscode/
+
+# Made on your own ElevenLabs key; never committed (it holds your voice recordings).
+include/generated/boot_pack.h

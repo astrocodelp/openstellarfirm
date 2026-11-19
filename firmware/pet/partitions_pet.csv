@@ -1,0 +1,21 @@
+# The desk pet's flash map (16 MB). It is the Arduino Nano ESP32's own table
+# (app3M_fat9M_fact512k_16MB) with the FAT partition used for LittleFS instead.
+# Two app slots so signed over-the-air updates can come in phase 4; the nvs and
+# otadata places stay where the Arduino bootloader of the Nano ESP32 expects them.
+#
+# The factory slot is the Nano's own recovery firmware. It must stay: a double
+# press of RST starts the board's DFU bootloader by finding that partition, and
+# without it the chip just restarts into the sketch. LittleFS ends before it, so a
+# format or the wear levelling never writes over the recovery image.
+#
+# LittleFS uses the "spiffs" subtype and is mounted by the label "littlefs"
+# (LittleFS.begin(true, "/littlefs", 10, "littlefs")). It holds the saved notes
+# and the voice pack, about 9.4 MB.
+# Name,     Type, SubType,  Offset,   Size,     Flags
+nvs,        data, nvs,      0x9000,   0x5000,
+otadata,    data, ota,      0xe000,   0x2000,
+app0,       app,  ota_0,    0x10000,  0x300000,
+app1,       app,  ota_1,    0x310000, 0x300000,
+littlefs,   data, spiffs,   0x610000, 0x960000,
+factory,    app,  factory,  0xF70000, 0x80000,
+coredump,   data, coredump, 0xff0000, 0x10000,

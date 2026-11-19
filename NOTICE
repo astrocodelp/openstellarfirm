@@ -38,5 +38,14 @@ The persona texts in the personas folder and the skill texts in
 src/shared/catalog.ts and src/shared/skill-library.ts are contributed by
 Astro Code L.P. under this licence.
 
+The desk pet material is contributed by Astro Code L.P. under this licence
+too: the firmware and the 3D print files in firmware/ and hardware/, and the
+desk pet code under src/ (src/shared/pets/ for now). Its third-party
+libraries are listed in firmware/pet/THIRD-PARTY-NOTICES.md. The names Nova,
+Zib and Comet, and the look of those three figures, are reserved like the
+other names and marks above: the licence gives no right to use them as your
+own, and if you share a changed version of a pet or its print files, give it
+figures and names of its own.
+
 Other people's work that ships inside a built app is listed in
 THIRD-PARTY-NOTICES.md.
