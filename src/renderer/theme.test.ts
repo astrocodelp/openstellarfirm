@@ -223,9 +223,16 @@ function themeChecks(name: string, all: Record<string, string>, more = false) {
       ).toBeGreaterThanOrEqual(3);
     });
 
-    it("selected text stays readable", () => {
-      const selected = over(parse("var(--selection)", all), surface("--bg"));
-      expect(ratio(rgb("--text"), selected)).toBeGreaterThanOrEqual(4.5);
+    it("selected text and a found word stay readable on every surface", () => {
+      // A word Find anything found sits on the selection wash, and its row
+      // may be the chosen one (--active).
+      for (const s of SURFACES) {
+        const selected = over(parse("var(--selection)", all), surface(s));
+        expect(
+          ratio(rgb("--text"), selected),
+          `--text on the selection over ${s}`,
+        ).toBeGreaterThanOrEqual(4.5);
+      }
     });
 
     it("a disabled lime button still says what it is, at 4.5:1", () => {
@@ -247,6 +254,12 @@ function themeChecks(name: string, all: Record<string, string>, more = false) {
 }
 
 describe("the stylesheet", () => {
+  it("writes a found word in Find anything in the main text colour", () => {
+    // The wash it sits on is measured with --text above; the snippet's own
+    // muted colour fell to 4.26:1 there on a chosen row (axe, dark theme).
+    expect(block(".palette-snippet mark {")).toContain("color: var(--text);");
+  });
+
   it("draws every shape from the radius scale", () => {
     const outside = css.replace(block(":root {"), "");
     const typed = outside.match(/border-radius: (?!var\(|0;|inherit)[^;]+;/g);

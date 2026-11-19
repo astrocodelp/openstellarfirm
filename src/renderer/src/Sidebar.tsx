@@ -197,7 +197,9 @@ export function Sidebar(props: SidebarProps) {
 
         <div className="sidebar-end">
           {props.showCloudCard ? (
-            <section className="cloud-card" aria-label="StellarFirm cloud">
+            // Named by its own heading: Settings has a section called
+            // "StellarFirm cloud", and two landmarks must not share a name.
+            <section className="cloud-card" aria-label="Need it in the cloud?">
               <div className="cloud-head">
                 <span className="row-name">Need it in the cloud?</span>
                 <button

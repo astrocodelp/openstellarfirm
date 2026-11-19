@@ -2242,10 +2242,14 @@ textarea.input {
   font-size: var(--text-caption);
 }
 
+/*
+ * The found word takes the main text colour: the snippet's muted colour falls
+ * under 4.5:1 on the selection wash over a chosen row.
+ */
 .palette-snippet mark {
   padding: 0 0.0625rem;
   background: var(--selection);
-  color: inherit;
+  color: var(--text);
 }
 
 .palette-foot {

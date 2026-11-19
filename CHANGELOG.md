@@ -191,6 +191,15 @@ The app is at version 0.1.0. There is no tagged release yet.
 - A confirm puts the focus on Keep it or Cancel, and gives it back to the
   button that opened it.
 
+### Fixed
+
+- Three problems an automated accessibility check (axe-core) found on the
+  running app: a word Find anything found in a chat fell under 4.5:1 contrast
+  on the chosen row in dark; the service search pointed a screen reader at a
+  list that was gone when nothing matched (and so did the connection search
+  in an assistant's settings); and the sidebar's StellarFirm card had the same
+  name as a section of Settings.
+
 ### Security
 
 - The installed app ignores the dev-server variable, refuses a debugging

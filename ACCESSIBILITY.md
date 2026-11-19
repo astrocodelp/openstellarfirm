@@ -76,6 +76,15 @@ Tested:
   the skip link, the shortcuts dialog (focus in, Escape, focus back), read
   aloud with a local macOS voice, more contrast in light and dark, and the
   other switches.
+- An automated check with axe-core (WCAG 2.0, 2.1 and 2.2 A and AA, and its
+  best practices) on the built app on macOS, in dark and light, each with and
+  without more contrast: the first run, the chat (an answer with Markdown,
+  code and a link, the link's question, the More menu, Clear, attached files,
+  a sent picture, Approve cards), the assistant form and its gallery, skills,
+  memory and Record how you work, Find anything, the shortcuts list,
+  Connections, Mail, Models, Move or back up, Settings and the Docker
+  computer. It found three problems, which are fixed. An automated check finds
+  only part of what a person meets, so it does not replace testing by hand.
 
 Not tested yet:
 
