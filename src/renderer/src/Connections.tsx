@@ -13,7 +13,13 @@ import type {
   ConnectionTool,
 } from "../../shared/types";
 import { api } from "./bridge";
-import { ErrorLine, message as errorText, OkLine, ScreenHead } from "./ui";
+import {
+  ErrorLine,
+  message as errorText,
+  InlineConfirm,
+  OkLine,
+  ScreenHead,
+} from "./ui";
 
 /** Each tool, with whether it only reads or asks every time. */
 function ToolList({ tools }: { tools: ConnectionTool[] }) {
@@ -122,8 +128,12 @@ function ConnectionForm({
         />
       </label>
       <label className="field">
-        <span className="field-label">Address</span>
+        <span className="field-label" id={`${ids}-address`}>
+          Address
+        </span>
         <input
+          aria-labelledby={`${ids}-address`}
+          aria-describedby={`${ids}-address-note`}
           className="input mono"
           value={baseUrl}
           placeholder="https://tools.example.com/mcp"
@@ -131,7 +141,7 @@ function ConnectionForm({
           autoComplete="off"
           onChange={(event) => setBaseUrl(event.target.value)}
         />
-        <span className="faint">
+        <span className="faint" id={`${ids}-address-note`}>
           Starts with https://, or http:// for a server on this computer. No
           sign-in or “?” in it.
         </span>
@@ -142,6 +152,7 @@ function ConnectionForm({
         </span>
         <input
           aria-labelledby={`${ids}-key`}
+          aria-describedby={`${ids}-key-note`}
           className="input mono"
           type="password"
           value={apiKey}
@@ -150,7 +161,7 @@ function ConnectionForm({
           autoComplete="off"
           onChange={(event) => setApiKey(event.target.value)}
         />
-        <span className="faint">
+        <span className="faint" id={`${ids}-key-note`}>
           {keychain
             ? "Kept in this computer's keychain. It is sent only to this address, and never shown again."
             : "This computer has no keychain, so a key cannot be saved here."}
@@ -294,6 +305,7 @@ function CatalogForm({
         </span>
         <input
           aria-labelledby={`${ids}-key`}
+          aria-describedby={`${ids}-key-note`}
           className="input mono"
           type="password"
           value={apiKey}
@@ -302,7 +314,7 @@ function CatalogForm({
           autoComplete="off"
           onChange={(event) => setApiKey(event.target.value)}
         />
-        <span className="faint">
+        <span className="faint" id={`${ids}-key-note`}>
           {keychain
             ? KEY_PROMISE(entry.name)
             : "This computer has no keychain, so a key cannot be saved here."}
@@ -434,6 +446,7 @@ function ComposioForm({
         </span>
         <input
           aria-labelledby={`${ids}-key`}
+          aria-describedby={`${ids}-key-note`}
           className="input mono"
           type="password"
           value={apiKey}
@@ -442,7 +455,7 @@ function ComposioForm({
           autoComplete="off"
           onChange={(event) => setApiKey(event.target.value)}
         />
-        <span className="faint">
+        <span className="faint" id={`${ids}-key-note`}>
           {keychain
             ? "Kept in this computer's keychain. It is sent only to Composio, and never shown again."
             : "This computer has no keychain, so a key cannot be saved here."}
@@ -759,6 +772,9 @@ export function ConnectionsScreen({ state, onChanged, onBack }: ScreenProps) {
                       type="button"
                       className="btn"
                       aria-label={`${open?.kind === "edit" && open.id === connection.id ? "Close" : "Edit"} ${connection.name}`}
+                      aria-expanded={
+                        open?.kind === "edit" && open.id === connection.id
+                      }
                       onClick={() =>
                         setOpen(
                           open?.kind === "edit" && open.id === connection.id
@@ -780,11 +796,10 @@ export function ConnectionsScreen({ state, onChanged, onBack }: ScreenProps) {
                       Remove
                     </button>
                     {removing === connection.id ? (
-                      <div
-                        className="stack-tight"
-                        style={{ flexBasis: "100%" }}
-                        role="alertdialog"
-                        aria-label={`Remove ${connection.name}`}
+                      <InlineConfirm
+                        className="stack-tight list-confirm"
+                        label={`Remove ${connection.name}`}
+                        onClose={() => setRemoving(null)}
                       >
                         <p>
                           {users.length === 0
@@ -794,12 +809,13 @@ export function ConnectionsScreen({ state, onChanged, onBack }: ScreenProps) {
                         <div className="wrap">
                           <button
                             type="button"
-                            className="btn"
+                            className="btn btn-danger"
                             onClick={() => void remove(connection.id)}
                           >
                             Yes, remove it
                           </button>
                           <button
+                            data-autofocus
                             type="button"
                             className="btn"
                             onClick={() => setRemoving(null)}
@@ -807,7 +823,7 @@ export function ConnectionsScreen({ state, onChanged, onBack }: ScreenProps) {
                             Keep it
                           </button>
                         </div>
-                      </div>
+                      </InlineConfirm>
                     ) : null}
                     {open?.kind === "edit" && open.id === connection.id ? (
                       <div style={{ flexBasis: "100%" }}>

@@ -44,7 +44,7 @@ export function Welcome({ keychain, onDone, onCloud }: WelcomeProps) {
         : null;
 
   return (
-    <div className="welcome">
+    <main className="welcome" id="main" tabIndex={-1}>
       <section className="welcome-hero">
         <Nova size={96} />
         <div className="dim" style={{ fontWeight: 500 }}>
@@ -115,6 +115,6 @@ export function Welcome({ keychain, onDone, onCloud }: WelcomeProps) {
           </button>
         </div>
       </section>
-    </div>
+    </main>
   );
 }

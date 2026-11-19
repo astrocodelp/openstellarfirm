@@ -1,7 +1,13 @@
 import { type FormEvent, useId, useState } from "react";
 import type { AppState, MailAccount, MailCheck } from "../../shared/types";
 import { api } from "./bridge";
-import { ErrorLine, message as errorText, OkLine, ScreenHead } from "./ui";
+import {
+  ErrorLine,
+  message as errorText,
+  InlineConfirm,
+  OkLine,
+  ScreenHead,
+} from "./ui";
 
 const MAX_ACCOUNTS = 5;
 
@@ -140,6 +146,7 @@ function MailForm({
         </span>
         <input
           aria-labelledby={`${ids}-pw`}
+          aria-describedby={`${ids}-pw-note`}
           className="input mono"
           type="password"
           value={password}
@@ -150,7 +157,7 @@ function MailForm({
           autoComplete="off"
           onChange={(event) => setPassword(event.target.value)}
         />
-        <span className="faint">
+        <span className="faint" id={`${ids}-pw-note`}>
           {keychain
             ? "Kept in this computer's keychain. It is sent only to this server, over a secure connection, and never shown again."
             : "This computer has no keychain, so a password cannot be saved here."}
@@ -204,12 +211,13 @@ function MailForm({
         </div>
       ) : null}
 
-      <ErrorLine>{error}</ErrorLine>
+      <ErrorLine id={`${ids}-error`}>{error}</ErrorLine>
       <div className="wrap">
         <button
           type="submit"
           className={primary ? "btn btn-primary" : "btn"}
           disabled={busy !== "" || incomplete}
+          aria-describedby={error ? `${ids}-error` : undefined}
         >
           {busy === "save" ? "Saving…" : editing ? "Save" : "Add"}
         </button>
@@ -305,6 +313,8 @@ export function MailScreen({ state, onChanged, onBack }: ScreenProps) {
                     <button
                       type="button"
                       className="btn"
+                      aria-expanded={editing === account.id}
+                      aria-label={`${editing === account.id ? "Close" : "Edit"} ${account.name}`}
                       onClick={() =>
                         setEditing(editing === account.id ? null : account.id)
                       }
@@ -314,16 +324,16 @@ export function MailScreen({ state, onChanged, onBack }: ScreenProps) {
                     <button
                       type="button"
                       className="btn"
+                      aria-label={`Remove ${account.name}`}
                       onClick={() => setRemoving(account.id)}
                     >
                       Remove
                     </button>
                     {removing === account.id ? (
-                      <div
-                        className="stack-tight"
-                        style={{ flexBasis: "100%" }}
-                        role="alertdialog"
-                        aria-label={`Remove ${account.name}`}
+                      <InlineConfirm
+                        className="stack-tight list-confirm"
+                        label={`Remove ${account.name}`}
+                        onClose={() => setRemoving(null)}
                       >
                         <p>
                           {users.length === 0
@@ -333,12 +343,13 @@ export function MailScreen({ state, onChanged, onBack }: ScreenProps) {
                         <div className="wrap">
                           <button
                             type="button"
-                            className="btn"
+                            className="btn btn-danger"
                             onClick={() => void remove(account.id)}
                           >
                             Yes, remove it
                           </button>
                           <button
+                            data-autofocus
                             type="button"
                             className="btn"
                             onClick={() => setRemoving(null)}
@@ -346,7 +357,7 @@ export function MailScreen({ state, onChanged, onBack }: ScreenProps) {
                             Keep it
                           </button>
                         </div>
-                      </div>
+                      </InlineConfirm>
                     ) : null}
                     {editing === account.id ? (
                       <div style={{ flexBasis: "100%" }}>

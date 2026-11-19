@@ -1,4 +1,4 @@
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useId, useState } from "react";
 import { COLORS, PETS, SKILLS } from "../../shared/catalog";
 import { serviceLabel } from "../../shared/connection-catalog";
 import type {
@@ -60,6 +60,7 @@ export function AssistantForm(props: AssistantFormProps) {
   const [copying, setCopying] = useState(false);
   const [busy, setBusy] = useState(false);
   const [persona, setPersona] = useState("");
+  const ids = useId();
   const source = sources.find((s) => s.id === sourceId);
 
   function toggle(id: string) {
@@ -182,14 +183,18 @@ export function AssistantForm(props: AssistantFormProps) {
               />
             </label>
             <label className="field grow">
-              <span className="field-label">Group</span>
+              <span className="field-label" id={`${ids}-group`}>
+                Group
+              </span>
               <input
                 className="input"
                 value={group}
                 maxLength={40}
+                aria-labelledby={`${ids}-group`}
+                aria-describedby={`${ids}-group-hint`}
                 onChange={(event) => setGroup(event.target.value)}
               />
-              <span className="faint">
+              <span className="faint" id={`${ids}-group-hint`}>
                 The heading it sits under in the sidebar, such as Work or Home.
               </span>
             </label>
@@ -232,11 +237,15 @@ export function AssistantForm(props: AssistantFormProps) {
           </fieldset>
 
           <label className="field">
-            <span className="field-label">What it does</span>
-            <span className="faint">
+            <span className="field-label" id={`${ids}-brief`}>
+              What it does
+            </span>
+            <span className="faint" id={`${ids}-brief-hint`}>
               Say it the way you'd brief a new colleague.
             </span>
             <textarea
+              aria-labelledby={`${ids}-brief`}
+              aria-describedby={`${ids}-brief-hint`}
               className="input"
               rows={5}
               value={brief}
@@ -314,6 +323,7 @@ export function AssistantForm(props: AssistantFormProps) {
                         <button
                           type="button"
                           className="btn"
+                          aria-label={`Remove ${site}`}
                           onClick={() =>
                             void run(() => api.removeSite(assistant.id, site))
                           }
@@ -339,6 +349,7 @@ export function AssistantForm(props: AssistantFormProps) {
                         <button
                           type="button"
                           className="btn"
+                          aria-label={`Remove ${folder}`}
                           onClick={() =>
                             void run(() =>
                               api.removeFolder(assistant.id, folder),
@@ -424,6 +435,7 @@ export function AssistantForm(props: AssistantFormProps) {
                       <button
                         type="button"
                         className="btn"
+                        aria-label={`Remove ${name ? `${name}: ` : ""}${tool}`}
                         onClick={() =>
                           void run(() =>
                             api.removeConnectionTool(
@@ -489,6 +501,10 @@ export function AssistantForm(props: AssistantFormProps) {
                     <button
                       type="button"
                       className="btn"
+                      aria-label={`Remove ${
+                        mailAccounts.find((m) => m.id === accountId)?.name ??
+                        "a mail account"
+                      }`}
                       onClick={() =>
                         void run(() =>
                           api.removeMailRead(assistant.id, accountId),
@@ -560,8 +576,12 @@ export function AssistantForm(props: AssistantFormProps) {
             </label>
             {source ? (
               <label className="field grow">
-                <span className="field-label">A model of its own</span>
+                <span className="field-label" id={`${ids}-model`}>
+                  A model of its own
+                </span>
                 <input
+                  aria-labelledby={`${ids}-model`}
+                  aria-describedby={`${ids}-model-hint`}
                   className="input mono"
                   value={model}
                   placeholder={source.model}
@@ -569,20 +589,21 @@ export function AssistantForm(props: AssistantFormProps) {
                   autoComplete="off"
                   onChange={(event) => setModel(event.target.value)}
                 />
-                <span className="faint">
+                <span className="faint" id={`${ids}-model-hint`}>
                   Leave empty to use {source.model}.
                 </span>
               </label>
             ) : null}
           </div>
 
-          <ErrorLine>{error}</ErrorLine>
+          <ErrorLine id={`${ids}-error`}>{error}</ErrorLine>
 
           <div className="wrap">
             <button
               type="submit"
               className="btn btn-primary"
               disabled={busy || !name.trim()}
+              aria-describedby={error ? `${ids}-error` : undefined}
             >
               {busy ? "Saving…" : "Save"}
             </button>
