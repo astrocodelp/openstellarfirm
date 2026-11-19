@@ -1,4 +1,5 @@
 import { presetOf } from "../../shared/catalog";
+import { catalogEntry, catalogPreset } from "../../shared/connection-catalog";
 import type {
   AppState,
   Assistant,
@@ -201,6 +202,38 @@ function preview(): OpenApi {
         baseUrl: "https://connect.composio.dev/mcp",
         hasKey: Boolean(input.apiKey),
         tools: [],
+        checkedAt: now(),
+      };
+      state.connections = [
+        ...state.connections.filter((c) => c.id !== next.id),
+        next,
+      ];
+      return next;
+    },
+    checkCatalog: async () => [
+      { name: "search_issues", description: "Search issues.", readOnly: true },
+      { name: "create_issue", description: "Make an issue.", readOnly: false },
+    ],
+    saveCatalog: async (input) => {
+      const entry = catalogEntry(input.catalogId);
+      const next: Connection = {
+        id: input.id ?? id(),
+        name: input.name,
+        preset: catalogPreset(input.catalogId),
+        baseUrl: entry?.url ?? "",
+        hasKey: Boolean(input.apiKey),
+        tools: [
+          {
+            name: "search_issues",
+            description: "Search issues.",
+            readOnly: true,
+          },
+          {
+            name: "create_issue",
+            description: "Make an issue.",
+            readOnly: false,
+          },
+        ],
         checkedAt: now(),
       };
       state.connections = [

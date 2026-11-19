@@ -1,6 +1,15 @@
+import {
+  type CatalogEntry,
+  catalogEntry,
+  catalogIdOf,
+  catalogPreset,
+  connectionPresetOf as presetOf,
+  serviceLabel,
+} from "../shared/connection-catalog";
 import { checkEndpoint } from "../shared/endpoint";
 import type {
   Assistant,
+  CatalogInput,
   ComposioInput,
   Connection,
   ConnectionInput,
@@ -11,7 +20,13 @@ import { FolderError } from "./folders";
 import { COMPOSIO_MCP_URL, McpClient, McpError, plain } from "./mcp";
 import type { ToolSpec } from "./models";
 import type { Secrets } from "./secrets";
-import type { Store, StoredConnection, StoredTool } from "./store";
+import {
+  DUPLICATE_NAME,
+  nameTaken,
+  type Store,
+  type StoredConnection,
+  type StoredTool,
+} from "./store";
 import type { PlannedCall } from "./tools";
 
 /**
@@ -63,9 +78,34 @@ export function composioInput(input: unknown): ComposioInput {
   };
 }
 
-/** Only the exact word "composio" makes a preset; anything else is custom. */
-export function presetOf(connection: { preset?: unknown }): ConnectionPreset {
-  return connection.preset === "composio" ? "composio" : "custom";
+/**
+ * What the page may send for a catalog service: which one, a name and a key.
+ * The address and the header are never read from the page.
+ */
+export function catalogInput(input: unknown): CatalogInput {
+  const raw = (input ?? {}) as Record<string, unknown>;
+  return {
+    catalogId: field(raw.catalogId ?? "", 100),
+    ...(typeof raw.id === "string" ? { id: field(raw.id, 100) } : {}),
+    name: field(raw.name ?? "", 200),
+    ...(typeof raw.apiKey === "string"
+      ? { apiKey: field(raw.apiKey, 4096) }
+      : {}),
+  };
+}
+
+export { presetOf };
+
+/** The address and the way a key travels, decided here from the preset. */
+export function pinnedFor(
+  preset: ConnectionPreset,
+  baseUrl: string,
+): { baseUrl: string; keyStyle: "bearer" | "composio" | "x-api-key" } {
+  if (preset === "composio")
+    return { baseUrl: COMPOSIO_MCP_URL, keyStyle: "composio" };
+  const entry = catalogEntry(catalogIdOf(preset));
+  if (entry) return { baseUrl: entry.url, keyStyle: entry.keyStyle };
+  return { baseUrl, keyStyle: "bearer" };
 }
 
 /** Runs one call on a connection. The main process supplies the real one. */
@@ -132,16 +172,29 @@ export function buildGate(
 ): McpGate | undefined {
   const byName = new Map<string, Entry>();
   const specs: ToolSpec[] = [];
+  const mine = assistant.connections
+    .map((id) => saved.find((c) => c.id === id))
+    .filter((c): c is StoredConnection => c !== undefined);
+  // Two accounts of one service: the model is told which account is which.
+  const sameService = (c: StoredConnection) =>
+    mine.filter(
+      (o) =>
+        pinnedFor(presetOf(o), o.baseUrl).baseUrl ===
+        pinnedFor(presetOf(c), c.baseUrl).baseUrl,
+    ).length > 1;
   assistant.connections.forEach((id, index) => {
     const connection = saved.find((c) => c.id === id);
     if (!connection) return;
+    const label = sameService(connection)
+      ? `${connection.name}, a ${serviceLabel(connection)} account`
+      : connection.name;
     for (const tool of connection.tools) {
       const name = `c${index + 1}_${tool.name}`;
       if (name.length > MAX_NAME || byName.has(name)) continue;
       byName.set(name, { connection, tool });
       specs.push({
         name,
-        description: `[${connection.name}] ${tool.description}`.trim(),
+        description: `[${label}] ${tool.description}`.trim(),
         parameters: tool.inputSchema,
       });
     }
@@ -267,11 +320,11 @@ export class ConnectionService {
     preset: ConnectionPreset,
     signal?: AbortSignal,
   ): McpClient {
-    const composio = preset === "composio";
+    // A preset has one address and one header, whatever is saved.
+    const pinned = pinnedFor(preset, baseUrl);
     return new McpClient({
-      // The Composio preset has one address and one header, whatever is saved.
-      baseUrl: composio ? COMPOSIO_MCP_URL : baseUrl,
-      keyStyle: composio ? "composio" : "bearer",
+      baseUrl: pinned.baseUrl,
+      keyStyle: pinned.keyStyle,
       ...(apiKey ? { apiKey } : {}),
       ...(signal ? { signal } : {}),
       ...(this.deps.appVersion ? { appVersion: this.deps.appVersion } : {}),
@@ -320,14 +373,19 @@ export class ConnectionService {
     key: string | undefined;
     tools: StoredTool[];
   }> {
+    const typedUrl = typeof input.baseUrl === "string" ? input.baseUrl : "";
     const baseUrl =
-      preset === "composio"
-        ? COMPOSIO_MCP_URL
-        : checkEndpoint(typeof input.baseUrl === "string" ? input.baseUrl : "");
+      preset === "custom"
+        ? checkEndpoint(typedUrl)
+        : pinnedFor(preset, typedUrl).baseUrl;
     const key = await this.keyFor(input, baseUrl);
     if (preset === "composio" && !key)
       throw new Error(
         "Composio needs your key. Copy it from your Composio account.",
+      );
+    if (preset !== "custom" && preset !== "composio" && !key)
+      throw new Error(
+        "This service needs your key. Make one there and paste it.",
       );
     const found = await this.client(baseUrl, key, preset).listTools();
     return {
@@ -356,6 +414,36 @@ export class ConnectionService {
     return this.check({ ...input, baseUrl: COMPOSIO_MCP_URL }, "composio");
   }
 
+  /** A catalog service: the address and header are fixed by its entry. */
+  private catalog(input: CatalogInput): {
+    entry: CatalogEntry;
+    connection: ConnectionInput;
+    preset: ConnectionPreset;
+  } {
+    const entry = catalogEntry(input.catalogId);
+    if (!entry) throw new Error("That service is not in the list.");
+    return {
+      entry,
+      preset: catalogPreset(entry.id),
+      connection: {
+        ...(input.id ? { id: input.id } : {}),
+        name: input.name,
+        baseUrl: entry.url,
+        ...(input.apiKey ? { apiKey: input.apiKey } : {}),
+      },
+    };
+  }
+
+  async checkCatalog(input: CatalogInput): Promise<ConnectionTool[]> {
+    const { connection, preset } = this.catalog(input);
+    return this.check(connection, preset);
+  }
+
+  async saveCatalog(input: CatalogInput): Promise<Connection> {
+    const { connection, preset } = this.catalog(input);
+    return this.save(connection, preset);
+  }
+
   saveComposio(input: ComposioInput): Promise<Connection> {
     return this.save({ ...input, baseUrl: COMPOSIO_MCP_URL }, "composio");
   }
@@ -371,6 +459,8 @@ export class ConnectionService {
     const before = input.id
       ? this.deps.store.connections().find((c) => c.id === input.id)
       : undefined;
+    if (nameTaken(this.deps.store.connections(), name, before?.id))
+      throw new Error(DUPLICATE_NAME);
     // The tools are read from the server now: nothing the page sends is kept.
     const { baseUrl, tools } = await this.look(input, preset);
     const saved = this.deps.store.saveConnection({

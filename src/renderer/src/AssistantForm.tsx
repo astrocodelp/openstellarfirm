@@ -1,5 +1,6 @@
 import { type FormEvent, useState } from "react";
 import { COLORS, PETS, SKILLS } from "../../shared/catalog";
+import { serviceLabel } from "../../shared/connection-catalog";
 import type {
   Assistant,
   Connection,
@@ -383,7 +384,13 @@ export function AssistantForm(props: AssistantFormProps) {
                           )
                         }
                       />
-                      <span>{connection.name}</span>
+                      <span>
+                        {connection.name}
+                        <span className="faint">
+                          {" · "}
+                          {serviceLabel(connection)}
+                        </span>
+                      </span>
                     </label>
                   ))}
                 </div>

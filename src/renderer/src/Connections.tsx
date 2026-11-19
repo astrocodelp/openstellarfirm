@@ -1,4 +1,11 @@
 import { type FormEvent, useId, useState } from "react";
+import {
+  CATALOG,
+  type CatalogEntry,
+  catalogEntry,
+  catalogIdOf,
+  serviceLabel,
+} from "../../shared/connection-catalog";
 import type {
   AppState,
   CompanyOffer,
@@ -7,14 +14,6 @@ import type {
 } from "../../shared/types";
 import { api } from "./bridge";
 import { ErrorLine, message as errorText, OkLine, ScreenHead } from "./ui";
-
-function host(baseUrl: string): string {
-  try {
-    return new URL(baseUrl).host;
-  } catch {
-    return baseUrl;
-  }
-}
 
 /** Each tool, with whether it only reads or asks every time. */
 function ToolList({ tools }: { tools: ConnectionTool[] }) {
@@ -192,6 +191,154 @@ function ConnectionForm({
             Cancel
           </button>
         ) : null}
+      </div>
+    </form>
+  );
+}
+
+interface CatalogFormProps {
+  entry: CatalogEntry;
+  keychain: boolean;
+  editing?: Connection;
+  /** The name to start with when adding. */
+  suggestedName?: string;
+  onSaved(): void;
+  onCancel(): void;
+}
+
+const KEY_PROMISE = (service: string) =>
+  `Your key stays in this computer's keychain and is sent only to ${service}. Every tool call still asks you first.`;
+
+/** Adds or changes one service from the built-in list: a name and the person's own key. */
+function CatalogForm({
+  entry,
+  keychain,
+  editing,
+  suggestedName,
+  onSaved,
+  onCancel,
+}: CatalogFormProps) {
+  const ids = useId();
+  const [name, setName] = useState(
+    editing?.name ?? suggestedName ?? entry.name,
+  );
+  const [apiKey, setApiKey] = useState("");
+  const [tools, setTools] = useState<ConnectionTool[] | null>(null);
+  const [busy, setBusy] = useState<"" | "check" | "save">("");
+  const [error, setError] = useState("");
+  const needsKey = !editing?.hasKey;
+  const input = () => ({
+    catalogId: entry.id,
+    ...(editing ? { id: editing.id } : {}),
+    name,
+    apiKey,
+  });
+
+  async function check() {
+    setBusy("check");
+    setError("");
+    try {
+      setTools(await api.checkCatalog(input()));
+    } catch (e) {
+      setTools(null);
+      setError(errorText(e));
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function save(event: FormEvent) {
+    event.preventDefault();
+    setBusy("save");
+    setError("");
+    try {
+      await api.saveCatalog(input());
+      setApiKey("");
+      onSaved();
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setBusy("");
+    }
+  }
+
+  return (
+    <form className="stack" onSubmit={save}>
+      <p className="dim">{entry.where}</p>
+      <div>
+        <button
+          type="button"
+          className="btn"
+          onClick={() => void api.openLink(`catalog:${entry.id}`)}
+        >
+          {entry.name}'s page about this
+        </button>
+      </div>
+      <label className="field">
+        <span className="field-label">Name</span>
+        <input
+          className="input"
+          value={name}
+          maxLength={40}
+          autoComplete="off"
+          onChange={(event) => setName(event.target.value)}
+        />
+        <span className="faint">
+          Each connection needs its own name, so you can add the same service
+          twice, for example a work and a personal one.
+        </span>
+      </label>
+      <label className="field">
+        <span className="field-label" id={`${ids}-key`}>
+          Your {entry.name} key
+        </span>
+        <input
+          aria-labelledby={`${ids}-key`}
+          className="input mono"
+          type="password"
+          value={apiKey}
+          placeholder={editing?.hasKey ? "Saved. Leave empty to keep it." : ""}
+          spellCheck={false}
+          autoComplete="off"
+          onChange={(event) => setApiKey(event.target.value)}
+        />
+        <span className="faint">
+          {keychain
+            ? KEY_PROMISE(entry.name)
+            : "This computer has no keychain, so a key cannot be saved here."}
+        </span>
+      </label>
+      <div className="wrap">
+        <button
+          type="button"
+          className="btn"
+          disabled={busy !== "" || (needsKey && !apiKey.trim())}
+          onClick={() => void check()}
+        >
+          {busy === "check" ? "Checking…" : "Check"}
+        </button>
+      </div>
+      {tools ? (
+        <div className="stack-tight">
+          <OkLine>
+            It answered.{" "}
+            {tools.length === 1 ? "1 tool" : `${tools.length} tools`}
+          </OkLine>
+          <ToolList tools={tools} />
+        </div>
+      ) : null}
+      <ErrorLine>{error}</ErrorLine>
+      <div className="wrap">
+        <button
+          type="submit"
+          className="btn btn-primary"
+          disabled={busy !== "" || !name.trim() || (needsKey && !apiKey.trim())}
+        >
+          {busy === "save" ? "Saving…" : editing ? "Save" : `Add ${entry.name}`}
+        </button>
+        <button type="button" className="btn" onClick={onCancel}>
+          Cancel
+        </button>
       </div>
     </form>
   );
@@ -456,19 +603,47 @@ interface ScreenProps {
   onBack(): void;
 }
 
+/** The one form that is open at a time, so there is one lime button. */
+type Open =
+  | { kind: "edit"; id: string }
+  | { kind: "catalog"; id: string }
+  | { kind: "composio" }
+  | { kind: "address"; n: number; name: string; baseUrl: string };
+
+/** A name that no connection has yet: "GitHub", then "GitHub 2", and so on. */
+function freeName(base: string, taken: string[]): string {
+  const used = new Set(taken.map((n) => n.trim().toLowerCase()));
+  if (!used.has(base.toLowerCase())) return base;
+  for (let i = 2; i < 100; i += 1) {
+    const next = `${base} ${i}`;
+    if (!used.has(next.toLowerCase())) return next;
+  }
+  return base;
+}
+
 export function ConnectionsScreen({ state, onChanged, onBack }: ScreenProps) {
-  const [editing, setEditing] = useState<string | null>(null);
+  const [open, setOpen] = useState<Open | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
+  const [checked, setChecked] = useState<Record<string, string>>({});
+  const [checking, setChecking] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
   const [error, setError] = useState("");
-  const [composio, setComposio] = useState(false);
-  const [prefill, setPrefill] = useState<{
-    n: number;
-    name: string;
-    baseUrl: string;
-  } | null>(null);
+  const searchId = useId();
+
+  const names = state.connections.map((c) => c.name);
+  const close = () => setOpen(null);
+  const saved = () => {
+    setOpen(null);
+    void onChanged();
+  };
 
   function fill(name: string, baseUrl: string) {
-    setPrefill({ n: (prefill?.n ?? 0) + 1, name, baseUrl });
+    setOpen({
+      kind: "address",
+      n: open?.kind === "address" ? open.n + 1 : 0,
+      name,
+      baseUrl,
+    });
     document
       .getElementById("add-connection-title")
       ?.scrollIntoView({ block: "start" });
@@ -485,74 +660,121 @@ export function ConnectionsScreen({ state, onChanged, onBack }: ScreenProps) {
     }
   }
 
+  /** Asks the service once with the saved key. Saves nothing. */
+  async function check(connection: Connection) {
+    setChecking(connection.id);
+    setError("");
+    try {
+      const base = { id: connection.id, name: connection.name };
+      const catalogId = catalogIdOf(connection.preset);
+      const tools =
+        connection.preset === "composio"
+          ? await api.checkComposio(base)
+          : catalogId
+            ? await api.checkCatalog({ ...base, catalogId })
+            : await api.checkConnection({
+                ...base,
+                baseUrl: connection.baseUrl,
+              });
+      const n = tools.length;
+      setChecked((all) => ({
+        ...all,
+        [connection.id]: `It answered, with ${n === 1 ? "1 tool" : `${n} tools`}.`,
+      }));
+    } catch (e) {
+      setChecked((all) => ({ ...all, [connection.id]: errorText(e) }));
+    } finally {
+      setChecking(null);
+    }
+  }
+
   const usedBy = (id: string) =>
     state.assistants.filter((a) => a.connections.includes(id));
+
+  const wanted = search.trim().toLowerCase();
+  const shown = CATALOG.filter(
+    (e) =>
+      !wanted ||
+      e.name.toLowerCase().includes(wanted) ||
+      e.description.toLowerCase().includes(wanted),
+  );
 
   return (
     <div className="screen">
       <div className="screen-body">
         <ScreenHead title="Your connections" onBack={onBack}>
-          A connection lets an assistant use the tools of another service, by
-          its web address. You choose which assistants may use it, in each
-          assistant's own settings. Every call asks you first, and shows what
-          would be sent. A tool the service says only reads can be allowed for
-          good; every other tool asks every time. What an assistant sends to a
-          connection leaves this computer.
+          A connection lets an assistant use the tools of another service. You
+          make a key in that service, and this app sends it only to that
+          service, straight from this computer. You choose which assistants may
+          use each connection, in each assistant's own settings. Every call asks
+          you first and shows what would be sent. A tool the service says only
+          reads can be allowed for good; every other tool asks every time. What
+          an assistant sends to a connection leaves this computer.
         </ScreenHead>
 
         <section className="stack" aria-labelledby="connections-title">
           <h2 className="section-title" id="connections-title">
-            Set up
+            Your connections
           </h2>
           {state.connections.length === 0 ? (
-            <p className="dim">Nothing yet. Add a connection below.</p>
+            <p className="dim">Nothing yet. Add a service below.</p>
           ) : (
             <ul className="list card">
               {state.connections.map((connection) => {
                 const users = usedBy(connection.id);
-                const reads = connection.tools.filter((t) => t.readOnly).length;
+                const entry = catalogEntry(catalogIdOf(connection.preset));
+                const n = connection.tools.length;
                 return (
                   <li key={connection.id} style={{ flexWrap: "wrap" }}>
                     <span className="grow stack-tight">
-                      <span className="row-name">
-                        {connection.name}
-                        {connection.preset === "composio" ? (
-                          <span className="badge"> Composio</span>
-                        ) : null}
-                      </span>
-                      <span className="faint mono">
-                        {host(connection.baseUrl)}
-                      </span>
+                      <span className="row-name">{connection.name}</span>
                       <span className="faint">
-                        {connection.tools.length === 1
-                          ? "1 tool"
-                          : `${connection.tools.length} tools`}
-                        , {reads} of them {reads === 1 ? "reads" : "read"}
+                        {serviceLabel(connection)}
                         {" · "}
-                        {connection.hasKey
-                          ? "Key saved in the keychain"
-                          : "No key saved"}
+                        {n === 1 ? "1 tool" : `${n} tools`}
+                        {" · "}
+                        {connection.hasKey ? "Key saved" : "No key saved"}
                       </span>
                       <span className="faint">
                         {users.length === 0
                           ? "No assistant uses it yet"
                           : `Used by ${users.map((a) => a.name).join(", ")}`}
                       </span>
+                      {checked[connection.id] ? (
+                        <span className="faint" role="status">
+                          {checked[connection.id]}
+                        </span>
+                      ) : null}
                     </span>
                     <button
                       type="button"
                       className="btn"
-                      onClick={() =>
-                        setEditing(
-                          editing === connection.id ? null : connection.id,
-                        )
-                      }
+                      disabled={checking !== null}
+                      aria-label={`Check ${connection.name}`}
+                      onClick={() => void check(connection)}
                     >
-                      {editing === connection.id ? "Close" : "Edit"}
+                      {checking === connection.id ? "Checking…" : "Check"}
                     </button>
                     <button
                       type="button"
                       className="btn"
+                      aria-label={`${open?.kind === "edit" && open.id === connection.id ? "Close" : "Edit"} ${connection.name}`}
+                      onClick={() =>
+                        setOpen(
+                          open?.kind === "edit" && open.id === connection.id
+                            ? null
+                            : { kind: "edit", id: connection.id },
+                        )
+                      }
+                    >
+                      {open?.kind === "edit" && open.id === connection.id
+                        ? "Close"
+                        : "Edit"}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn"
+                      aria-label={`Remove ${connection.name}`}
                       onClick={() => setRemoving(connection.id)}
                     >
                       Remove
@@ -587,29 +809,29 @@ export function ConnectionsScreen({ state, onChanged, onBack }: ScreenProps) {
                         </div>
                       </div>
                     ) : null}
-                    {editing === connection.id ? (
+                    {open?.kind === "edit" && open.id === connection.id ? (
                       <div style={{ flexBasis: "100%" }}>
                         {connection.preset === "composio" ? (
                           <ComposioForm
                             keychain={state.keychain}
                             editing={connection}
-                            primary={!composio}
-                            onSaved={() => {
-                              setEditing(null);
-                              void onChanged();
-                            }}
-                            onCancel={() => setEditing(null)}
+                            onSaved={saved}
+                            onCancel={close}
+                          />
+                        ) : entry ? (
+                          <CatalogForm
+                            entry={entry}
+                            keychain={state.keychain}
+                            editing={connection}
+                            onSaved={saved}
+                            onCancel={close}
                           />
                         ) : (
                           <ConnectionForm
                             keychain={state.keychain}
                             editing={connection}
-                            primary={!composio}
-                            onSaved={() => {
-                              setEditing(null);
-                              void onChanged();
-                            }}
-                            onCancel={() => setEditing(null)}
+                            onSaved={saved}
+                            onCancel={close}
                           />
                         )}
                       </div>
@@ -622,23 +844,85 @@ export function ConnectionsScreen({ state, onChanged, onBack }: ScreenProps) {
           <ErrorLine>{error}</ErrorLine>
         </section>
 
+        <section className="stack" aria-labelledby="add-service-title">
+          <h2 className="section-title" id="add-service-title">
+            Add a service
+          </h2>
+          <p className="dim">
+            Services that let you make a key of your own. Add the same one more
+            than once if you have more than one account.
+          </p>
+          <label className="field">
+            <span className="field-label" id={`${searchId}-label`}>
+              Find a service
+            </span>
+            <input
+              aria-labelledby={`${searchId}-label`}
+              className="input"
+              type="search"
+              value={search}
+              placeholder="GitHub, search, email…"
+              autoComplete="off"
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </label>
+          {shown.length === 0 ? (
+            <p className="dim" role="status">
+              No service matches that. You can add one by its address below.
+            </p>
+          ) : (
+            <ul className="list card" aria-label="Services you can add">
+              {shown.map((entry) => {
+                const here = open?.kind === "catalog" && open.id === entry.id;
+                return (
+                  <li key={entry.id} style={{ flexWrap: "wrap" }}>
+                    <span className="grow stack-tight">
+                      <span className="row-name">{entry.name}</span>
+                      <span className="faint">{entry.description}</span>
+                    </span>
+                    <button
+                      type="button"
+                      className="btn"
+                      aria-expanded={here}
+                      aria-label={`${here ? "Close" : "Add"} ${entry.name}`}
+                      onClick={() =>
+                        setOpen(here ? null : { kind: "catalog", id: entry.id })
+                      }
+                    >
+                      {here ? "Close" : "Add"}
+                    </button>
+                    {here ? (
+                      <div style={{ flexBasis: "100%" }}>
+                        <CatalogForm
+                          entry={entry}
+                          keychain={state.keychain}
+                          suggestedName={freeName(entry.name, names)}
+                          onSaved={saved}
+                          onCancel={close}
+                        />
+                      </div>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+
         <section className="stack" aria-labelledby="add-composio-title">
           <h2 className="section-title" id="add-composio-title">
             Add Composio
           </h2>
           <p className="dim">
-            One connection that reaches many apps, such as mail, calendars,
-            GitHub and Slack, through your own Composio account.
+            More apps through your own Composio account, such as mail, calendars
+            and Slack, for apps that have no direct way in above.
           </p>
-          {composio ? (
+          {open?.kind === "composio" ? (
             <div className="card pad">
               <ComposioForm
                 keychain={state.keychain}
-                onSaved={() => {
-                  setComposio(false);
-                  void onChanged();
-                }}
-                onCancel={() => setComposio(false)}
+                onSaved={saved}
+                onCancel={close}
               />
             </div>
           ) : (
@@ -646,7 +930,7 @@ export function ConnectionsScreen({ state, onChanged, onBack }: ScreenProps) {
               <button
                 type="button"
                 className="btn"
-                onClick={() => setComposio(true)}
+                onClick={() => setOpen({ kind: "composio" })}
               >
                 Add Composio
               </button>
@@ -658,22 +942,37 @@ export function ConnectionsScreen({ state, onChanged, onBack }: ScreenProps) {
           <h2 className="section-title" id="add-connection-title">
             Add a connection by address
           </h2>
-          {prefill ? (
-            <p className="dim" role="status">
-              Filled in from the company look-up. Check it, then add it.
-            </p>
-          ) : null}
-          <div className="card pad">
-            <ConnectionForm
-              key={prefill?.n ?? 0}
-              keychain={state.keychain}
-              primary={!composio}
-              {...(prefill
-                ? { prefill: { name: prefill.name, baseUrl: prefill.baseUrl } }
-                : {})}
-              onSaved={() => void onChanged()}
-            />
-          </div>
+          <p className="dim">
+            For a server that is not in the list, or one on this computer.
+          </p>
+          {open?.kind === "address" ? (
+            <div className="card pad">
+              {open.name || open.baseUrl ? (
+                <p className="dim" role="status">
+                  Filled in from the company look-up. Check it, then add it.
+                </p>
+              ) : null}
+              <ConnectionForm
+                key={open.n}
+                keychain={state.keychain}
+                prefill={{ name: open.name, baseUrl: open.baseUrl }}
+                onSaved={saved}
+                onCancel={close}
+              />
+            </div>
+          ) : (
+            <div>
+              <button
+                type="button"
+                className="btn"
+                onClick={() =>
+                  setOpen({ kind: "address", n: 0, name: "", baseUrl: "" })
+                }
+              >
+                Add by address
+              </button>
+            </div>
+          )}
         </section>
 
         <section className="stack" aria-labelledby="lookup-title">
