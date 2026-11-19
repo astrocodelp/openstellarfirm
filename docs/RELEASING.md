@@ -1,4 +1,7 @@
-# Releasing StellarFirm Solo
+# Releasing OpenStellarFirm
+
+OpenStellarFirm is the open-source sibling of StellarFirm, by Astro Code.
+The GitHub repository name stays `worker-bot-open-source`.
 
 GitHub Actions is blocked for this organization, so releases are built on a
 short-lived Fly Machine (Linux and Windows) and on a maintainer's Mac (macOS).

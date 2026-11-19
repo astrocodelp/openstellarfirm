@@ -125,7 +125,7 @@ describe("links to StellarFirm cloud", () => {
 
   it("goes only to stellarfirm.ai, with nothing personal in the home link", () => {
     expect(cloudHomeUrl()).toBe(
-      "https://stellarfirm.ai/?utm_source=stellarfirm-solo&utm_medium=app",
+      "https://stellarfirm.ai/?utm_source=openstellarfirm&utm_medium=app",
     );
   });
 

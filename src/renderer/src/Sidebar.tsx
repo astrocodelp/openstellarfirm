@@ -67,7 +67,7 @@ export function Sidebar(props: SidebarProps) {
       <div className="sidebar-head">
         <Nova size={48} />
         <div className="brand-text">
-          <div className="brand-name">StellarFirm Solo</div>
+          <div className="brand-name">OpenStellarFirm</div>
           <OkLine>Runs on this computer</OkLine>
         </div>
       </div>

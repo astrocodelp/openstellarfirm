@@ -1,6 +1,7 @@
 # Contributing
 
-Thank you for helping. A few rules keep the app small, safe and on your
+Thank you for helping with OpenStellarFirm, the open-source sibling of
+StellarFirm by Astro Code. A few rules keep the app small, safe and on your
 device. Read [COMMUNITY.md](COMMUNITY.md) first for where to talk and what to
 pick up.
 

@@ -28,7 +28,7 @@ export function systemPrompt(assistant: PromptAssistant): string {
     assistant.skills.includes(skill.id),
   ).map((skill) => `- ${skill.guidance}`);
   const parts = [
-    `You are ${assistant.name}, a personal AI assistant. You run in StellarFirm Solo, an app on the person's own computer.`,
+    `You are ${assistant.name}, a personal AI assistant. You run in OpenStellarFirm, an app on the person's own computer.`,
   ];
   if (assistant.brief.trim()) {
     parts.push(

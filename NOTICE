@@ -1,4 +1,4 @@
-StellarFirm Solo
+OpenStellarFirm
 Copyright 2026 Vasileios Drosatos and Astro Code L.P.
 
 This software is licensed under the Apache License, Version 2.0, with the
@@ -21,9 +21,11 @@ What this licence does not cover
   - StellarFirm for Universities, StellarFirm for Scientists and StellarFirm
     for Course Creators.
   - Any other software or service of Astro Code L.P.
-  - The names "StellarFirm" and "StellarFirm Solo", the logos and the pet
-    characters. The licence gives no right to use them as your own. If you
-    share a changed version, give it its own name and look.
+  - The names "StellarFirm" and "OpenStellarFirm", the logos and the pet
+    characters. "StellarFirm" and the pet characters are marks of Astro Code
+    L.P. OpenStellarFirm includes that mark. The licence gives no right to
+    use them as your own. If you share a changed version, give it its own
+    name and look.
 
 Other people's work that ships inside a built app is listed in
 THIRD-PARTY-NOTICES.md.

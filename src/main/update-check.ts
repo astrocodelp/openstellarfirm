@@ -6,7 +6,7 @@ import { isNewer, type UpdateCheck, versionOfTag } from "../shared/update";
  * The update check. It only looks: it never downloads or installs anything.
  *
  * What it sends: one GET to GitHub's "latest release" address for this
- * project, with an Accept header and a User-Agent of `StellarFirm-Solo/<version>`.
+ * project, with an Accept header and a User-Agent of `OpenStellarFirm/<version>`.
  * No key, no cookie, nothing about the person. GitHub sees the network address,
  * as any website does. What it reads: only `tag_name` of the answer.
  */
@@ -59,7 +59,7 @@ export async function lookForUpdate(
       method: "GET",
       headers: {
         Accept: "application/vnd.github+json",
-        "User-Agent": `StellarFirm-Solo/${currentVersion}`,
+        "User-Agent": `OpenStellarFirm/${currentVersion}`,
       },
       redirect: "error",
       credentials: "omit",

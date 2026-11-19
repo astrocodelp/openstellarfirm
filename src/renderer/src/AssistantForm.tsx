@@ -710,7 +710,7 @@ export function AssistantForm(props: AssistantFormProps) {
               </button>
             )}
             <p className="faint">
-              A file can be shared with anyone who runs StellarFirm Solo. Keys
+              A file can be shared with anyone who runs OpenStellarFirm. Keys
               and models are never in it.
             </p>
           </div>
