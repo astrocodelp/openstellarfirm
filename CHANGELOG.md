@@ -11,6 +11,15 @@ The app is at version 0.1.0. There is no tagged release yet.
 
 ### Added
 
+- A gallery of 50 services to connect, up from ten: each one checked against
+  the service's own page for a remote MCP server at one fixed https address
+  that takes a key you make there in a header. Search by name, what it does or
+  its group (Enter opens the first, Esc clears), narrow to one group, and see
+  which you added already, with "Add another account" for a second one. Add by
+  address and Composio stay one click away, also when nothing matches.
+- A searchable list of connections on an assistant's form once you have more
+  than six, with a count of how many it may use.
+
 - A desktop app for macOS and Windows. You make assistants (name, group, one
   of six pets in five colours, a brief, and skills) that talk through a model
   you set up: Ollama or LM Studio on this computer, your own key, or your own

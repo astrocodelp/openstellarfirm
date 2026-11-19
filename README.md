@@ -46,10 +46,24 @@ team of AI Agent Assistants works for your company in the cloud.
   its web address. Every call asks first and shows what would be sent. A tool
   the server marks as read-only, with a name that does not read like a change,
   can be allowed for good; everything else asks every time.
-- **The services you already use.** Connect GitHub, Linear, Stripe, Neon,
-  Supabase, Apify, Firecrawl, Exa, Context7 or AgentMail with a key you make in
-  that service, straight from this computer to it. Add the same service more
-  than once, such as a work and a personal account.
+- **The services you already use.** Fifty services in a gallery you can
+  search and sort by group, each connected with a key you make in that
+  service, straight from this computer to it. Add the same service more than
+  once, such as a work and a personal account. An assistant's settings have a
+  searchable list of the connections it may use.
+  - **Code:** GitHub, Context7, Ref, Hugging Face, Render, Buildkite, Postman,
+    DigitalOcean, Cloudflare, Pulumi.
+  - **Data and databases:** Neon, Supabase, MotherDuck, Tinybird, PostHog,
+    Datadog (US1 and EU1), Honeycomb (US and EU), Pydantic Logfire (US and
+    EU), Better Stack, Weights & Biases.
+  - **Search and web:** Apify, Firecrawl, Exa, Jina AI, Parallel, Linkup,
+    Perplexity, SerpApi, You.com.
+  - **Payments and money:** Stripe.
+  - **Work and projects:** Linear, Jira and Confluence, monday.com,
+    Smartsheet, Wrike, Clockify, Fireflies, PagerDuty, Zapier.
+  - **Mail and messages:** AgentMail, Intercom (US and EU), Resend, Brevo,
+    Mailchimp Transactional.
+  - **Files and docs:** Sanity, Tally.
 - **Your own Composio account.** One connection that reaches many apps
   (mail, calendars, GitHub, search and more) through Composio, on your own
   Composio key. Your usage and any cost are between you and Composio.

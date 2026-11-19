@@ -4,8 +4,10 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   CATALOG,
+  CATEGORIES,
   catalogEntry,
   connectionPresetOf,
+  KEY_HEADERS,
 } from "../shared/connection-catalog";
 import { linkUrl } from "../shared/links";
 import { buildBackup } from "./backup";
@@ -66,11 +68,36 @@ describe("the catalog", () => {
       expect(url.username + url.password + url.search + url.hash, e.id).toBe(
         "",
       );
-      expect(["bearer", "x-api-key"]).toContain(e.keyStyle);
+      expect(Object.keys(KEY_HEADERS)).toContain(e.keyStyle);
       expect(new URL(e.link).protocol).toBe("https:");
       expect(e.name && e.description && e.where).toBeTruthy();
+      expect(CATEGORIES, e.id).toContain(e.category);
+      expect(typeof e.reads, e.id).toBe("boolean");
+      // One plain line, ending as a sentence.
+      expect(e.description.length, e.id).toBeLessThanOrEqual(70);
+      expect(e.description, e.id).toMatch(/^[A-Z].*\.$/);
+      expect(e.description + e.where, e.id).not.toMatch(/\b(ro)?bots?\b/i);
     }
-    expect(CATALOG.length).toBeGreaterThanOrEqual(8);
+    expect(CATALOG.length).toBeGreaterThanOrEqual(40);
+  });
+
+  it("gives every entry its own id, address and host", () => {
+    const hosts = CATALOG.map((e) => new URL(e.url).host);
+    const urls = CATALOG.map((e) => e.url);
+    const names = CATALOG.map((e) => e.name.toLowerCase());
+    expect(new Set(hosts).size).toBe(CATALOG.length);
+    expect(new Set(urls).size).toBe(CATALOG.length);
+    expect(new Set(names).size).toBe(CATALOG.length);
+  });
+
+  it("names each key header from a fixed table, never a key in the address", () => {
+    for (const header of Object.values(KEY_HEADERS)) {
+      expect(header.name).toMatch(/^[A-Za-z-]+$/);
+      expect(header.prefix).toMatch(/^[A-Za-z =]*$/);
+    }
+    for (const e of CATALOG) {
+      expect(e.url, e.id).not.toMatch(/key|token|secret/i);
+    }
   });
 
   it("knows only real entries", () => {
@@ -183,6 +210,31 @@ describe("catalog connections", () => {
     for (const r of seen) {
       expect(r.url).toBe(catalogEntry("exa")?.url);
       expect(r.headers.get("x-api-key")).toBe("exa-secret");
+      expect(r.headers.get("authorization")).toBeNull();
+    }
+  });
+
+  it("sends PagerDuty's and Ref's keys in their own documented headers", async () => {
+    await service().saveCatalog({
+      catalogId: "pagerduty",
+      name: "PagerDuty",
+      apiKey: "pd-secret",
+    });
+    expect(seen.length).toBeGreaterThan(0);
+    for (const r of seen) {
+      expect(r.url).toBe(catalogEntry("pagerduty")?.url);
+      expect(r.headers.get("authorization")).toBe("Token token=pd-secret");
+    }
+    seen = [];
+    await service().saveCatalog({
+      catalogId: "ref",
+      name: "Ref",
+      apiKey: "ref-secret",
+    });
+    expect(seen.length).toBeGreaterThan(0);
+    for (const r of seen) {
+      expect(r.url).toBe(catalogEntry("ref")?.url);
+      expect(r.headers.get("x-ref-api-key")).toBe("ref-secret");
       expect(r.headers.get("authorization")).toBeNull();
     }
   });

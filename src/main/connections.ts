@@ -3,6 +3,7 @@ import {
   catalogEntry,
   catalogIdOf,
   catalogPreset,
+  type KeyStyle,
   connectionPresetOf as presetOf,
   serviceLabel,
 } from "../shared/connection-catalog";
@@ -100,7 +101,7 @@ export { presetOf };
 export function pinnedFor(
   preset: ConnectionPreset,
   baseUrl: string,
-): { baseUrl: string; keyStyle: "bearer" | "composio" | "x-api-key" } {
+): { baseUrl: string; keyStyle: KeyStyle | "composio" } {
   if (preset === "composio")
     return { baseUrl: COMPOSIO_MCP_URL, keyStyle: "composio" };
   const entry = catalogEntry(catalogIdOf(preset));
