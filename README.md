@@ -38,6 +38,10 @@ team of AI Agent Assistants works for your company in the cloud.
   can have a model of its own. Google Vertex AI is not supported: it signs in
   with a service account, not a key.
 - **Chat that streams**, with Stop. Each assistant keeps its own chat.
+- **Files in a message.** Attach pictures, PDFs and text files by the paper
+  clip, a drop or a paste. Where your model takes them it gets them as they
+  are; otherwise the app reads their text on this computer, scanned pages too.
+  English is built in; other languages download from Settings on your click.
 - **Find anything.** Ctrl+K (Cmd+K on a Mac), or Find anything in the
   sidebar, finds an assistant, a screen, a setting, a connection or an action,
   and searches every chat on this computer, case and accents aside. A result
@@ -147,6 +151,8 @@ team of AI Agent Assistants works for your company in the cloud.
     nothing about you, and it never downloads or installs anything.
   - **Composio.** Adding or using a Composio connection contacts Composio with
     your own key.
+  - **A reading language.** Downloading one from Settings fetches that one
+    file from Hugging Face, and keeps it only if its SHA-256 matches.
   - **Look up a company.** Contacts the site you typed, once, and sends
     nothing but the request itself.
 - Links to stellarfirm.ai, composio.dev and this project's pages open in your

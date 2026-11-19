@@ -32,6 +32,7 @@ app's version and operating system. Please do not include a real key.
 | A connection (MCP server)                         | Everything it sends is checked: tool names, descriptions and schemas are validated and cut, answers are capped, and results reach the model marked as information.                                                                                                             |
 | A mail message                                    | Written by other people, so it is information, never instructions. Turned to plain text; nothing it links to is fetched.                                                                                                                                                       |
 | Another assistant's answer                        | Reaches the asker's model marked as information, not instructions.                                                                                                                                                                                                             |
+| A file you attach                                 | Its kind is decided from its bytes, never its name. PDFs and pictures are read only in a hidden reader window: sandboxed, isolated, in its own session where every request but its own files is cancelled. Reaches the model marked as information, not instructions.          |
 | A picture of the screen                           | Reaches the model as information. The prompt says text in it is never an instruction.                                                                                                                                                                                          |
 | A company's published file (`poppy.json`)         | Read strictly, every text cut and cleaned, shown as plain text. Only a web address and a name are ever copied into a form you review.                                                                                                                                          |
 | An imported assistant file, a backup or a persona | Checked field by field. It never brings a key, a model, a folder, a site, a connection, web access or screen access with it. A backup only adds new assistants and never changes or removes one you have. Chats in it come in as plain text.                                   |
@@ -140,6 +141,15 @@ app's version and operating system. Please do not include a real key.
   Azure's own domains and a fixed list of regions.
 - **Files you export.** Saved and opened only through the system's own
   dialogs, opened by the main process. The page never names a file path.
+- **Attachments.** The page hands over a file's bytes, never a path, and the
+  only file picker is the system's, opened by the main process. Sent files are
+  kept in `attachments/` in the data folder, named by id and their checked
+  kind, removed with their chat, never in a backup or an export, and opened
+  only by id on your click. Pictures are re-encoded, which drops their
+  metadata.
+- **Reading languages.** Off until you click Download: one pinned Hugging Face
+  address, redirects only to Hugging Face's own hosts over https, and the file
+  is kept only if its SHA-256 matches.
 - **Links.** The only links the app opens (stellarfirm.ai, composio.dev and
   this project's source, community and release pages) are built in the main
   process from fixed parts, on your click. "Copy to StellarFirm cloud" carries
@@ -152,6 +162,12 @@ app's version and operating system. Please do not include a real key.
 ## Known limits
 
 Said plainly, so nobody relies on more than is there:
+
+- **What you attach goes to the model you chose**, and text read from a picture
+  or a scan can be wrong. Attached files are not encrypted on disk.
+- **PDF.js and Tesseract read untrusted files** in the sandboxed reader, not in
+  the main process. PNG and JPEG pictures are decoded by Electron in the main
+  process to scale them.
 
 - **What an assistant reads goes to the model you chose.** With a hosted key,
   that provider receives your messages and anything the assistant read from
@@ -201,8 +217,9 @@ Said plainly, so nobody relies on more than is there:
 
 ## Dependencies
 
-Nothing from `node_modules` ships in the app: the code is bundled, and every
-dependency is a build tool. Install scripts are blocked except for `electron`
+The code is bundled. Two runtime libraries ship, only inside the sandboxed
+reader window: PDF.js (`pdfjs-dist`) and Tesseract.js (`tesseract.js`), both
+Apache-2.0, with the files they need. Every other dependency is a build tool. Install scripts are blocked except for `electron`
 and `esbuild` (`pnpm.onlyBuiltDependencies`).
 
 `pnpm audit` on 19 November 2026 reports one advisory, on two paths, in the
