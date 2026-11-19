@@ -5,7 +5,7 @@ import { ApprovalsSection, DataSection } from "./SettingsData";
 import { MainAssistantSection } from "./SettingsMain";
 import { Choices, ErrorLine, Section, useSettingsSave } from "./SettingsParts";
 import { AboutSection, UpdatesSection } from "./SettingsUpdates";
-import { ScreenHead } from "./ui";
+import { crossFadeTheme, ScreenHead } from "./ui";
 
 interface SettingsScreenProps {
   state: AppState;
@@ -60,7 +60,9 @@ export function SettingsScreen({
               name: THEME_CHOICES[id].name,
             }))}
             note={THEME_CHOICES[settings.theme].note}
-            onPick={(theme) => void save({ theme })}
+            onPick={(theme) =>
+              void crossFadeTheme(theme, () => save({ theme }))
+            }
           />
           <Choices
             legend="Text size"

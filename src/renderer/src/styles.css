@@ -36,6 +36,8 @@
   --ok-line: oklch(0.835 0.108 180 / 0.4);
   --danger: oklch(0.782 0.126 34);
   --danger-wash: oklch(0.782 0.126 34 / 0.14);
+  /* The lift of something that floats over the page, such as "Jump to latest". */
+  --float-shadow: 0 0.25rem 1rem rgb(0 0 0 / 0.55);
 
   --pet-lime: #d9ff3f;
   --pet-sky: #7cc7ff;
@@ -63,6 +65,17 @@
   --radius-card: 1.25rem;
   --radius-panel: 1.75rem;
   --radius-inset: 0.75rem;
+  /*
+   * Motion. Two curves and four durations, used by every transition and
+   * animation. Enters and presses ease out (a fast start reads as an answer to
+   * the click); something already on screen that moves eases in and out.
+   */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.645, 0.045, 0.355, 1);
+  --dur-press: 120ms;
+  --dur-quick: 160ms;
+  --dur-enter: 220ms;
+  --dur-page: 260ms;
   --font: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
   --mono: "Geist Mono Variable", ui-monospace, monospace;
   color-scheme: dark;
@@ -97,6 +110,7 @@
     --ok-line: oklch(0.43 0.09 180 / 0.45);
     --danger: oklch(0.48 0.18 30);
     --danger-wash: oklch(0.48 0.18 30 / 0.1);
+    --float-shadow: 0 0.25rem 1rem rgb(7 7 9 / 0.12);
 
     --pet-lime: #647f00;
     --pet-sky: #1a6fb0;
@@ -275,6 +289,7 @@ legend {
 }
 
 .sidebar-scroll {
+  position: relative;
   flex: 1 1 0;
   min-height: 0;
   overflow-y: auto;
@@ -329,6 +344,7 @@ legend {
 }
 
 .row {
+  position: relative;
   min-height: 3.25rem;
   padding: 0.5rem 0.75rem;
   border-radius: var(--radius-field);
@@ -349,6 +365,29 @@ legend {
 .row[aria-current="true"],
 .nav-item[aria-current="page"] {
   background: var(--active);
+}
+
+/*
+ * The open assistant's highlight is one shape behind the rows that moves to
+ * the row that is opened. While it is there, the row itself stays clear.
+ */
+.row-highlight {
+  position: absolute;
+  top: 0;
+  left: 0.75rem;
+  right: 0.75rem;
+  border-radius: var(--radius-field);
+  background: var(--active);
+  pointer-events: none;
+}
+
+.row-highlight[data-shown="false"] {
+  opacity: 0;
+}
+
+.sidebar-scroll:has(> .row-highlight[data-shown="true"])
+  .row[aria-current="true"] {
+  background: transparent;
 }
 
 .row-text {
@@ -790,6 +829,15 @@ textarea.input {
   background: var(--active);
 }
 
+/*
+ * An answer keeps the column's reading width from its first word, so the box
+ * never widens word by word, and the saved answer takes the streamed one's place
+ * without a jump.
+ */
+.bubble-answer {
+  width: min(100%, 38rem);
+}
+
 .bubble-failed {
   display: flex;
   gap: 0.5rem;
@@ -812,6 +860,7 @@ textarea.input {
 }
 
 .composer-wrap {
+  position: relative;
   width: 100%;
   max-width: 44rem;
   margin: 0 auto;
@@ -990,8 +1039,35 @@ textarea.input {
 }
 
 .activity {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 1.5rem;
   color: var(--faint);
   font-size: var(--text-ui);
+}
+
+/* A calm sign of life beside "Thinking…": a dot that breathes, never bounces. */
+.pulse {
+  flex-shrink: 0;
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: var(--radius-pill);
+  background: currentColor;
+}
+
+/* What the person decided, left in the card's place for the rest of the turn. */
+.approval-outcome {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 1.5rem;
+  color: var(--dim);
+  font-size: var(--text-ui);
+}
+
+.approval-outcome svg {
+  flex-shrink: 0;
 }
 
 .dot {
@@ -1179,6 +1255,45 @@ textarea.input {
   background: var(--raised);
 }
 
+/*
+ * Shown when the person has scrolled up while the chat goes on. It floats just
+ * above the message box, so showing it moves nothing else.
+ */
+.jump-latest {
+  position: absolute;
+  bottom: calc(100% + 0.25rem);
+  left: 50%;
+  translate: -50% 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  height: 2rem;
+  padding: 0 0.875rem;
+  border: 1px solid var(--control-line);
+  border-radius: var(--radius-pill);
+  background: var(--raised);
+  box-shadow: var(--float-shadow);
+  font-size: var(--text-caption);
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+/* 32px to look at, 40px to hit. */
+.jump-latest::after {
+  content: "";
+  position: absolute;
+  inset: -0.25rem;
+}
+
+.jump-latest:hover {
+  background: var(--active);
+}
+
+.jump-latest[hidden] {
+  display: none;
+}
+
 .composer-hint {
   margin-top: 0.375rem;
   padding-left: 0.75rem;
@@ -1198,26 +1313,215 @@ html[data-text-size="large"] {
   border-top: 0;
 }
 
-/* Motion: short, on colour only, and a small press. None of it with reduced motion. */
+/*
+ * Motion. It answers a click, shows where something came from, or carries the
+ * eye to what changed. Only transform, opacity and colour move, never the
+ * layout. Every rule that moves lives in one of the two blocks below: with
+ * reduced motion, only opacity fades remain.
+ */
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* Something that arrives: up a few pixels, out of transparency. */
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    translate: 0 var(--rise, 0.375rem);
+  }
+}
+
+/* A card that asks for the person: a touch of scale, from below. */
+@keyframes card-in {
+  from {
+    opacity: 0;
+    scale: 0.98;
+    translate: 0 0.375rem;
+  }
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* A working assistant's pet, now and then: a breath, not a bounce. */
+@keyframes breathe {
+  0%,
+  86%,
+  100% {
+    scale: 1;
+  }
+  93% {
+    scale: 1.06;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .main > .screen,
+  .main > .form-layout,
+  .main > .empty,
+  .chat-scroll > .empty,
+  .chat-column,
+  .enter,
+  .approval,
+  .approval-outcome,
+  .activity,
+  .ok-line,
+  .error {
+    animation: fade-in var(--dur-quick) var(--ease-out);
+  }
+
+  .confirm,
+  [role="alertdialog"] {
+    transition: opacity var(--dur-quick) var(--ease-out);
+  }
+
+  @starting-style {
+    .confirm,
+    [role="alertdialog"] {
+      opacity: 0;
+    }
+  }
+}
+
 @media (prefers-reduced-motion: no-preference) {
+  /* Hover and press: colour, and a small press, at once. */
   .btn,
   .icon-btn,
   .choice,
   .row,
   .nav-item,
   .close-btn,
-  .input {
+  .link,
+  .link-btn,
+  .input,
+  .composer {
     transition:
-      background-color 120ms ease-out,
-      border-color 120ms ease-out,
-      color 120ms ease-out,
-      transform 120ms ease-out;
+      background-color var(--dur-press) var(--ease-out),
+      border-color var(--dur-press) var(--ease-out),
+      color var(--dur-press) var(--ease-out),
+      transform var(--dur-press) var(--ease-out);
   }
 
   .btn:not(:disabled):active,
   .icon-btn:not(:disabled):active,
   .choice:active,
-  .nav-item:active {
+  .nav-item:active,
+  .close-btn:active,
+  .jump-latest:active {
     transform: scale(0.96);
   }
+
+  /* A wide row presses less, so its edge moves about as far as a button's. */
+  .row:active {
+    transform: scale(0.985);
+  }
+
+  /* A new screen or chat: a short fade and rise of the pane, nothing else. */
+  .main > .screen,
+  .main > .form-layout,
+  .main > .empty,
+  .chat-scroll > .empty,
+  .chat-column {
+    --rise: 0.375rem;
+    animation: rise-in var(--dur-page) var(--ease-out);
+  }
+
+  /* What arrives while the chat is open. History already there stays still. */
+  .enter,
+  .activity,
+  .approval-outcome {
+    --rise: 0.25rem;
+    animation: rise-in var(--dur-enter) var(--ease-out);
+  }
+
+  .bubble-user.enter {
+    --rise: 0.5rem;
+  }
+
+  .approval {
+    transform-origin: 50% 100%;
+    animation: card-in var(--dur-enter) var(--ease-out);
+  }
+
+  .pulse {
+    animation: pulse 1.6s var(--ease-in-out) infinite;
+  }
+
+  .pet-busy {
+    animation: breathe 4.5s var(--ease-in-out) infinite;
+  }
+
+  /* Status lines fade in where their room is already kept. */
+  .ok-line,
+  .error {
+    animation: fade-in var(--dur-quick) var(--ease-out);
+  }
+
+  /* A question asked in place comes in softly. */
+  .confirm,
+  [role="alertdialog"] {
+    transition:
+      opacity var(--dur-enter) var(--ease-out),
+      translate var(--dur-enter) var(--ease-out);
+  }
+
+  @starting-style {
+    .confirm,
+    [role="alertdialog"] {
+      opacity: 0;
+      translate: 0 0.25rem;
+    }
+  }
+
+  /* The open assistant's highlight glides to the next row. */
+  .row-highlight[data-glide="true"] {
+    transition:
+      transform var(--dur-enter) var(--ease-in-out),
+      opacity var(--dur-quick) var(--ease-out);
+  }
+
+  /* "Jump to latest" fades and rises in, and fades out the same way. */
+  .jump-latest {
+    transition:
+      background-color var(--dur-press) var(--ease-out),
+      transform var(--dur-press) var(--ease-out),
+      opacity var(--dur-quick) var(--ease-out),
+      translate var(--dur-quick) var(--ease-out),
+      display var(--dur-quick) allow-discrete;
+  }
+
+  .jump-latest[hidden] {
+    opacity: 0;
+    translate: -50% 0.25rem;
+  }
+
+  @starting-style {
+    .jump-latest:not([hidden]) {
+      opacity: 0;
+      translate: -50% 0.25rem;
+    }
+  }
+
+  /* A theme change is one quiet cross-fade of the whole page. */
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: var(--dur-page);
+    animation-timing-function: var(--ease-out);
+  }
+}
+
+/*
+ * While the light or dark scheme flips, nothing tweens on its own. Last in the
+ * file and a step more specific than any rule above, so it wins over them.
+ */
+:root:root[data-theme-swap] *,
+:root:root[data-theme-swap] *::before,
+:root:root[data-theme-swap] *::after {
+  transition: none;
 }

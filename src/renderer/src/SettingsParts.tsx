@@ -1,7 +1,7 @@
-import { type ReactNode, useEffect, useId, useRef, useState } from "react";
+import { type ReactNode, useId, useState } from "react";
 import type { Settings } from "../../shared/types";
 import { api } from "./bridge";
-import { ErrorLine, message as errorText } from "./ui";
+import { ErrorLine, message as errorText, useInlineConfirm } from "./ui";
 
 /** Pieces the settings sections share. */
 
@@ -82,7 +82,7 @@ export function Choices<T extends string>({
 
 /**
  * The question before something that cannot be undone. Focus lands on the safe
- * button, and Escape closes it.
+ * button, Escape closes it, and focus goes back to the button that opened it.
  */
 export function Confirm({
   text,
@@ -99,22 +99,18 @@ export function Confirm({
   onDo(): void;
   onKeep(): void;
 }) {
-  const keep = useRef<HTMLButtonElement>(null);
-  useEffect(() => {
-    keep.current?.focus();
-  }, []);
+  const confirm = useInlineConfirm<HTMLDivElement>(onKeep);
   return (
     <div
+      ref={confirm.ref}
       className="confirm stack"
       role="alertdialog"
       aria-label={doLabel}
-      onKeyDown={(event) => {
-        if (event.key === "Escape") onKeep();
-      }}
+      onKeyDown={confirm.onKeyDown}
     >
       <p>{text}</p>
       <div className="wrap">
-        <button ref={keep} type="button" className="btn" onClick={onKeep}>
+        <button data-autofocus type="button" className="btn" onClick={onKeep}>
           {keepLabel}
         </button>
         <button
