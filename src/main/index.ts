@@ -111,6 +111,7 @@ import {
   type WireMessage,
 } from "./models";
 import { OcrLanguages } from "./ocr-languages";
+import { PetService } from "./pets/service";
 import { modelPicture, previewOf } from "./picture";
 import { lookupCompany } from "./poppy";
 import { Reader, ReaderError, registerReaderScheme } from "./reader";
@@ -187,6 +188,16 @@ let attachments: Attachments;
 let reader: Reader;
 let languages: OcrLanguages;
 let computers: ComputerService;
+let petService: PetService | undefined;
+
+/** Built on first use, so with Desk pets off nothing of it exists. */
+function pets(): PetService {
+  petService ??= new PetService({
+    file: join(app.getPath("userData"), "desk-pets.json"),
+    secrets,
+  });
+  return petService;
+}
 const running = new Map<string, AbortController>();
 /** The step that waits for the person, by assistant. One at a time each. */
 const waiting = new Map<
@@ -1605,6 +1616,19 @@ app.whenReady().then(() => {
     // A sweep that fails leaves files for the next start.
   }
   computers = createComputers(dir, join(__dirname, "../computer"));
+  handle(IPC.petsStatus, () => pets().status());
+  handle(IPC.petsTurnOn, () => pets().turnOn());
+  handle(IPC.petsTurnOff, () => pets().turnOff());
+  handle(IPC.petsNewCertificate, () => pets().newCertificate());
+  handle(IPC.petsStartAdding, () => pets().startAdding());
+  handle(IPC.petsConfirm, (_event, code: string) => pets().confirm(code));
+  handle(IPC.petsForget, (_event, id: string) => pets().forget(id));
+  handle(IPC.petsRename, (_event, id: string, name: string) =>
+    pets().rename(id, name),
+  );
+  // Left on at the last quit: start again. With the switch off nothing is
+  // built and no port is opened.
+  if (PetService.savedOn(join(dir, "desk-pets.json"))) void pets().resume();
   // A computer nobody has used for a while is stopped. Docker is asked
   // nothing until a computer was started in this run of the app.
   setInterval(() => {
@@ -1677,7 +1701,10 @@ app.on("before-quit", (event) => {
   event.preventDefault();
   stoppedComputers = true;
   void Promise.race([
-    computers.stopAll().catch(() => {}),
+    Promise.all([
+      computers.stopAll().catch(() => {}),
+      petService?.shutdown().catch(() => {}),
+    ]),
     new Promise((resolve) => setTimeout(resolve, 15_000)),
   ]).finally(() => app.quit());
 });

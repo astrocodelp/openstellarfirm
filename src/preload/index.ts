@@ -132,6 +132,14 @@ const api: OpenApi = {
   computerRunning: () => call(IPC.computerRunning),
   computerList: () => call(IPC.computerList),
   computerFrame: (id, frameId) => call(IPC.computerFrame, id, frameId),
+  petsStatus: () => call(IPC.petsStatus),
+  petsTurnOn: () => call(IPC.petsTurnOn),
+  petsTurnOff: () => call(IPC.petsTurnOff),
+  petsNewCertificate: () => call(IPC.petsNewCertificate),
+  petsStartAdding: () => call(IPC.petsStartAdding),
+  petsConfirm: (code) => call(IPC.petsConfirm, code),
+  petsForget: (id) => call(IPC.petsForget, id),
+  petsRename: (id, name) => call(IPC.petsRename, id, name),
   onComputerState: (listener) => listen(IPC.computerState, listener),
 };
 

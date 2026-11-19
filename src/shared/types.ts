@@ -13,6 +13,11 @@ import type {
   ComputerStatus,
   ComputerView,
 } from "./computer";
+import type {
+  DeskPetConfirm,
+  DeskPetSetupCode,
+  DeskPetsStatus,
+} from "./desk-pets";
 import type { OcrDownloadProgress } from "./download-progress";
 import type { LinkName } from "./links";
 import type { AssistantMemory, MemoryNote } from "./memory";
@@ -768,6 +773,18 @@ export interface OpenApi {
   /** The picture kept after one step on its computer; null once it is gone. */
   computerFrame(assistantId: string, frameId: string): Promise<string | null>;
   onComputerState(listener: (state: ComputerState) => void): () => void;
+  /** Desk pets: the switch, the certificate, the pets and the pairing. Off until turned on. */
+  petsStatus(): Promise<DeskPetsStatus>;
+  petsTurnOn(): Promise<DeskPetsStatus>;
+  petsTurnOff(): Promise<DeskPetsStatus>;
+  /** Replaces the certificate and forgets every paired pet. */
+  petsNewCertificate(): Promise<DeskPetsStatus>;
+  /** Makes the setup code the owner gives a new pet. */
+  petsStartAdding(): Promise<DeskPetSetupCode>;
+  /** The confirm code the pet said, typed by the owner. */
+  petsConfirm(code: string): Promise<DeskPetConfirm>;
+  petsForget(id: string): Promise<DeskPetsStatus>;
+  petsRename(id: string, name: string): Promise<DeskPetsStatus>;
 }
 
 export const IPC = {
@@ -873,6 +890,14 @@ export const IPC = {
   computerList: "computer:list",
   computerFrame: "computer:frame",
   computerState: "computer:state",
+  petsStatus: "pets:status",
+  petsTurnOn: "pets:on",
+  petsTurnOff: "pets:off",
+  petsNewCertificate: "pets:certificate",
+  petsStartAdding: "pets:add",
+  petsConfirm: "pets:confirm",
+  petsForget: "pets:forget",
+  petsRename: "pets:rename",
 } as const;
 
 /** Every answer over IPC, so an error arrives as a plain sentence. */

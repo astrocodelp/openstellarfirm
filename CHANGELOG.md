@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Desk pets, phase 2: the app can now be a desk pet's server (`src/main/pets/`):
+  the certificate made by the app and kept in the keychain, an HTTPS server
+  that only answers addresses on your own network, pairing with a setup code
+  and a confirm code you type, and the mDNS name. It stays off, with no port
+  open, until a later release adds the Settings switch.
 - Desk pets: the firmware, the 3D print files and the protocol code for Nova,
   Zib and Comet, a small desk figure on an Arduino Nano ESP32, are here
   (`firmware/`, `hardware/` and `src/shared/pets/`). They pair with the app in
