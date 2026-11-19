@@ -30,6 +30,8 @@ app's version and operating system. Please do not include a real key.
 | A tool request a model writes as text             | Some models cannot call tools, so they ask in writing. Only the model's own output of the current turn is read for that, strictly, and every request goes through the same checks and approvals as a native tool call. Text in a file or page is never read as a tool request. |
 | A file or web page an assistant reads             | Given to the model marked as information, not instructions. It can still mislead a model, which is why the rules below are enforced in code and not in the prompt.                                                                                                             |
 | A connection (MCP server)                         | Everything it sends is checked: tool names, descriptions and schemas are validated and cut, answers are capped, and results reach the model marked as information.                                                                                                             |
+| A mail message                                    | Written by other people, so it is information, never instructions. Turned to plain text; nothing it links to is fetched.                                                                                                                                                       |
+| Another assistant's answer                        | Reaches the asker's model marked as information, not instructions.                                                                                                                                                                                                             |
 | A picture of the screen                           | Reaches the model as information. The prompt says text in it is never an instruction.                                                                                                                                                                                          |
 | A company's published file (`poppy.json`)         | Read strictly, every text cut and cleaned, shown as plain text. Only a web address and a name are ever copied into a form you review.                                                                                                                                          |
 | An imported assistant file, a backup or a persona | Checked field by field. It never brings a key, a model, a folder, a site, a connection, web access or screen access with it. A backup only adds new assistants and never changes or removes one you have. Chats in it come in as plain text.                                   |
@@ -76,6 +78,26 @@ app's version and operating system. Please do not include a real key.
   project, with no key and no cookie, reads only the release tag, follows no
   redirect, and never downloads or installs anything. It can only show that a
   version is available, with a button that opens the release page.
+- **Mail.** The client can only look: it opens folders with `EXAMINE` and
+  reads with `BODY.PEEK`, so nothing is marked read, and it can send only a
+  fixed list of commands (sign in, list folders, examine, search, fetch, sign
+  out). There is no sending, deleting, moving or marking. The server is reached
+  over TLS only, with its certificate checked; the host is a name you typed,
+  resolved first, and a private address is used only when you tick "This
+  server is on my own network". Waits and sizes are bounded. Mail is turned to
+  plain text: HTML is never rendered, nothing a message links to is fetched,
+  and attachments are named but never opened. Nothing from a message is saved
+  beyond a step label.
+- **Asking another assistant.** Only an assistant you tick can be asked. It
+  answers in a run of its own and sees only the question. It cannot ask a
+  third assistant, and one answer asks at most 3 times. Its cards appear in
+  the asker's chat, saying whose step it is, with no "Always allow".
+- **Checks.** Off by default, and they run only while the app is open. A check
+  only reads: anything that would need your Approve is never shown and never
+  run, and is left for you. A check cannot save a file, look at the screen or
+  ask another assistant. One at a time, at most 4 model turns and 48 a day; it
+  turns itself off after 3 failures in a row. A notification, if you turn it
+  on, carries the assistant's name only.
 - **The screen.** Off until you turn it on for one assistant. Every look
   shows a card first, and there is no "Always allow" for it. The picture is
   taken only after you approve, in the main process, is held in memory for one
@@ -83,11 +105,13 @@ app's version and operating system. Please do not include a real key.
   can only look: there is no code that clicks, types or controls another app.
 - **Approvals.** Reading a site for the first time waits for your Approve.
   "Always allow" remembers one site for one assistant, or one read-only tool
-  of one connection for one assistant. A connection's tool that is not marked
+  of one connection for one assistant, or reading one mail account for one
+  assistant. A connection's tool that is not marked
   as a read, or whose name reads like a change, asks every time. Even an
   allowed site or read asks again when the web address carries text after a
   `?`, and for the rest of an answer once the assistant has read from your
-  folders or looked at your screen in it, because an address or a tool's
+  folders, read your mail or looked at your screen in it, because an address
+  or a tool's
   arguments can carry text out. Nothing in the app answers an approval for
   you.
 - **Model wires.** A model's wire (OpenAI-compatible, Anthropic or Gemini) is
@@ -125,6 +149,13 @@ Said plainly, so nobody relies on more than is there:
 - **Composio sees what you send through it.** What an assistant sends there,
   and the answers, pass through your Composio account. Composio's own terms
   and costs apply to you.
+- **Mail.** What an assistant reads from your mail goes to the model you
+  chose. An app password is needed, so providers that do not allow one (such
+  as Microsoft 365) do not work yet. Folder names must be plain ASCII. Not yet
+  run against real mail servers.
+- **Asking another assistant.** A question, and what the other assistant reads
+  to answer it, goes to that assistant's model, which may be another service.
+- **Checks cost what your model costs.** Each check is a call to your model.
 - **A look at the screen shows everything visible.** Close anything private
   before you approve. Many models on this computer cannot read pictures.
 - **Earlier answers stay in the chat.** If an assistant quoted a file in an
