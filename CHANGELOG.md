@@ -30,8 +30,9 @@ product name was set used `~/.config/openstellarfirm`.
   2.0 with the Commons Clause. Selling needs a commercial licence
   ([COMMERCIAL.md](COMMERCIAL.md)), and [NOTICE](NOTICE) says what the licence
   covers.
-- An interface built on one set of tokens: labelled navigation in the sidebar,
-  pill buttons, one screen frame, and a compact persona picker. Light and dark,
+- An interface built on one set of tokens: a sidebar that keeps to your
+  assistants, with one quiet Settings row at its foot (Cmd+comma on a Mac,
+  Ctrl+comma elsewhere), pill buttons, one screen frame, and a compact persona picker. Light and dark,
   following your computer or your choice, with one cross-fade when the theme
   changes.
 - Motion that never gets in the way: screens and new messages fade in, the
@@ -128,9 +129,15 @@ product name was set used `~/.config/openstellarfirm`.
   title reads like a password manager.
 - Move or back up: one file with all your assistants, and your chats only if
   you tick that, to open on another computer.
-- Settings: light, dark or system theme, text size, the send key, what is
-  remembered, the data folder, delete all chats, and About, which opens the
-  full licence texts of the work of others inside the app.
+- Settings, the one place where the app is set up, with its pages listed on
+  its own left side (a row of buttons in a narrow window): General (light,
+  dark or system theme, text size, the send key, the main assistant, what is
+  allowed for good, the data folder and delete all chats), Models,
+  Connections, Mail, Accessibility, Reading other languages, Move or back up,
+  and Updates and About, which opens the full licence texts of the work of
+  others inside the app. It opens where you left it; Escape or Back to chats
+  goes back, and every way in (the chat's "Set up a model", Find anything)
+  opens the right page with the focus on its heading.
 - An update check that is off until you turn it on. It only asks GitHub for
   the newest version and shows a notice. It never downloads or installs.
 - Memory: each assistant keeps up to 100 short notes, shown and edited in a
@@ -145,7 +152,7 @@ product name was set used `~/.config/openstellarfirm`.
   continue", which the assistant's own model writes and you keep or undo. Past
   80% the chat offers it; it never does it on its own.
 - Find anything: Ctrl+K (Cmd+K on a Mac), or the Find anything button in the
-  sidebar, opens one box that finds assistants, screens, Settings sections,
+  sidebar, opens one box that finds assistants, Settings pages and sections,
   connections and actions, and searches every chat on this computer. The
   search runs in the main process over the chat files, ignores case and
   accents, ranks whole words first and newest first within a rank, and shows a

@@ -1,7 +1,11 @@
 import { type ReactNode, useId, useState } from "react";
 import type { Settings } from "../../shared/types";
 import { api } from "./bridge";
-import { type SettingsSectionId, sectionTitle } from "./settings-sections";
+import {
+  type SettingsSectionId,
+  sectionStandsAlone,
+  sectionTitle,
+} from "./settings-sections";
 import { ErrorLine, message as errorText, useInlineConfirm } from "./ui";
 
 /** Pieces the settings sections share. */
@@ -22,8 +26,10 @@ export function useSettingsSave(onChanged: () => Promise<void>) {
 }
 
 /**
- * One section of the screen, with a heading a screen reader can jump to. Its
- * heading comes from the one list Find anything also reads.
+ * One section of a Settings page, with a heading a screen reader can jump to.
+ * Its heading comes from the one list Find anything also reads. A section
+ * that is its whole page, under the page's name, has no heading of its own:
+ * the page's says it.
  */
 export function Section({
   section,
@@ -34,6 +40,8 @@ export function Section({
 }) {
   const id = useId();
   const title = sectionTitle(section);
+  if (sectionStandsAlone(section))
+    return <div className="settings-section stack">{children}</div>;
   return (
     <section className="settings-section stack" aria-labelledby={id}>
       <h2 className="section-title" id={id}>

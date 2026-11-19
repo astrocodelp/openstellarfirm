@@ -6,7 +6,15 @@ import type {
   PetColor,
   PetId,
 } from "../../shared/types";
-import { SETTINGS_SECTIONS } from "./settings-sections";
+import {
+  pageOfSection,
+  pageTitle,
+  SETTINGS_PAGES,
+  SETTINGS_SECTIONS,
+  type SettingsPageId,
+  type SettingsSectionId,
+  sectionStandsAlone,
+} from "./settings-sections";
 
 /**
  * What the palette (Ctrl or Cmd+K) can find, and how it filters it. Pure, so
@@ -14,19 +22,15 @@ import { SETTINGS_SECTIONS } from "./settings-sections";
  * process; everything else is a short list kept here.
  */
 
-export type PaletteScreen =
-  | "models"
-  | "connections"
-  | "mail"
-  | "backup"
-  | "settings";
-
-/** Where a result takes the person. */
+/**
+ * Where a result takes the person. Every screen that sets the app up is a
+ * page of Settings: with no page, Settings opens where it was left; a section
+ * opens its own page at that section.
+ */
 export type PaletteTarget =
   | { kind: "assistant"; id: string }
   | { kind: "message"; assistantId: string; messageId: string }
-  | { kind: "screen"; screen: PaletteScreen }
-  | { kind: "section"; title: string }
+  | { kind: "settings"; page?: SettingsPageId; section?: SettingsSectionId }
   | { kind: "new" }
   | { kind: "import" }
   | { kind: "shortcuts" }
@@ -35,7 +39,6 @@ export type PaletteTarget =
 export type PaletteGroup =
   | "assistants"
   | "actions"
-  | "screens"
   | "settings"
   | "connections"
   | "chats";
@@ -44,7 +47,6 @@ export type PaletteGroup =
 export const GROUP_ORDER: readonly PaletteGroup[] = [
   "assistants",
   "actions",
-  "screens",
   "settings",
   "connections",
   "chats",
@@ -53,7 +55,6 @@ export const GROUP_ORDER: readonly PaletteGroup[] = [
 export const GROUP_LABELS: Record<PaletteGroup, string> = {
   assistants: "Assistants",
   actions: "Actions",
-  screens: "Screens",
   settings: "Settings",
   connections: "Connections",
   chats: "In chats",
@@ -72,23 +73,11 @@ export interface PaletteItem {
   keywords?: string;
   target: PaletteTarget;
   pet?: { pet: PetId; color: PetColor };
+  /** Listed before anything is typed, though its group is not. */
+  resting?: boolean;
 }
 
-const SCREENS: { screen: PaletteScreen; label: string; keywords: string }[] = [
-  {
-    screen: "models",
-    label: "Models",
-    keywords: "model source key ollama lm studio openai claude local",
-  },
-  {
-    screen: "connections",
-    label: "Connections",
-    keywords: "mcp server tools services github composio link",
-  },
-  { screen: "mail", label: "Mail", keywords: "inbox email mailbox imap" },
-];
-
-export { SETTINGS_SECTIONS } from "./settings-sections";
+export { SETTINGS_PAGES, SETTINGS_SECTIONS } from "./settings-sections";
 
 export interface PaletteSources {
   assistants: readonly Assistant[];
@@ -120,18 +109,11 @@ export function paletteItems(sources: PaletteSources): PaletteItem[] {
       target: { kind: "new" },
     },
     {
-      id: "action:backup",
-      group: "actions",
-      label: "Move or back up",
-      keywords: "backup export import another computer file",
-      target: { kind: "screen", screen: "backup" },
-    },
-    {
       id: "action:settings",
       group: "actions",
       label: "Settings",
       keywords: "preferences options",
-      target: { kind: "screen", screen: "settings" },
+      target: { kind: "settings" },
     },
     {
       id: "action:import",
@@ -158,23 +140,35 @@ export function paletteItems(sources: PaletteSources): PaletteItem[] {
       target: { kind: "save-chat", assistantId: sources.savable.id },
     });
   }
-  for (const s of SCREENS) {
+  // The pages that are screens of their own (Models, Mail) are listed before
+  // anything is typed, as they were when they had a place in the sidebar.
+  for (const p of SETTINGS_PAGES) {
+    // A page that is one section answers to that section's words too.
+    const own = SETTINGS_SECTIONS.filter(
+      (s) =>
+        (p.sections as readonly string[]).includes(s.id) &&
+        sectionStandsAlone(s.id),
+    );
     items.push({
-      id: `screen:${s.screen}`,
-      group: "screens",
-      label: s.label,
-      keywords: s.keywords,
-      target: { kind: "screen", screen: s.screen },
+      id: `page:${p.id}`,
+      group: "settings",
+      label: p.title,
+      detail: "Settings",
+      keywords: [p.keywords, ...own.map((s) => s.keywords)].join(" "),
+      target: { kind: "settings", page: p.id },
+      ...(p.sections.length === 0 ? { resting: true } : {}),
     });
   }
+  // A section that is its whole page is found as the page.
   for (const s of SETTINGS_SECTIONS) {
+    if (sectionStandsAlone(s.id)) continue;
     items.push({
-      id: `section:${s.title}`,
+      id: `section:${s.id}`,
       group: "settings",
       label: s.title,
-      detail: "Settings",
+      detail: `Settings, ${pageTitle(pageOfSection(s.id))}`,
       keywords: s.keywords,
-      target: { kind: "section", title: s.title },
+      target: { kind: "settings", section: s.id },
     });
   }
   for (const c of sources.connections) {
@@ -183,7 +177,7 @@ export function paletteItems(sources: PaletteSources): PaletteItem[] {
       group: "connections",
       label: c.name,
       detail: "Connection",
-      target: { kind: "screen", screen: "connections" },
+      target: { kind: "settings", page: "connections" },
     });
   }
   for (const m of sources.mailAccounts) {
@@ -192,14 +186,14 @@ export function paletteItems(sources: PaletteSources): PaletteItem[] {
       group: "connections",
       label: m.name,
       detail: "Mail",
-      target: { kind: "screen", screen: "mail" },
+      target: { kind: "settings", page: "mail" },
     });
   }
   return items;
 }
 
-/** The groups shown before anything is typed. */
-const RESTING: readonly PaletteGroup[] = ["assistants", "actions", "screens"];
+/** The groups shown before anything is typed, with the items marked `resting`. */
+const RESTING: readonly PaletteGroup[] = ["assistants", "actions"];
 
 /**
  * How well an item matches, lower first; null when a word is missing.
@@ -226,7 +220,8 @@ export function paletteScore(
 
 /**
  * The items for what is typed, in group order, best first within a group, at
- * most `GROUP_LIMIT` a group. With nothing typed: assistants, actions, screens.
+ * most `GROUP_LIMIT` a group. With nothing typed: assistants, actions, and the
+ * Settings pages that are screens of their own.
  */
 export function filterPalette(
   items: readonly PaletteItem[],
@@ -237,8 +232,10 @@ export function filterPalette(
   for (const group of GROUP_ORDER) {
     const inGroup = items.filter((item) => item.group === group);
     if (terms.length === 0) {
-      if (RESTING.includes(group))
-        picked.push(...inGroup.slice(0, GROUP_LIMIT));
+      const resting = RESTING.includes(group)
+        ? inGroup
+        : inGroup.filter((item) => item.resting);
+      picked.push(...resting.slice(0, GROUP_LIMIT));
       continue;
     }
     const scored = inGroup

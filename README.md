@@ -119,7 +119,7 @@ Check it: `sha256sum -c SHA256SUMS.txt --ignore-missing`.
   are; otherwise the app reads their text on this computer, scanned pages too.
   English is built in; other languages download from Settings on your click.
 - **Find anything.** Ctrl+K (Cmd+K on a Mac), or Find anything in the
-  sidebar, finds an assistant, a screen, a setting, a connection or an action,
+  sidebar, finds an assistant, a Settings page or section, a connection or an action,
   and searches every chat on this computer, case and accents aside. A result
   opens the chat at the message. Save a chat as a Markdown file where you
   pick, with no key in it, and copy any answer.
@@ -158,8 +158,12 @@ Check it: `sha256sum -c SHA256SUMS.txt --ignore-missing`.
 - **Look up a company.** See what a company publishes for personal agents
   (the Personal Agent Protocol's `poppy.json`), and add one of its servers as
   a connection yourself.
-- **Settings.** Theme, text size, the send key, what is remembered, your data
-  folder, and an update check you can turn on.
+- **Settings, one place.** The sidebar keeps to your assistants; Settings
+  (its row at the sidebar's foot, or Cmd+comma, Ctrl+comma) has its pages on
+  its own left side: General (theme, text size, the send key, the main
+  assistant, your data folder), Models, Connections, Mail, Accessibility,
+  Reading other languages, Move or back up, and Updates and About, with an
+  update check you can turn on.
 - **Your mail, read only.** Add a mailbox with an app password and tick it for
   an assistant. It can list and read messages, and never sends, deletes,
   moves or marks anything. Every look asks first.
@@ -299,7 +303,7 @@ pnpm dev
 - **The data folder** of `pnpm dev` is the installed app's own:
   `~/Library/Application Support/OpenStellarFirm` on a Mac,
   `%APPDATA%\OpenStellarFirm` on Windows, and `~/.config/OpenStellarFirm` on
-  Linux. Settings, Your data, opens it.
+  Linux. Settings, General, Your data, opens it.
 
 ```bash
 pnpm dev        # the app, with hot reload
@@ -379,4 +383,4 @@ If you share a changed version, give it its own name and look.
 Other people's work inside a built app is listed in
 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md); the build writes their full
 licence texts to THIRD-PARTY-LICENSES.txt, which ships beside the app and opens
-from Settings, About.
+from Settings, Updates and About.

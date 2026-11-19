@@ -9,6 +9,7 @@ import type {
   PresetId,
 } from "../../shared/types";
 import { api } from "./bridge";
+import { pageTitle } from "./settings-sections";
 import {
   ErrorLine,
   message as errorText,
@@ -311,10 +312,9 @@ function host(baseUrl: string): string {
 interface ModelsScreenProps {
   state: AppState;
   onChanged(): Promise<void>;
-  onBack(): void;
 }
 
-export function ModelsScreen({ state, onChanged, onBack }: ModelsScreenProps) {
+export function ModelsScreen({ state, onChanged }: ModelsScreenProps) {
   const [checks, setChecks] = useState<
     Record<string, { ok: boolean; text: string }>
   >({});
@@ -356,7 +356,7 @@ export function ModelsScreen({ state, onChanged, onBack }: ModelsScreenProps) {
   return (
     <div className="screen">
       <div className="screen-body">
-        <ScreenHead title="Your models" onBack={onBack}>
+        <ScreenHead title={pageTitle("models")}>
           Your assistants think only with what you set up here. Calls go from
           this computer straight to the model. OpenStellarFirm adds no fee and
           sees nothing.

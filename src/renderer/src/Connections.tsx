@@ -14,6 +14,7 @@ import type {
 } from "../../shared/types";
 import { api } from "./bridge";
 import { ConnectionGallery } from "./ConnectionGallery";
+import { pageTitle } from "./settings-sections";
 import {
   ErrorLine,
   message as errorText,
@@ -614,8 +615,7 @@ function CompanyLookup({
 interface ScreenProps {
   state: AppState;
   onChanged(): Promise<void>;
-  onBack(): void;
-  /** Opens the Mail screen, where the person's own mailboxes live. */
+  /** Opens Settings, Mail, where the person's own mailboxes live. */
   onMail(): void;
 }
 
@@ -637,12 +637,7 @@ function freeName(base: string, taken: string[]): string {
   return base;
 }
 
-export function ConnectionsScreen({
-  state,
-  onChanged,
-  onBack,
-  onMail,
-}: ScreenProps) {
+export function ConnectionsScreen({ state, onChanged, onMail }: ScreenProps) {
   const [open, setOpen] = useState<Open | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
   const [checked, setChecked] = useState<Record<string, string>>({});
@@ -721,7 +716,7 @@ export function ConnectionsScreen({
   return (
     <div className="screen">
       <div className="screen-body">
-        <ScreenHead title="Your connections" onBack={onBack}>
+        <ScreenHead title={pageTitle("connections")}>
           A connection lets an assistant use the tools of another service. You
           make a key in that service, and this app sends it only to that
           service, straight from this computer. You choose which assistants may

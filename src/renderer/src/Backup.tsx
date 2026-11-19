@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { BackupResult } from "../../shared/types";
 import { api } from "./bridge";
+import { pageTitle } from "./settings-sections";
 import {
   ErrorLine,
   message as errorText,
@@ -12,7 +13,6 @@ import {
 interface BackupProps {
   /** Assistants were added, so the app should read its state again. */
   onChanged(): void;
-  onBack(): void;
   onCloud(): void;
 }
 
@@ -28,7 +28,7 @@ function resultLine(r: BackupResult): string {
 }
 
 /** Move every assistant to another computer, or keep a copy. */
-export function BackupScreen({ onChanged, onBack, onCloud }: BackupProps) {
+export function BackupScreen({ onChanged, onCloud }: BackupProps) {
   const [includeChats, setIncludeChats] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -52,7 +52,7 @@ export function BackupScreen({ onChanged, onBack, onCloud }: BackupProps) {
   return (
     <div className="screen">
       <div className="screen-body">
-        <ScreenHead title="Move or back up" onBack={onBack}>
+        <ScreenHead title={pageTitle("backup")}>
           Everything stays on this computer. To use your assistants on another
           computer, save them to a file here and open that file in the app
           there.

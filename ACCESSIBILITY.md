@@ -27,21 +27,24 @@ computer only, with the rest of your settings.
   the computer has no such voice, the button says read aloud is not available
   here.
 
-Text size is in Settings, Appearance.
+Text size is in Settings, General, Appearance.
 
 And, always on:
 
 - **Skip links.** The first Tab shows "Skip to the message box" and "Skip to
   the main content", past the sidebar.
-- **Landmarks and headings.** The sidebar, its navigation and the main area
-  are named landmarks. Each screen has one top heading, then sections in
+- **Landmarks and headings.** The sidebar, Settings' list of pages and the
+  main area are named landmarks. Each screen has one top heading, then sections in
   order.
 - **One announcer.** A screen reader hears when an answer is finished, when a
   step waits for your Approve, and when something went wrong. An answer is not
   read word by word while it is written. What an assistant is doing right now
   ("Thinking…", "Reading notes.md…") is a status line.
 - **Keyboard.** Every control can be reached with Tab and shows a focus ring.
-  Ctrl+/ (Cmd+/ on a Mac) lists the app's shortcuts. A question asked in
+  Ctrl+/ (Cmd+/ on a Mac) lists the app's shortcuts. Ctrl+comma (Cmd+comma)
+  opens Settings with the focus on the page's heading; its pages are plain
+  buttons in order, the open one marked as the current page, and Escape goes
+  back to the chats (not from a text field). A question asked in
   place, such as "Remove this?", takes the focus, closes with Escape, and gives
   the focus back. The shortcuts list is a modal dialog that keeps the focus
   inside until you close it.

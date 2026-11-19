@@ -398,13 +398,9 @@ h3[id] {
   }
 }
 
-.sidebar-nav {
-  margin: 0;
+/* The foot is one row, Settings: the sidebar is for the assistants. */
+.sidebar-foot {
   padding: 0.5rem 0.75rem 0.75rem;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 0.125rem;
   border-top: 1px solid var(--line);
 }
 
@@ -550,6 +546,96 @@ h3[id] {
   line-height: 1.4;
 }
 
+/*
+ * Settings: the one place where the app is set up. Its pages are listed on
+ * its own left side, and the open page scrolls beside the list, which never
+ * moves: the list keeps its width, and the page keeps room for a scrollbar
+ * whether it has one or not, so nothing shifts between pages.
+ */
+.settings-home {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.settings-home > .screen {
+  min-width: 0;
+}
+
+/* The page's title stands level with Back to chats, across the list. */
+.settings-home .screen-title {
+  min-height: var(--control);
+  display: flex;
+  align-items: center;
+}
+
+.settings-nav {
+  flex: 0 0 14rem;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.5rem 0.75rem 1rem;
+  border-right: 1px solid var(--line);
+}
+
+.settings-pages {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+/* A little room where a new kind of page starts. */
+.settings-pages > li[data-starts] {
+  margin-top: 0.75rem;
+}
+
+.settings-page {
+  color: var(--dim);
+}
+
+.settings-page:hover,
+.settings-page[aria-current="page"] {
+  color: var(--text);
+}
+
+/*
+ * A narrow window has no room for a list beside the page: the pages become a
+ * row of buttons over it, wrapping to a second line rather than hiding any.
+ */
+@media (max-width: 64rem) {
+  .settings-home {
+    flex-direction: column;
+  }
+
+  .settings-nav {
+    flex: 0 0 auto;
+    overflow: visible;
+    gap: 0.5rem;
+    padding: 0.75rem clamp(1.25rem, 5%, 3.5rem);
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .settings-pages {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+  }
+
+  .settings-pages > li[data-starts] {
+    margin-top: 0;
+  }
+
+  .settings-page {
+    white-space: nowrap;
+  }
+}
+
 .stack {
   display: flex;
   flex-direction: column;
@@ -674,6 +760,12 @@ h3[id] {
 .screen-head .back-btn,
 .screen-body > .stack-tight:first-child > div:first-child:has(> .btn) {
   margin-bottom: 0.75rem;
+}
+
+/* Lined up with the pages under it, not pulled out as on a screen's head. */
+.settings-nav .back-btn {
+  align-self: flex-start;
+  margin-left: 0;
 }
 
 .icon-btn {
@@ -2153,7 +2245,8 @@ h4.field-label {
   white-space: nowrap;
 }
 
-.find-btn .kbd {
+.find-btn .kbd,
+.settings-btn .kbd {
   margin-left: auto;
 }
 
@@ -2393,6 +2486,11 @@ html[data-text-size="large"] {
 .stack-tight + .settings-section {
   padding-top: 0;
   border-top: 0;
+}
+
+/* A section that is its whole page reads as the page's lede, close under its title. */
+.screen-head + div.settings-section {
+  margin-top: -1.25rem;
 }
 
 /* Accessibility: skip links, the shortcuts list, read aloud */
@@ -2856,6 +2954,7 @@ kbd {
 /* Less motion: by the person's choice, or the computer's. */
 :where(:root[data-motion="reduce"]) {
   .main > .screen,
+  .main > .settings-home,
   .main > .form-layout,
   .main > .empty,
   .chat-scroll > .empty,
@@ -2920,8 +3019,13 @@ kbd {
     transform: scale(0.985);
   }
 
-  /* A new screen or chat: a short fade and rise of the pane, nothing else. */
+  /*
+   * A new screen or chat: a short fade and rise of the pane, nothing else.
+   * Settings rises once as it opens; its pages, picked from its own list,
+   * change at once, as tabs do.
+   */
   .main > .screen,
+  .main > .settings-home,
   .main > .form-layout,
   .main > .empty,
   .chat-scroll > .empty,
