@@ -45,27 +45,26 @@ const RATE_NAMES: Record<ReadRate, string> = {
 const FLAGS: {
   key: "underlineLinks" | "strongFocus" | "readingSpace" | "largeTargets";
   name: string;
-  note: string;
+  /** Only where the name does not say it all. */
+  note?: string;
 }[] = [
   {
     key: "underlineLinks",
     name: "Underline links",
-    note: "Every link, and every button that opens a page in your browser, is underlined.",
+    note: "Buttons that open your browser are underlined too.",
   },
   {
     key: "strongFocus",
     name: "A stronger focus ring",
-    note: "A thicker ring around the control you reach with the keyboard.",
   },
   {
     key: "readingSpace",
     name: "More space for reading",
-    note: "More space between lines, letters and words.",
+    note: "Between lines, letters and words.",
   },
   {
     key: "largeTargets",
     name: "Larger click targets",
-    note: "Bigger buttons, rows and boxes, easier to hit.",
   },
 ];
 
@@ -96,15 +95,11 @@ export function AccessibilitySection({
 
   return (
     <Section section="accessibility">
-      <p className="faint">
-        Contrast and motion follow your computer's own settings until you change
-        them here. Everything here is saved on this computer only.
-      </p>
+      <p className="faint">Everything here is saved on this computer only.</p>
       <Choices
         legend="Contrast"
         value={prefs.contrast}
         options={CONTRASTS.map((id) => ({ id, name: CONTRAST_NAMES[id] }))}
-        note="More contrast makes text, edges and lines stronger, in light and dark."
         onPick={(contrast) => change({ contrast })}
       />
       <Choices
@@ -141,7 +136,7 @@ export function AccessibilitySection({
             id: `${rate}`,
             name: RATE_NAMES[rate],
           }))}
-          note="Each answer has a Read aloud button. It uses a voice on this computer only, so no text leaves it."
+          note="It uses a voice on this computer, so no text leaves it."
           onPick={(rate) => change({ readRate: Number(rate) as ReadRate })}
         />
       )}
@@ -163,6 +158,20 @@ export function AccessibilitySection({
           Keyboard shortcuts
         </button>
       </div>
+      <details className="how">
+        <summary>How these settings work</summary>
+        <p className="faint">
+          Contrast and motion follow your computer's own settings until you
+          change them here. More contrast makes text, edges and lines stronger,
+          in light and dark. Underline links underlines every link, and every
+          button that opens a page in your browser. A stronger focus ring is a
+          thicker ring around the control you reach with the keyboard. Larger
+          click targets makes buttons, rows and boxes bigger and easier to hit.
+          Each answer has a Read aloud button. It uses a voice on this computer
+          only, so no text leaves it. Everything here is saved on this computer
+          only.
+        </p>
+      </details>
     </Section>
   );
 }
@@ -174,7 +183,7 @@ function Flag({
   onChange,
 }: {
   name: string;
-  note: string;
+  note?: string;
   checked: boolean;
   onChange(on: boolean): void;
 }) {
@@ -185,14 +194,16 @@ function Flag({
         <input
           type="checkbox"
           checked={checked}
-          aria-describedby={id}
+          aria-describedby={note ? id : undefined}
           onChange={(event) => onChange(event.target.checked)}
         />
         <span>{name}</span>
       </label>
-      <p className="faint" id={id}>
-        {note}
-      </p>
+      {note ? (
+        <p className="faint" id={id}>
+          {note}
+        </p>
+      ) : null}
     </div>
   );
 }

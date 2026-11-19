@@ -170,7 +170,7 @@ export interface Preset {
   note: string;
 }
 
-const KEY = "Your own key. You name the model.";
+const KEY = "Your own key, and you name the model.";
 
 function hosted(
   id: PresetId,
@@ -203,7 +203,7 @@ export const PRESETS: Preset[] = [
     "Ollama",
     "local",
     "http://localhost:11434/v1",
-    "Runs on this computer. Free, and nothing leaves this machine.",
+    "Runs on this computer, free, and nothing leaves it.",
     { local: true, needsKey: false, lists: true },
   ),
   hosted(
@@ -211,7 +211,7 @@ export const PRESETS: Preset[] = [
     "LM Studio",
     "local",
     "http://localhost:1234/v1",
-    "Runs on this computer. Free, and nothing leaves this machine.",
+    "Runs on this computer, free, and nothing leaves it.",
     { local: true, needsKey: false, lists: true },
   ),
   hosted(
@@ -289,7 +289,7 @@ export const PRESETS: Preset[] = [
     "Hugging Face",
     "fast",
     "https://router.huggingface.co/v1",
-    "Inference Providers. Use a token that may call them.",
+    "Inference Providers, with a token that may call them.",
     { lists: true },
   ),
   hosted(
@@ -313,7 +313,7 @@ export const PRESETS: Preset[] = [
     "Requesty (Europe)",
     "routers",
     "https://router.eu.requesty.ai/v1",
-    `${KEY} Pick its EU models, whose names end in @eu, to keep calls in Europe.`,
+    "Your own key, and its models whose names end in @eu keep calls in Europe.",
     { lists: true },
   ),
   hosted(
@@ -321,7 +321,7 @@ export const PRESETS: Preset[] = [
     "Vercel AI Gateway",
     "routers",
     "https://ai-gateway.vercel.sh/v1",
-    "Your own AI Gateway key. Models are named like anthropic/claude-opus-5.",
+    "Your own AI Gateway key, with models named like anthropic/claude-opus-5.",
     { lists: true },
   ),
   hosted("llmapi", "LLM API", "routers", "https://api.llmapi.ai/v1", KEY),
@@ -330,21 +330,21 @@ export const PRESETS: Preset[] = [
     "Ironlane",
     "routers",
     "https://api.ironlane.ai/v1",
-    "Your own key. Models are named like openai/gpt-4o-mini.",
+    "Your own key, with models named like openai/gpt-4o-mini.",
   ),
   hosted(
     "orcarouter",
     "OrcaRouter",
     "routers",
     "https://api.orcarouter.ai/v1",
-    "Your own key. Models are named like openai/gpt-4o-mini.",
+    "Your own key, with models named like openai/gpt-4o-mini.",
   ),
   hosted(
     "azure",
     "Azure OpenAI",
     "clouds",
     "",
-    "Your resource's key. Type the resource name, and the name you gave the deployment as the model.",
+    "Your resource's key, with the name you gave the deployment as the model.",
     { address: "azure", header: "api-key" },
   ),
   hosted(
@@ -352,7 +352,7 @@ export const PRESETS: Preset[] = [
     "Amazon Bedrock",
     "clouds",
     "",
-    "A Bedrock API key, and the region it was made in. You name the model.",
+    "A Bedrock API key and the region it was made in, and you name the model.",
     { address: "bedrock" },
   ),
   hosted(
@@ -360,7 +360,7 @@ export const PRESETS: Preset[] = [
     "LiteLLM gateway",
     "own",
     "",
-    "Your own LiteLLM gateway: https, or http on this computer. A key only if yours asks for one.",
+    "Your own LiteLLM gateway, https or http on this computer, with a key only if it asks.",
     { address: "own", needsKey: false, lists: true },
   ),
   hosted(
@@ -368,7 +368,7 @@ export const PRESETS: Preset[] = [
     "Your own endpoint",
     "own",
     "",
-    "Any OpenAI-compatible address. A key only if it asks for one.",
+    "Any OpenAI-compatible address, with a key only if it asks for one.",
     { address: "own", needsKey: false, lists: true },
   ),
 ];

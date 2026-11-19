@@ -38,10 +38,10 @@ interface SettingsHomeProps {
   onCloud(): void;
 }
 
-const THEME_CHOICES: Record<Theme, { name: string; note: string }> = {
-  system: { name: "System", note: "Follow this computer's setting." },
-  dark: { name: "Dark", note: "Night background, ivory text." },
-  light: { name: "Light", note: "Ivory background, night text." },
+const THEME_NAMES: Record<Theme, string> = {
+  system: "System",
+  dark: "Dark",
+  light: "Light",
 };
 
 const SIZE_NAMES: Record<TextSize, string> = {
@@ -254,18 +254,13 @@ function GeneralPage({
         <Choices
           legend="Theme"
           value={settings.theme}
-          options={THEMES.map((id) => ({
-            id,
-            name: THEME_CHOICES[id].name,
-          }))}
-          note={THEME_CHOICES[settings.theme].note}
+          options={THEMES.map((id) => ({ id, name: THEME_NAMES[id] }))}
           onPick={(theme) => void crossFadeTheme(theme, () => save({ theme }))}
         />
         <Choices
           legend="Text size"
           value={settings.textSize}
           options={TEXT_SIZES.map((id) => ({ id, name: SIZE_NAMES[id] }))}
-          note="Makes everything in the app bigger or smaller."
           onPick={(textSize) => void save({ textSize })}
         />
       </Section>
@@ -283,8 +278,8 @@ function GeneralPage({
           }))}
           note={
             settings.sendWith === "enter"
-              ? "Enter sends. Shift+Enter makes a new line."
-              : `${mac ? "Cmd" : "Ctrl"}+Enter sends. Enter makes a new line.`
+              ? "Enter sends, Shift+Enter makes a new line."
+              : `${mac ? "Cmd" : "Ctrl"}+Enter sends, Enter makes a new line.`
           }
           onPick={(sendWith) => void save({ sendWith })}
         />
@@ -297,6 +292,7 @@ function GeneralPage({
         <label className="choice" style={{ alignSelf: "flex-start" }}>
           <input
             type="checkbox"
+            aria-describedby="cloud-card-note"
             checked={!settings.hideCloudCard}
             onChange={(event) =>
               void save({ hideCloudCard: !event.target.checked })
@@ -304,9 +300,9 @@ function GeneralPage({
           />
           <span>Show the StellarFirm card in the sidebar</span>
         </label>
-        <p className="faint">
-          The card is a link to StellarFirm, the paid cloud service. Nothing is
-          sent anywhere unless you click it.
+        <p className="faint" id="cloud-card-note">
+          A link to StellarFirm's paid cloud, and nothing is sent unless you
+          click it.
         </p>
       </Section>
 

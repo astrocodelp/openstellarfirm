@@ -161,7 +161,7 @@ function MailForm({
         />
         <span className="faint" id={`${ids}-pw-note`}>
           {keychain
-            ? "Kept in this computer's keychain. It is sent only to this server, over a secure connection, and never shown again."
+            ? "Kept in this computer's keychain, sent only to this server over a secure connection and never shown again."
             : noKeychainNote(
                 document.documentElement.dataset.platform,
                 "password",
@@ -171,14 +171,15 @@ function MailForm({
       <label className="choice" style={{ alignSelf: "flex-start" }}>
         <input
           type="checkbox"
+          aria-describedby={`${ids}-own-note`}
           checked={ownNetwork}
           onChange={(event) => setOwnNetwork(event.target.checked)}
         />
         <span>This server is on my own network</span>
       </label>
-      <p className="faint">
-        Tick this only for a server at home or at work, on a private address.
-        The connection is secure and its certificate is checked either way.
+      <p className="faint" id={`${ids}-own-note`}>
+        Only for a server at home or at work on a private address, and its
+        certificate is checked either way.
       </p>
 
       <div className="wrap">
@@ -210,8 +211,7 @@ function MailForm({
             <p className="faint">…and {found.more} more.</p>
           ) : null}
           <p className="faint">
-            The check signed in, listed the folders and signed out. It read no
-            message.
+            The check listed the folders and read no message.
           </p>
         </div>
       ) : null}
@@ -265,32 +265,31 @@ export function MailScreen({ state, onChanged }: ScreenProps) {
     <div className="screen">
       <div className="screen-body">
         <ScreenHead title={pageTitle("mail")}>
-          Let an assistant read your mail, only when you approve. It can look
-          through recent messages and read one at a time. It cannot send,
-          answer, delete, move or mark anything, and it never opens an
-          attachment. What it reads is sent to the model you chose, so with a
-          model on this computer it stays here. You choose which assistants may
-          use an account, in each assistant's own settings.
+          Read only, when you approve: an assistant can never send, delete, move
+          or mark mail.
         </ScreenHead>
-
-        <section className="stack" aria-labelledby="mail-help-title">
-          <h2 className="section-title" id="mail-help-title">
-            Before you add one
-          </h2>
-          <p className="dim">
-            Use an app password made for this app, not your main password.
-            Gmail, iCloud, Fastmail and many others let you make one in their
-            account settings. Some providers, for example Microsoft 365, do not
-            allow app passwords, and then this will not work.
+        <details className="how">
+          <summary>How mail works</summary>
+          <p className="faint">
+            Let an assistant read your mail, only when you approve. It can look
+            through recent messages and read one at a time. It cannot send,
+            answer, delete, move or mark anything, and it never opens an
+            attachment. What it reads is sent to the model you chose, so with a
+            model on this computer it stays here. You choose which assistants
+            may use an account, in each assistant's own settings. Use an app
+            password made for this app, not your main password. Gmail, iCloud,
+            Fastmail and many others let you make one in their account settings.
+            Some providers, for example Microsoft 365, do not allow app
+            passwords, and then this will not work.
           </p>
-        </section>
+        </details>
 
         <section className="stack" aria-labelledby="mail-accounts-title">
           <h2 className="section-title" id="mail-accounts-title">
             Set up
           </h2>
           {accounts.length === 0 ? (
-            <p className="dim">Nothing yet. Add an account below.</p>
+            <p className="dim">No mail accounts yet.</p>
           ) : (
             <ul className="list card">
               {accounts.map((account) => {
@@ -391,8 +390,7 @@ export function MailScreen({ state, onChanged }: ScreenProps) {
           </h2>
           {accounts.length >= MAX_ACCOUNTS ? (
             <p className="dim">
-              You have {MAX_ACCOUNTS} accounts, which is the most. Remove one to
-              add another.
+              {MAX_ACCOUNTS} accounts is the most, so remove one to add another.
             </p>
           ) : (
             <div className="card pad">

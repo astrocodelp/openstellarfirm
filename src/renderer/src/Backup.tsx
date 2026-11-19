@@ -53,9 +53,8 @@ export function BackupScreen({ onChanged, onCloud }: BackupProps) {
     <div className="screen">
       <div className="screen-body">
         <ScreenHead title={pageTitle("backup")}>
-          Everything stays on this computer. To use your assistants on another
-          computer, save them to a file here and open that file in the app
-          there.
+          Save your assistants to a file, then open it in the app on another
+          computer.
         </ScreenHead>
 
         <section
@@ -66,24 +65,20 @@ export function BackupScreen({ onChanged, onCloud }: BackupProps) {
             Export everything
           </h2>
           <p className="faint">
-            Saves each assistant's name, look, brief and skills to one file.
-            Your keys, models, folders, sites and settings are never in it.
+            Your keys, models, folders, sites and settings are never in the
+            file.
           </p>
           <label className="choice" style={{ alignSelf: "flex-start" }}>
             <input
               type="checkbox"
+              aria-describedby="backup-chats-note"
               checked={includeChats}
               onChange={(event) => setIncludeChats(event.target.checked)}
             />
             <span>Include my chats</span>
           </label>
-          <p className="faint">
-            Chats can hold private text, and the file is not encrypted. Keep it
-            somewhere you trust.
-          </p>
-          <p className="faint">
-            Files you attached to messages are not in it. They stay on this
-            computer; a chat in the backup names them but does not hold them.
+          <p className="faint" id="backup-chats-note">
+            The file is not encrypted, so keep it somewhere you trust.
           </p>
           <div>
             <button
@@ -101,6 +96,17 @@ export function BackupScreen({ onChanged, onCloud }: BackupProps) {
               Export everything
             </button>
           </div>
+          <details className="how">
+            <summary>What a backup holds</summary>
+            <p className="faint">
+              Each assistant's name, look, brief and skills, in one file. Your
+              keys, models, folders, sites and settings are never in it. Chats
+              can hold private text, and the file is not encrypted. Files you
+              attached to messages are not in it either: they stay on this
+              computer, and a chat in the backup names them but does not hold
+              them.
+            </p>
+          </details>
         </section>
 
         <section
@@ -111,10 +117,7 @@ export function BackupScreen({ onChanged, onCloud }: BackupProps) {
             Import a backup
           </h2>
           <p className="faint">
-            Adds the assistants in a backup file as new ones. Nothing you
-            already have is changed or removed. Each one starts with no folders,
-            no sites, web pages off and no model of its own, so you choose those
-            again.
+            Adds them as new assistants and changes nothing you already have.
           </p>
           <div>
             <button
@@ -134,6 +137,15 @@ export function BackupScreen({ onChanged, onCloud }: BackupProps) {
               Import a backup
             </button>
           </div>
+          <details className="how">
+            <summary>How an import works</summary>
+            <p className="faint">
+              Adds the assistants in a backup file as new ones. Nothing you
+              already have is changed or removed. Each one starts with no
+              folders, no sites, web pages off and no model of its own, so you
+              choose those again.
+            </p>
+          </details>
         </section>
 
         <div className="stack" aria-live="polite">

@@ -143,3 +143,92 @@ describe("the assistant's form", () => {
     expect(rule(".assistant-form")).toMatch(/scroll-padding-bottom/);
   });
 });
+
+/**
+ * The quiet lines of a screen's source: the text of each `faint` or `dim`
+ * element, a screen head's line, and each `note` a choice or a tick box shows.
+ * A line made of a choice between strings gives each string.
+ */
+function quietLines(page: string): string[] {
+  const found = [
+    ...[...page.matchAll(/className="(?:faint|dim)[^"]*"[^>]*>([^<]*)</g)].map(
+      (m) => m[1] ?? "",
+    ),
+    ...[...page.matchAll(/<ScreenHead[^>]*>([^<]*)<\/ScreenHead>/g)].map(
+      (m) => m[1] ?? "",
+    ),
+    ...[...page.matchAll(/\bnote(?:=|: )"([^"]*)"/g)].map((m) => m[1] ?? ""),
+  ];
+  return found.flatMap((raw) => {
+    // A plain value read in place, such as {main.name}, is one word.
+    const text = raw.replace(/\{[^{}"'`]*\}/g, "X");
+    if (!text.includes("{")) return [text];
+    return [...text.matchAll(/"([^"]*)"|`([^`]*)`/g)].map(
+      (m) => m[1] ?? m[2] ?? "",
+    );
+  });
+}
+
+function sentences(text: string): number {
+  return (
+    text
+      .replace(/\s+/g, " ")
+      .trim()
+      .match(/[.?!](\s|$)/g)?.length ?? 0
+  );
+}
+
+describe("Settings and the first run", () => {
+  /**
+   * The founder's rule, as on the assistant's form: at most one short
+   * sentence explains a part of a page or a field. The longer story is one
+   * click away, in a "How … works" fold (a details element).
+   */
+  it("explains each part in one sentence, with longer text folded away", () => {
+    for (const name of [
+      "Settings.tsx",
+      "SettingsMain.tsx",
+      "SettingsData.tsx",
+      "SettingsReading.tsx",
+      "SettingsUpdates.tsx",
+      "Models.tsx",
+      "Connections.tsx",
+      "ConnectionGallery.tsx",
+      "Mail.tsx",
+      "Backup.tsx",
+      "Accessibility.tsx",
+      "Licences.tsx",
+      "Welcome.tsx",
+    ]) {
+      const page = read(name)
+        .replace(/<details[\s\S]*?<\/details>/g, "")
+        // A question asked in place (Remove, Delete) is not part of the page.
+        .replace(/<InlineConfirm[\s\S]*?<\/InlineConfirm>/g, "")
+        // The keyboard shortcuts list is a dialog of its own.
+        .replace(/export function ShortcutsDialog[\s\S]*?^}/m, "");
+      const lines = quietLines(page);
+      expect(lines.length, name).toBeGreaterThan(0);
+      for (const line of lines)
+        expect(sentences(line), `${name}: ${line.trim()}`).toBeLessThanOrEqual(
+          1,
+        );
+    }
+  });
+
+  it("keeps the longer story of a page in a fold, not deleted", () => {
+    for (const name of [
+      "Models.tsx",
+      "Connections.tsx",
+      "Mail.tsx",
+      "Backup.tsx",
+      "SettingsMain.tsx",
+      "SettingsData.tsx",
+      "SettingsReading.tsx",
+      "SettingsUpdates.tsx",
+      "Accessibility.tsx",
+    ])
+      expect(read(name), name).toMatch(
+        /<details className="how">\s*<summary>[^<]+<\/summary>/,
+      );
+  });
+});

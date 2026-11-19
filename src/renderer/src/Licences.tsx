@@ -65,9 +65,8 @@ function LicencesDialog({ onClose }: { onClose(): void }) {
           </button>
         </div>
         <p className="faint">
-          The full licence text of each piece of other people's work inside this
-          app: fonts, React, Electron, PDF.js and Tesseract.js. The same text is
-          in THIRD-PARTY-LICENSES.txt beside the app's files.
+          Fonts, React, Electron, PDF.js and Tesseract.js, as in
+          THIRD-PARTY-LICENSES.txt beside the app's files.
         </p>
         {text === undefined ? (
           <p className="faint" role="status">
@@ -75,8 +74,8 @@ function LicencesDialog({ onClose }: { onClose(): void }) {
           </p>
         ) : text === null ? (
           <p className="faint">
-            This copy of the app was not built with the licence file. Run pnpm
-            build, or read THIRD-PARTY-NOTICES.md in the source.
+            Built without the licence file: run pnpm build, or read
+            THIRD-PARTY-NOTICES.md in the source.
           </p>
         ) : (
           <section

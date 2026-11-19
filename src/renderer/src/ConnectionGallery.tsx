@@ -173,7 +173,7 @@ export function ConnectionGallery({
             }}
           />
           <span className="faint" id={`${ids}-hint`}>
-            By name, what it does or its group. Enter opens the first one, Esc
+            By name, what it does or its group; Enter opens the first, Esc
             clears.
           </span>
         </label>
@@ -203,8 +203,8 @@ export function ConnectionGallery({
 
       {onMail && MAIL_WORDS.test(query) ? (
         <p className="card pad gallery-mail">
-          Looking for your own mailbox? Gmail, Outlook, iCloud and any IMAP
-          mailbox are added on the Mail screen, read only.{" "}
+          Your own Gmail, Outlook, iCloud or IMAP mailbox is added on the Mail
+          screen, read only.{" "}
           <button type="button" className="link-btn" onClick={onMail}>
             Open Mail
           </button>
@@ -221,8 +221,8 @@ export function ConnectionGallery({
                 : "This group has no services yet."}
           </p>
           <p className="dim">
-            If the service runs its own MCP server, add it by its address. Many
-            more apps are reachable through your own Composio account.
+            Add it by its address if it runs its own MCP server, or use your own
+            Composio account.
           </p>
           <div className="wrap">
             {elsewhere ? (

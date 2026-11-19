@@ -12,6 +12,10 @@ describe("the preset catalog", () => {
       expect(groups.has(preset.group), preset.id).toBe(true);
       expect(preset.note.trim().length, preset.id).toBeGreaterThan(10);
       expect(preset.note, preset.id).not.toMatch(/\b(bot|robot)s?\b/i);
+      // The help line sits under a field: one short sentence, no more.
+      expect(preset.note.match(/[.?!](\s|$)/g) ?? [], preset.id).toHaveLength(
+        1,
+      );
     }
     for (const group of PRESET_GROUPS) {
       expect(

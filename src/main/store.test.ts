@@ -385,7 +385,7 @@ describe("secrets", () => {
       "This computer has no keychain, so a key cannot be saved here.",
     );
     expect(noKeychainNote("linux", "password")).toMatch(
-      /password cannot be saved here\. Start GNOME Keyring, KWallet/,
+      /password cannot be saved here until you start GNOME Keyring, KWallet/,
     );
   });
 });

@@ -40,12 +40,13 @@ export function UpdatesSection({
   return (
     <Section section="updates">
       <p className="faint">
-        The app never downloads or installs anything by itself. It can only tell
-        you that a newer version exists.
+        The app only tells you a newer version exists, and never installs one by
+        itself.
       </p>
       <label className="choice" style={{ alignSelf: "flex-start" }}>
         <input
           type="checkbox"
+          aria-describedby="update-check-note"
           checked={settings.checkUpdates}
           onChange={(event) =>
             void save({ checkUpdates: event.target.checked })
@@ -53,10 +54,8 @@ export function UpdatesSection({
         />
         <span>Look for a newer version once a day</span>
       </label>
-      <p className="faint">
-        Once a day, the app asks GitHub which version is the newest. It sends
-        nothing about you. GitHub sees your network address, as any website
-        does. It is off until you turn it on.
+      <p className="faint" id="update-check-note">
+        It asks GitHub once a day and sends nothing about you.
       </p>
       <div className="wrap">
         <button
@@ -90,6 +89,16 @@ export function UpdatesSection({
       <p className="faint">
         Your version is {version}.{last ? ` Last checked ${last}.` : ""}
       </p>
+      <details className="how">
+        <summary>How the update check works</summary>
+        <p className="faint">
+          The app never downloads or installs anything by itself. It can only
+          tell you that a newer version exists. Once a day, the app asks GitHub
+          which version is the newest. It sends nothing about you. GitHub sees
+          your network address, as any website does. It is off until you turn it
+          on.
+        </p>
+      </details>
       <div aria-live="polite">
         {result ? <OkLine parentAnnounces>{result}</OkLine> : null}
       </div>
@@ -108,7 +117,7 @@ export function AboutSection({ version }: { version: string }) {
   return (
     <Section section="about">
       <p>OpenStellarFirm, version {version}</p>
-      <p className="dim">Free to use, change and share. Not to sell.</p>
+      <p className="dim">Free to use, change and share, not to sell.</p>
       <p className="faint">Apache License 2.0 with the Commons Clause.</p>
       <div className="wrap">
         {ABOUT_LINKS.map((link) => (

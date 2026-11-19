@@ -216,7 +216,7 @@ export function SourceForm({
           />
           <span className="faint" id={`${ids}-key-note`}>
             {keychain
-              ? "Kept in this computer's keychain. It is sent only to this address, and never shown again."
+              ? "Kept in this computer's keychain, sent only to this address and never shown again."
               : noKeychainNote(
                   document.documentElement.dataset.platform,
                   "key",
@@ -269,8 +269,8 @@ export function SourceForm({
         {preset.lists ? null : (
           <span className="faint" id={`${ids}-model-note`}>
             {preset.id === "azure"
-              ? "Azure does not list models. Type the name you gave the deployment."
-              : "This service does not list its models here. Type the model's name."}
+              ? "Type the name you gave the deployment, since Azure lists no models."
+              : "Type the model's name, since this service does not list them here."}
           </span>
         )}
         {looked && models.length > 0 ? (
@@ -280,8 +280,7 @@ export function SourceForm({
         ) : null}
         {picked ? (
           <span className="faint" id={`${ids}-pick`}>
-            Picked {picked.model} because {picked.reason} You can type or pick
-            another.
+            Picked {picked.model} because {picked.reason}
           </span>
         ) : null}
       </div>
@@ -357,9 +356,7 @@ export function ModelsScreen({ state, onChanged }: ModelsScreenProps) {
     <div className="screen">
       <div className="screen-body">
         <ScreenHead title={pageTitle("models")}>
-          Your assistants think only with what you set up here. Calls go from
-          this computer straight to the model. OpenStellarFirm adds no fee and
-          sees nothing.
+          Calls go straight from this computer to the model, with no fee added.
         </ScreenHead>
 
         <section className="stack" aria-labelledby="sources-title">
@@ -367,7 +364,7 @@ export function ModelsScreen({ state, onChanged }: ModelsScreenProps) {
             Set up
           </h2>
           {state.sources.length === 0 ? (
-            <p className="dim">Nothing yet. Add a model below.</p>
+            <p className="dim">No models yet.</p>
           ) : (
             <ul className="list card">
               {state.sources.map((source) => {
@@ -486,10 +483,16 @@ export function ModelsScreen({ state, onChanged }: ModelsScreenProps) {
               onSaved={() => void onChanged()}
             />
           </div>
-          <p className="faint">
-            Not here: Google Vertex AI, which signs in with a service account
-            and not a key, and any service that does not speak the OpenAI way.
-          </p>
+          <details className="how">
+            <summary>How models work</summary>
+            <p className="faint">
+              Your assistants think only with what you set up here. Calls go
+              from this computer straight to the model. OpenStellarFirm adds no
+              fee and sees nothing. Not here: Google Vertex AI, which signs in
+              with a service account and not a key, and any service that does
+              not speak the OpenAI way.
+            </p>
+          </details>
         </section>
       </div>
     </div>
