@@ -1968,6 +1968,8 @@ kbd {
   display: inline-flex;
   align-items: center;
   gap: 0.625rem;
+  /* The number changes while an answer is written; its digits keep their width. */
+  font-variant-numeric: tabular-nums;
 }
 
 .context-track {
