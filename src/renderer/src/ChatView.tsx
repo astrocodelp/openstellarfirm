@@ -456,7 +456,9 @@ export function ChatView(props: ChatViewProps) {
           )}
         </div>
         <p className="faint composer-hint" id="send-hint">
-          {sendHint(props.sendWith, props.mac)}
+          {busy
+            ? "It is answering. You can type now and send when it is done, or press Stop."
+            : sendHint(props.sendWith, props.mac)}
         </p>
       </div>
     </>
