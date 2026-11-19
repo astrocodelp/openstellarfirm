@@ -13,7 +13,7 @@ import {
   parseMarkdown,
 } from "../../shared/markdown";
 import { CopyButton } from "./ChatTools";
-import { InlineConfirm } from "./ui";
+import { Icon, InlineConfirm } from "./ui";
 
 /**
  * An answer's Markdown, drawn as the page's own elements. The text comes from
@@ -114,28 +114,50 @@ function blocks(list: Block[], ctx: Ctx): ReactNode[] {
           </blockquote>
         );
       case "list": {
-        const items = block.items.map((item, i) => (
-          // biome-ignore lint/suspicious/noArrayIndexKey: an answer's list never reorders
-          <li key={i}>
-            {item.length === 1 && item[0]?.type === "paragraph"
+        const items = block.items.map((item, i) => {
+          const check = block.checks?.[i];
+          const body =
+            item.length === 1 && item[0]?.type === "paragraph"
               ? inlines(item[0].children, ctx)
-              : blocks(item, ctx)}
-          </li>
-        ));
+              : blocks(item, ctx);
+          return check === undefined || check === null ? (
+            // biome-ignore lint/suspicious/noArrayIndexKey: an answer's list never reorders
+            <li key={i}>{body}</li>
+          ) : (
+            // A task's box is drawn, never a control: the answer is read, not
+            // ticked. The words say which it is for a screen reader.
+            // biome-ignore lint/suspicious/noArrayIndexKey: an answer's list never reorders
+            <li key={i} className="md-task">
+              <span
+                className={check ? "md-task-box done" : "md-task-box"}
+                aria-hidden="true"
+              >
+                {check ? <Icon name="check" size={12} /> : null}
+              </span>
+              <span className="visually-hidden">
+                {check ? "Done: " : "Not done: "}
+              </span>
+              <div className="md-task-body">{body}</div>
+            </li>
+          );
+        });
+        const tasks = block.checks !== undefined;
         return block.ordered ? (
           <ol
             key={key}
-            className="md-list"
+            className={tasks ? "md-list md-tasks" : "md-list"}
             start={block.start === 1 ? undefined : block.start}
           >
             {items}
           </ol>
         ) : (
-          <ul key={key} className="md-list">
+          <ul key={key} className={tasks ? "md-list md-tasks" : "md-list"}>
             {items}
           </ul>
         );
       }
+      case "table":
+        return <Table key={key} block={block} ctx={ctx} />;
       case "code": {
         const at = ctx.code.next++;
         return (
@@ -153,6 +175,63 @@ function blocks(list: Block[], ctx: Ctx): ReactNode[] {
     }
     return null;
   });
+}
+
+const ALIGN = { left: "md-left", center: "md-center", right: "md-right" };
+
+/**
+ * A table from an answer. It scrolls sideways in its own box, as a code block
+ * does, so a wide one never widens the chat.
+ */
+function Table({
+  block,
+  ctx,
+}: {
+  block: Extract<Block, { type: "table" }>;
+  ctx: Ctx;
+}) {
+  const align = (column: number) => {
+    const a = block.align[column];
+    return a ? ALIGN[a] : undefined;
+  };
+  return (
+    // biome-ignore lint/a11y/useSemanticElements: a named group for a table that scrolls, not a fieldset of a form
+    <div
+      className="md-table-scroll"
+      role="group"
+      aria-label="Table"
+      // biome-ignore lint/a11y/noNoninteractiveTabindex: a region that scrolls must take the focus
+      tabIndex={0}
+    >
+      <table className="md-table">
+        <thead>
+          <tr>
+            {block.head.map((cell, c) => (
+              // biome-ignore lint/suspicious/noArrayIndexKey: an answer's table never reorders
+              <th key={c} scope="col" className={align(c)}>
+                {inlines(cell, ctx)}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        {block.rows.length > 0 ? (
+          <tbody>
+            {block.rows.map((row, r) => (
+              // biome-ignore lint/suspicious/noArrayIndexKey: an answer's table never reorders
+              <tr key={r}>
+                {row.map((cell, c) => (
+                  // biome-ignore lint/suspicious/noArrayIndexKey: an answer's table never reorders
+                  <td key={c} className={align(c)}>
+                    {inlines(cell, ctx)}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        ) : null}
+      </table>
+    </div>
+  );
 }
 
 function CodeBlock({

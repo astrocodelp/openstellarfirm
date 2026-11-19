@@ -72,6 +72,8 @@
   --radius-inset: 0.75rem;
   /* Inside an inset: a menu's items, a word of code, a link's address. */
   --radius-small: 0.5rem;
+  /* A task's box in an answer: square enough not to read as a radio. */
+  --radius-tick: 0.25rem;
   /*
    * Motion. Two curves and four durations, used by every transition and
    * animation. Enters and presses ease out (a fast start reads as an answer to
@@ -1070,6 +1072,90 @@ textarea.input {
 .md-code-scroll:focus-visible {
   outline-offset: calc(var(--focus-width) * -1);
   border-radius: var(--radius-inset);
+}
+
+/* A table scrolls sideways in its own box, like a code block. */
+.md-table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-inset);
+  scrollbar-width: thin;
+}
+
+.md-table-scroll:focus-visible {
+  outline-offset: calc(var(--focus-width) * -1);
+}
+
+.md-table {
+  min-width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-ui);
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+}
+
+.md-table :is(th, td) {
+  padding: 0.4375rem 0.75rem;
+  text-align: start;
+  vertical-align: top;
+}
+
+.md-table th {
+  background: var(--sunken);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.md-table tr + tr td,
+.md-table tbody tr:first-child td {
+  border-top: 1px solid var(--line);
+}
+
+.md-table :is(th, td) + :is(th, td) {
+  border-left: 1px solid var(--line);
+}
+
+.md-table .md-center {
+  text-align: center;
+}
+
+.md-table .md-right {
+  text-align: end;
+}
+
+/* A task's box sits where the bullet was. */
+.md-tasks {
+  list-style: none;
+  padding-inline-start: 0.125rem;
+}
+
+.md-task {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.md-task-box {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 0.875rem;
+  height: 0.875rem;
+  border: 1px solid var(--control-line);
+  border-radius: var(--radius-tick);
+  /* In the middle of the first line, whatever the text size. */
+  margin-block-start: calc((1lh - 0.875rem) / 2);
+}
+
+.md-task-box.done {
+  border-color: var(--text);
+  background: var(--text);
+  color: var(--bg);
+}
+
+.md-task-body {
+  min-width: 0;
 }
 
 .md-link-wrap {

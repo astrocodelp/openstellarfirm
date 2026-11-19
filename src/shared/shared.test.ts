@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { PRESETS } from "./catalog";
 import { cloudCopyUrl, cloudHomeUrl, MAX_LINK_WINDOWS } from "./cloud";
 import { checkEndpoint, isLocalEndpoint } from "./endpoint";
-import { systemPrompt } from "./prompt";
+import { MARKDOWN_LINE, systemPrompt } from "./prompt";
 
 describe("checkEndpoint", () => {
   it("takes https and trims the trailing slash", () => {
@@ -61,6 +61,16 @@ describe("systemPrompt", () => {
     expect(prompt).toContain("You are Scout");
     expect(prompt).toContain("Help me plan trips.");
     expect(prompt).toContain("say where it comes from");
+  });
+
+  it("asks for Markdown where it helps, and plain text for another assistant", () => {
+    const prompt = systemPrompt(base);
+    expect(prompt).toContain(MARKDOWN_LINE);
+    expect(MARKDOWN_LINE).toMatch(/headings.*lists.*tables.*fenced code/s);
+    expect(MARKDOWN_LINE).toContain("plain sentences");
+    const asked = systemPrompt({ ...base, askedBy: "Nova" });
+    expect(asked).not.toContain(MARKDOWN_LINE);
+    expect(asked).toContain("in plain text");
   });
 
   it("says it can only talk when it has no tools, so it cannot claim an action", () => {
