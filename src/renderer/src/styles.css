@@ -1861,13 +1861,25 @@ textarea.input {
   font-size: var(--text-caption);
 }
 
+/*
+ * The whole of what a step would send. Long details scroll inside the card
+ * instead of being cut, so the card never hides the end of a command.
+ */
 .approval-detail {
+  margin: 0;
+  max-height: 18rem;
+  overflow: auto;
+  overscroll-behavior: contain;
   white-space: pre-wrap;
   padding: 0.625rem 0.75rem;
   border: 1px solid var(--line);
   border-radius: var(--radius-inset);
   background: var(--sunken);
   overflow-wrap: anywhere;
+}
+
+.approval-detail:focus-visible {
+  outline-offset: calc(var(--focus-width) * -1);
 }
 
 /* The StellarFirm cloud card, and small shared pieces */

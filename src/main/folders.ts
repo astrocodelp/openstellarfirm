@@ -14,7 +14,10 @@ import { basename, dirname, isAbsolute, join, relative } from "node:path";
  * It can list, find, read, and save a NEW file. There is no way to change,
  * replace, move or delete anything: no function here does it. Every path is
  * checked after links are followed, so a link cannot lead outside a folder,
- * and files that hold keys or passwords are never shown or written.
+ * and every part of the real path is checked again: a file or folder whose
+ * name starts with a dot (settings, keys, history, a tool's sign-in) and a
+ * file that holds keys or passwords are never shown, read or written, even
+ * when a link with a plain name points at one.
  */
 
 export class FolderError extends Error {}
@@ -28,10 +31,30 @@ const SECRET_NAMES = [
   /^\.npmrc$/i,
   /^\.git-credentials$/i,
   /^id_(rsa|dsa|ecdsa|ed25519)/i,
-  /\.(pem|key|p12|pfx|kdbx|keychain|keychain-db)$/i,
+  /\.(pem|key|p12|pfx|p8|ppk|jks|keystore|kdbx|keychain|keychain-db|ovpn|gpg)$/i,
   /^credentials(\.json)?$/i,
   /^secrets?(\.|$)/i,
+  /^kubeconfig$/i,
+  /^known_hosts$/i,
+  /^authorized_keys$/i,
+  /^htpasswd$/i,
+  /^wallet\.dat$/i,
+  /^service[-_]?account.*\.json$/i,
+  /_history$/i,
 ];
+
+/**
+ * The only names that start with a dot and may be read: plain settings for
+ * how a project's files are written, which hold no keys. Every other one
+ * (.config, .kube, .docker, .pgpass, .pypirc, .vault-token, .bash_history,
+ * .git, ...) is left out, because a tool's settings and sign-ins live there.
+ * Nothing starting with a dot is ever written.
+ */
+const READABLE_DOT_NAMES = new Set([
+  ".gitignore",
+  ".gitattributes",
+  ".editorconfig",
+]);
 const SKIPPED_FOLDERS = new Set(["node_modules", ".git"]);
 const MAX_READ_BYTES = 1024 * 1024;
 const MAX_READ_CHARS = 60_000;
@@ -43,6 +66,19 @@ export function isSecretName(name: string): boolean {
   const bare = name.replace(/[. ]+$/, "");
   return SECRET_NAMES.some((pattern) => pattern.test(bare));
 }
+
+/**
+ * True when a part of a path may not be read: a secret's name, or a name
+ * that starts with a dot and is not one of the few plain settings files.
+ */
+export function isHiddenName(name: string): boolean {
+  if (isSecretName(name)) return true;
+  const bare = name.replace(/[. ]+$/, "");
+  return name.startsWith(".") && !READABLE_DOT_NAMES.has(bare.toLowerCase());
+}
+
+const HIDDEN_PART =
+  "That file is private or holds settings, so it is not opened.";
 
 /** The name a model uses for each folder: its last part, made unique. */
 export function folderLabels(
@@ -70,8 +106,15 @@ interface Located {
   parts: string[];
 }
 
-/** Turns "Label/path/inside" into a real path, or says why it cannot. */
-function locate(folders: string[], modelPath: unknown): Located {
+/**
+ * Turns "Label/path/inside" into a real path, or says why it cannot. A save
+ * checks names that start with a dot itself, more strictly.
+ */
+function locate(
+  folders: string[],
+  modelPath: unknown,
+  forSave = false,
+): Located {
   if (typeof modelPath !== "string" || !modelPath.trim()) {
     throw new FolderError("Name the folder and the path inside it.");
   }
@@ -101,12 +144,28 @@ function locate(folders: string[], modelPath: unknown): Located {
       "That file can hold keys or passwords, so it is not opened.",
     );
   }
+  if (!forSave && parts.some(isHiddenName)) throw new FolderError(HIDDEN_PART);
   return {
     root: found.root,
     full: join(found.root, ...parts),
     shown: [found.label, ...parts].join("/"),
     parts,
   };
+}
+
+/**
+ * Checks a real path, after links were followed, against its folder's real
+ * root: it must be inside, and no part of it, from the root down, may be a
+ * hidden or secret name. So a link called "notes.txt" that points at
+ * ".ssh/id_rsa" in the same folder is refused like the file itself.
+ */
+function checkReal(realRoot: string, real: string): void {
+  if (!inside(realRoot, real))
+    throw new FolderError("That path leads outside the folder.");
+  const parts = relative(realRoot, real)
+    .split(/[\\/]+/)
+    .filter(Boolean);
+  if (parts.some(isHiddenName)) throw new FolderError(HIDDEN_PART);
 }
 
 /** The real path of something that exists, checked to be inside its folder. */
@@ -119,8 +178,7 @@ async function existing(at: Located): Promise<string> {
   } catch {
     throw new FolderError(`Nothing is there: ${at.shown}`);
   }
-  if (!inside(realRoot, real))
-    throw new FolderError("That path leads outside the folder.");
+  checkReal(realRoot, real);
   return real;
 }
 
@@ -149,7 +207,7 @@ export async function listFolder(
     throw new FolderError(`That is a file, not a folder: ${at.shown}`);
   }
   const shown = entries
-    .filter((entry) => !isSecretName(entry.name))
+    .filter((entry) => !isHiddenName(entry.name))
     .sort((a, b) => a.name.localeCompare(b.name))
     .slice(0, 200);
   const lines = await Promise.all(
@@ -224,7 +282,7 @@ export async function findFiles(
       );
       for (const entry of entries) {
         visited += 1;
-        if (isSecretName(entry.name) || entry.isSymbolicLink()) continue;
+        if (isHiddenName(entry.name) || entry.isSymbolicLink()) continue;
         const shown = `${next.shown}/${entry.name}`;
         if (entry.isDirectory()) {
           if (!SKIPPED_FOLDERS.has(entry.name) && next.depth < 6) {
@@ -262,7 +320,7 @@ export async function saveNewFile(
   } else if (content.length > MAX_WRITE_CHARS) {
     throw new FolderError("That is too much text for one file.");
   }
-  const at = locate(folders, modelPath);
+  const at = locate(folders, modelPath, true);
   if (at.parts.length === 0) throw new FolderError("Give the new file a name.");
   // A name that starts with a dot is a settings file somewhere; none is made.
   if (at.parts.some((part) => part.startsWith("."))) {
@@ -276,8 +334,9 @@ export async function saveNewFile(
   for (;;) {
     const real = await realpath(anchor).catch(() => null);
     if (real) {
-      if (!inside(realRoot, real))
-        throw new FolderError("That path leads outside the folder.");
+      // A folder reached through a link (into ".git/hooks", say) is refused
+      // before anything is made in it.
+      checkReal(realRoot, real);
       break;
     }
     const up = dirname(anchor);
@@ -286,8 +345,7 @@ export async function saveNewFile(
   }
   await mkdir(dirname(at.full), { recursive: true });
   const realParent = await realpath(dirname(at.full));
-  if (!inside(realRoot, realParent))
-    throw new FolderError("That path leads outside the folder.");
+  checkReal(realRoot, realParent);
   try {
     // "wx" fails when the file exists, so nothing is ever replaced.
     await writeFile(join(realParent, basename(at.full)), content, {

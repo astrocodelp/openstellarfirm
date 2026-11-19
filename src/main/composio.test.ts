@@ -83,7 +83,7 @@ describe("how Composio's tools are classified", () => {
     ).toBeDefined();
   });
 
-  it("shows nested arguments as compact JSON cut to 300 characters", () => {
+  it("shows nested arguments whole, every action of a list on the card", () => {
     const conn: StoredConnection = {
       id: "k",
       name: "Composio",
@@ -112,15 +112,16 @@ describe("how Composio's tools are classified", () => {
       ],
       thought: "short",
     };
-    const lines =
-      gate
-        ?.plan("c1_COMPOSIO_MULTI_EXECUTE_TOOL", JSON.stringify(args), false)
-        .ask?.detail.split("\n") ?? [];
-    expect(lines).toContain("thought: short");
-    const tools = lines.find((l) => l.startsWith("tools: ")) ?? "";
-    expect(tools).toContain('{"tool_slug":"GMAIL_SEND_EMAIL"');
-    expect(tools.length).toBeLessThanOrEqual(307);
-    expect(tools.endsWith("…")).toBe(true);
+    const detail =
+      gate?.plan("c1_COMPOSIO_MULTI_EXECUTE_TOOL", JSON.stringify(args), false)
+        .ask?.detail ?? "";
+    // Every action in the list is on the card, the later ones too, with
+    // every argument whole: a harmless first action cannot hide a send.
+    expect(detail).toContain('"tool_slug": "GMAIL_SEND_EMAIL"');
+    expect(detail).toContain('"tool_slug": "X"');
+    expect(detail).toContain("t".repeat(900));
+    expect(detail).toContain('"thought": "short"');
+    expect(detail).not.toContain("…");
   });
 });
 

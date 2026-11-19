@@ -32,8 +32,14 @@ export interface WebDeps {
 }
 
 /** Checks an address a model wrote before anything is asked or sent. */
+/** The longest web address read, so it always fits on a card whole. */
+export const MAX_ADDRESS_CHARS = 8_000;
+
 export function checkWebAddress(raw: unknown): URL {
   if (typeof raw !== "string") throw new WebError("Give the page's address.");
+  // Long enough for any real page; an address longer is carrying something.
+  if (raw.length > MAX_ADDRESS_CHARS)
+    throw new WebError("That address is too long to read.");
   let url: URL;
   try {
     url = new URL(raw.trim());

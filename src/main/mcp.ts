@@ -1,4 +1,5 @@
 import { KEY_HEADERS, type KeyStyle } from "../shared/connection-catalog";
+import { dropHidden } from "../shared/visible-text";
 import { SseParser, withoutKey } from "./wires/common";
 
 /**
@@ -56,11 +57,15 @@ export interface McpOptions {
   maxBodyBytes?: number;
 }
 
-/** Text with control characters taken out, on one line, cut to a length. */
+/**
+ * Text with control characters taken out, on one line, cut to a length.
+ * Characters that draw nothing or turn the text around (zero-width ones, a
+ * right-to-left override) are taken out too, so a name or a description
+ * reads on a card and to a model as it really is.
+ */
 export function plain(value: unknown, max: number): string {
   if (typeof value !== "string") return "";
-  const one = value
-    .replace(/\p{Cc}+/gu, " ")
+  const one = dropHidden(value.replace(/\p{Cc}+/gu, " "))
     .replace(/\s+/g, " ")
     .trim();
   return one.length > max ? `${one.slice(0, max - 1)}…` : one;

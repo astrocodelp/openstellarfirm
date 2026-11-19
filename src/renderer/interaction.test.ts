@@ -183,3 +183,39 @@ describe("the chat", () => {
     );
   });
 });
+
+describe("an approval card", () => {
+  const view = source("ChatView.tsx");
+  const card = view.slice(
+    view.indexOf("function Approval("),
+    view.indexOf("export function ChatView("),
+  );
+
+  it("never moves the focus onto Approve by itself", () => {
+    // The focus goes to the card, which reads out what waits.
+    expect(card).toMatch(/section\.current\?\.focus\(/);
+    expect(card).toContain("tabIndex={-1}");
+    const approve = card.slice(
+      card.indexOf("<button"),
+      card.indexOf("Approve\n"),
+    );
+    expect(approve).not.toMatch(/ref=/);
+    expect(card).not.toMatch(/autoFocus/);
+  });
+
+  it("takes no Approve for a moment after it shows, so a held key cannot approve", () => {
+    expect(view).toMatch(/ARMING_MS = [4-9]\d\d;/);
+    expect(card).toMatch(/if \(decision !== "reject" && !armed\) return;/);
+    expect(card).toMatch(/aria-disabled=\{!armed \|\| undefined\}/);
+  });
+
+  it("shows the whole of what a step would send, in a region that scrolls", () => {
+    expect(card).toMatch(
+      /className="mono approval-detail"[\s\S]{0,300}tabIndex=\{0\}/,
+    );
+    const rule =
+      /\.approval-detail \{[^}]*\}/.exec(source("styles.css"))?.[0] ?? "";
+    expect(rule).toMatch(/overflow: auto;/);
+    expect(rule).toMatch(/max-height:/);
+  });
+});

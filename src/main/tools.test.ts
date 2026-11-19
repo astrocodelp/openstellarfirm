@@ -14,6 +14,7 @@ import { runAgent } from "./agent";
 import {
   findFiles,
   folderLabels,
+  isHiddenName,
   isSecretName,
   listFolder,
   readFile,
@@ -21,7 +22,7 @@ import {
 } from "./folders";
 import type { ToolCall, TurnEvent, WireMessage } from "./models";
 import { ModelError } from "./models";
-import { planCall, toolsFor } from "./tools";
+import { planCall, runsOnItsOwn, toolsFor } from "./tools";
 import {
   checkWebAddress,
   htmlToText,
@@ -120,6 +121,82 @@ describe("folder tools", () => {
     );
     expect(isSecretName("id_rsa.")).toBe(true);
     expect(isSecretName(".env ")).toBe(true);
+  });
+
+  it("never reads a dot-file or a dot-folder, but a few plain settings files", async () => {
+    mkdirSync(join(notes, ".config", "gh"), { recursive: true });
+    writeFileSync(join(notes, ".config", "gh", "hosts.yml"), "token: x");
+    mkdirSync(join(notes, ".kube"));
+    writeFileSync(join(notes, ".kube", "config"), "token: x");
+    writeFileSync(join(notes, ".pgpass"), "db:5432:*:me:pw");
+    writeFileSync(join(notes, ".bash_history"), "export KEY=x");
+    writeFileSync(join(notes, ".gitignore"), "dist/");
+    for (const path of [
+      "Notes/.config/gh/hosts.yml",
+      "Notes/.kube/config",
+      "Notes/.pgpass",
+      "Notes/.bash_history",
+      "Notes/.docker/config.json",
+      "Notes/.pypirc",
+      "Notes/.vault-token",
+    ]) {
+      await expect(readFile([notes], path), path).rejects.toThrow(
+        /private or holds settings|keys or passwords/,
+      );
+    }
+    await expect(listFolder([notes], "Notes/.config")).rejects.toThrow(
+      /private or holds settings/,
+    );
+    const listed = await listFolder([notes], "Notes");
+    expect(listed).not.toMatch(/\.config|\.kube|\.pgpass|history/);
+    expect(listed).toContain(".gitignore");
+    expect(await findFiles([notes], "hosts")).toMatch(/Nothing/);
+    expect(await findFiles([notes], "config")).toMatch(/Nothing/);
+    // The few plain settings files may be read: they hold no keys.
+    expect(await readFile([notes], "Notes/.gitignore")).toBe("dist/");
+    expect(isHiddenName(".editorconfig")).toBe(false);
+    expect(isHiddenName(".gitignore.")).toBe(false);
+    expect(isHiddenName(".npmrc")).toBe(true);
+    expect(isHiddenName("kubeconfig")).toBe(true);
+    expect(isHiddenName("zsh_history")).toBe(true);
+  });
+
+  it("checks the real path after links, so a plain name cannot point at a secret", async () => {
+    mkdirSync(join(notes, ".ssh"));
+    writeFileSync(join(notes, ".ssh", "id_ed25519"), "PRIVATE KEY");
+    mkdirSync(join(notes, ".git", "hooks"), { recursive: true });
+    // Links with plain names, inside the folder, to its private parts.
+    symlinkSync(join(notes, ".ssh", "id_ed25519"), join(notes, "notes.txt"));
+    symlinkSync(join(notes, ".ssh"), join(notes, "keys"));
+    symlinkSync(join(notes, ".env"), join(notes, "settings.txt"));
+    symlinkSync(join(notes, ".git", "hooks"), join(notes, "hooks"));
+    await expect(readFile([notes], "Notes/notes.txt")).rejects.toThrow(
+      /private or holds settings/,
+    );
+    await expect(readFile([notes], "Notes/keys/id_ed25519")).rejects.toThrow(
+      /keys or passwords/,
+    );
+    await expect(listFolder([notes], "Notes/keys")).rejects.toThrow(
+      /private or holds settings/,
+    );
+    await expect(readFile([notes], "Notes/settings.txt")).rejects.toThrow(
+      /private or holds settings/,
+    );
+    // A save through a link into .git/hooks is refused before anything is made.
+    await expect(
+      saveNewFile([notes], "Notes/hooks/pre-commit", "curl evil"),
+    ).rejects.toThrow(/private or holds settings/);
+    await expect(
+      saveNewFile([notes], "Notes/hooks/new/pre-commit", "curl evil"),
+    ).rejects.toThrow(/private or holds settings/);
+    expect(() =>
+      readFileSync(join(notes, ".git", "hooks", "pre-commit")),
+    ).toThrow();
+    // A link that leaves the folder is still refused.
+    symlinkSync(join(outside, "private.txt"), join(notes, "elsewhere.txt"));
+    await expect(readFile([notes], "Notes/elsewhere.txt")).rejects.toThrow(
+      /outside the folder/,
+    );
   });
 
   it("names two folders with the same last part apart", () => {
@@ -324,6 +401,114 @@ describe("which calls ask", () => {
     expect(carried.ask?.detail).toContain("?q=my+notes");
   });
 
+  it("asks before saving a file that runs or builds on its own", () => {
+    for (const path of [
+      "Notes/conftest.py",
+      "Notes/docker-compose.override.yml",
+      "Notes/Directory.Build.props",
+      "Notes/Makefile",
+      "Notes/run.bat",
+      "Notes/setup.cmd",
+      "Notes/go.ps1",
+      "Notes/install.sh",
+      "Notes/package.json",
+      "Notes/vite.config.ts",
+      "Notes/app.csproj",
+      "Notes/start.command",
+      "Notes/sub/Dockerfile",
+    ]) {
+      expect(runsOnItsOwn(path), path).toBe(true);
+      const planned = planCall(
+        assistant,
+        "save_new_file",
+        JSON.stringify({ path, content: "make all" }),
+      );
+      expect(planned.ask?.title, path).toMatch(/^Save .* in your folder$/);
+      // The card shows the whole file, and there is nothing to remember.
+      expect(planned.ask?.detail).toBe(`${path}\n\nmake all`);
+      expect(planned.ask?.site).toBeUndefined();
+      expect(planned.ask?.remember).toBeUndefined();
+    }
+    for (const path of [
+      "Notes/summary.md",
+      "Notes/letter.txt",
+      "Notes/a.csv",
+    ]) {
+      expect(runsOnItsOwn(path), path).toBe(false);
+      expect(
+        planCall(
+          assistant,
+          "save_new_file",
+          JSON.stringify({ path, content: "x" }),
+        ).ask,
+      ).toBeUndefined();
+    }
+  });
+
+  it("asks before every save once the answer has read outside text", () => {
+    for (const kind of ["web", "files", "connection", "computer"] as const) {
+      const planned = planCall(
+        assistant,
+        "save_new_file",
+        '{"path":"Notes/summary.md","content":"x"}',
+        undefined,
+        kind,
+      );
+      expect(planned.ask?.why, kind).toMatch(/telling it what to write/);
+    }
+    // A save too long to show whole is turned down, not shown cut.
+    expect(() =>
+      planCall(
+        assistant,
+        "save_new_file",
+        JSON.stringify({ path: "Notes/a.md", content: "x".repeat(200_000) }),
+        undefined,
+        "web",
+      ),
+    ).toThrow(/too long to show/);
+  });
+
+  it("after a web page, reads an allowed site unasked only at its bare address", () => {
+    const at = (url: string) =>
+      planCall(
+        assistant,
+        "read_web_page",
+        JSON.stringify({ url }),
+        undefined,
+        "web",
+      ).ask;
+    expect(at("https://example.com/")).toBeUndefined();
+    expect(at("https://www.example.com")).toBeUndefined();
+    const path = at("https://example.com/c2VjcmV0");
+    expect(path?.detail).toBe("https://example.com/c2VjcmV0");
+    expect(path?.why).toMatch(/read a web page/);
+    expect(path?.site).toBeUndefined();
+    expect(at("https://example.com/?q=x")).toBeDefined();
+    // A site not allowed yet still offers to be remembered.
+    expect(at("https://new.example.org/")?.site).toBe("new.example.org");
+  });
+
+  it("asks for an allowed site after a connection's or another assistant's answer", () => {
+    for (const kind of ["connection", "assistant"] as const) {
+      const ask = planCall(
+        assistant,
+        "read_web_page",
+        '{"url":"https://example.com/"}',
+        undefined,
+        kind,
+      ).ask;
+      expect(ask, kind).toBeDefined();
+      expect(ask?.site).toBeUndefined();
+      expect(ask?.why).toMatch(/carry text out/);
+    }
+  });
+
+  it("turns down an address too long to show whole", () => {
+    expect(() =>
+      checkWebAddress(`https://example.com/${"a".repeat(9000)}`),
+    ).toThrow(/too long/);
+  });
+
   it("refuses an address that is not a public https page before anything is asked", () => {
     expect(() =>
       planCall(assistant, "read_web_page", '{"url":"http://192.168.1.1/"}'),
@@ -437,7 +622,9 @@ describe("the agent loop", () => {
       [
         {
           type: "calls",
-          calls: [callOf("read_web_page", { url: "https://example.org/b" })],
+          // After a page, an allowed site reads unasked only at its bare
+          // address: anything after the name could carry text out.
+          calls: [callOf("read_web_page", { url: "https://example.org/" })],
         },
       ],
       [{ type: "text", text: "Done." }],

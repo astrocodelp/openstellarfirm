@@ -7,13 +7,17 @@ import {
 } from "../../shared/computer";
 import type { ChatStep, Decision } from "../../shared/types";
 import { FolderError, folderLabels, saveNewFile, shortName } from "../folders";
+import { type SeenKind, whyAfter } from "../seen";
 import { type ImagePart, ModelError, type ToolSpec } from "../wires/common";
 import { ComputerError, EXCHANGE_INSIDE, HOME } from "./args";
 import {
   type ComputerService,
+  checkedCommand,
+  checkedKey,
   exchangeName,
   MAX_RUN_SECONDS,
   type RunOutput,
+  typedText,
 } from "./service";
 
 /**
@@ -25,6 +29,13 @@ import {
  * on. What the screen or a command shows is outside text, so the answer is
  * marked as having seen it. The one step that reaches the person's own files,
  * saving a copy in a folder they picked, asks every time.
+ *
+ * One more rule when the person turned its network on: once the answer has
+ * read something private (their folders or a file they sent, their screen,
+ * their mail, a connection's answer, another assistant's), a command, typed
+ * text or a key press could carry it to a website, so each of those asks,
+ * with the whole command or text on the card. Its own screen alone is not
+ * private: it holds only what was made or read on that computer.
  */
 
 export const COMPUTER_SCREENSHOT = "computer_screenshot";
@@ -158,7 +169,19 @@ export interface ComputerCallHost {
   ask(ask: { title: string; detail: string; why: string }): Promise<Decision>;
   onActivity(label: string): void;
   signal: AbortSignal;
+  /**
+   * What private text the answer holds so far (`privateKind`), if any. With
+   * the network on, a command, typed text or a key then asks first.
+   */
+  privateSeen?: SeenKind | false;
 }
+
+/** The tools that send something into the computer that could leave it. */
+const CARRIES_OUT: ReadonlySet<string> = new Set([
+  "computer_run",
+  "computer_type",
+  "computer_key",
+]);
 
 export interface ComputerCallResult {
   text: string;
@@ -432,12 +455,17 @@ export function computerGate(
       };
     }
     if (name === "computer_type") {
+      const text = typedText(args.text);
+      const no = await askFirst(name, text, steps, host);
+      if (no) return no;
       host.onActivity("Typing on its computer");
-      await service.type(id, args.text);
+      await service.type(id, text);
       steps.push({ label: "Typed on its computer", ok: true });
       return { text: "Typed.", outside: false };
     }
     if (name === "computer_key") {
+      const no = await askFirst(name, checkedKey(args.key), steps, host);
+      if (no) return no;
       host.onActivity("Pressing a key on its computer");
       const key = await service.key(id, args.key);
       steps.push({ label: `Pressed ${key} on its computer`, ok: true });
@@ -456,6 +484,9 @@ export function computerGate(
       return { text: "Scrolled.", outside: false };
     }
     if (name === "computer_run") {
+      const { command } = checkedCommand(args.command, args.seconds);
+      const no = await askFirst(name, command, steps, host);
+      if (no) return no;
       host.onActivity("Running a command on its computer");
       const out = await service.run(
         id,
@@ -475,6 +506,40 @@ export function computerGate(
       return copyOut(args, steps, host);
     }
     throw new ComputerError("That tool is not available here.");
+  }
+
+  /**
+   * With the network on and private text in the answer, a step that could
+   * carry it out asks first, showing exactly what would be sent. The result
+   * to give the model when the person says no; nothing when it may go on.
+   */
+  async function askFirst(
+    name: string,
+    exact: string,
+    steps: ChatStep[],
+    host: ComputerCallHost,
+  ): Promise<ComputerCallResult | undefined> {
+    const kind = host.privateSeen;
+    if (!assistant.computer?.network || !kind || !CARRIES_OUT.has(name))
+      return undefined;
+    const what =
+      name === "computer_run"
+        ? { title: "Run a command on its computer", done: "Run a command" }
+        : name === "computer_type"
+          ? { title: "Type text on its computer", done: "Type text" }
+          : { title: `Press ${exact} on its computer`, done: `Press ${exact}` };
+    host.onActivity("Waiting for your Approve");
+    const decision = await host.ask({
+      title: what.title,
+      detail: exact,
+      why: `${whyAfter(kind)}, and its computer can reach the internet, so this could send what it read to a website. Check it holds nothing private.`,
+    });
+    if (decision !== "reject") return undefined;
+    steps.push({ label: `You said no: ${what.done}`, ok: false });
+    return {
+      text: "The person said no to this. Do not try it again. Ask them what they would like instead.",
+      outside: false,
+    };
   }
 
   async function copyOut(

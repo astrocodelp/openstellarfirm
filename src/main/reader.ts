@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { extname, join, normalize, sep } from "node:path";
 import {
+  app,
   BrowserWindow,
   MessageChannelMain,
   type MessagePortMain,
@@ -150,6 +151,8 @@ export class Reader {
           nodeIntegration: false,
           webSecurity: true,
           spellcheck: false,
+          // No developer tools in an installed app, here as in the main window.
+          devTools: !app.isPackaged,
           backgroundThrottling: false,
           // The session above has to be set up before the window uses it.
           session: this.readerSession(),

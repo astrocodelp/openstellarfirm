@@ -154,6 +154,13 @@ function Steps({
   );
 }
 
+/**
+ * How long after a card shows before Approve and Always allow take a press.
+ * A key held down, or a click meant for what was there a moment before, must
+ * never approve a step the person has not read.
+ */
+export const ARMING_MS = 500;
+
 /** The card for a step that waits. Approve is the view's one lime button. */
 function Approval({
   card,
@@ -164,23 +171,30 @@ function Approval({
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const first = useRef<HTMLButtonElement>(null);
+  const [armed, setArmed] = useState(false);
+  const section = useRef<HTMLElement>(null);
 
-  // Focus moves to the card only when the person is not typing somewhere:
-  // a key pressed mid-sentence must never land on Approve. The app's live
-  // region says a step waits either way.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: focus once for each new card
+  // The focus never lands on Approve by itself. When the person is not
+  // typing somewhere, it moves to the card, which reads out what waits; from
+  // there Approve is one deliberate Tab away. The app's live region says a
+  // step waits either way.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: once for each new card
   useEffect(() => {
+    setArmed(false);
+    const timer = window.setTimeout(() => setArmed(true), ARMING_MS);
     const active = document.activeElement;
     const typing =
       active instanceof HTMLTextAreaElement ||
       active instanceof HTMLInputElement ||
       active instanceof HTMLSelectElement ||
       (active instanceof HTMLElement && active.isContentEditable);
-    if (!typing) first.current?.focus({ preventScroll: true });
+    if (!typing) section.current?.focus({ preventScroll: true });
+    return () => window.clearTimeout(timer);
   }, [card.id]);
 
   async function decide(decision: Decision) {
+    // Approve and Always allow wait out the arming time; Reject never does.
+    if (decision !== "reject" && !armed) return;
     setBusy(true);
     setError("");
     try {
@@ -192,7 +206,13 @@ function Approval({
   }
 
   return (
-    <section className="approval" aria-labelledby={`approval-${card.id}`}>
+    <section
+      ref={section}
+      className="approval"
+      aria-labelledby={`approval-${card.id}`}
+      aria-describedby={`approval-why-${card.id}`}
+      tabIndex={-1}
+    >
       <div className="approval-kicker">
         <span className="dot" aria-hidden="true" />
         Waiting for your Approve
@@ -200,15 +220,27 @@ function Approval({
       <h2 className="section-title" id={`approval-${card.id}`}>
         {card.title}
       </h2>
-      <p className="mono approval-detail">{card.detail}</p>
-      <p className="faint">Why it asks: {card.why}</p>
+      {/* Everything the step would send, whole: long details scroll here, so the keyboard can reach them. */}
+      {/* biome-ignore lint/a11y/useSemanticElements: a named group for the details, not a fieldset of a form */}
+      <div
+        className="mono approval-detail"
+        role="group"
+        aria-label="What it would do, in full"
+        // biome-ignore lint/a11y/noNoninteractiveTabindex: a region that scrolls must take the focus
+        tabIndex={0}
+      >
+        {card.detail}
+      </div>
+      <p className="faint" id={`approval-why-${card.id}`}>
+        Why it asks: {card.why}
+      </p>
       <ErrorLine>{error}</ErrorLine>
       <div className="wrap" aria-busy={busy || undefined}>
         <button
-          ref={first}
           type="button"
           className="btn btn-primary"
           disabled={busy}
+          aria-disabled={!armed || undefined}
           onClick={() => void decide("approve")}
         >
           Approve
@@ -218,6 +250,7 @@ function Approval({
             type="button"
             className="btn"
             disabled={busy}
+            aria-disabled={!armed || undefined}
             onClick={() => void decide("always")}
           >
             {card.site ? `Always allow ${card.site}` : "Always allow this read"}

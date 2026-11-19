@@ -27,7 +27,14 @@ import {
   type ScreenDeps,
   withoutPicture,
 } from "./screen";
-import { carryFlags, copyFlags, newSeen, type Seen } from "./seen";
+import {
+  carryFlags,
+  copyFlags,
+  newSeen,
+  privateKind,
+  type Seen,
+  seenKind,
+} from "./seen";
 import {
   ASK_TOOL_NAME,
   askedSteps,
@@ -399,6 +406,9 @@ async function runCall(
       ask: deps.ask,
       onActivity: deps.onActivity,
       signal: deps.signal,
+      // With its network on, private text in the answer makes a command,
+      // typed text or a key ask first, since any of them could carry it out.
+      privateSeen: privateKind(seen),
     });
     // The screen and a command's output are outside text, so the rules for
     // outside text apply from here on.
@@ -434,35 +444,18 @@ async function runCall(
   }
   let planned: ReturnType<typeof planCall>;
   try {
-    // A look at the screen counts like reading files: it can hold private text
-    // that a web address or a connection's arguments could carry out.
-    // Reading mail counts the same, for everything but mail itself: reading
-    // a second message is no new way for private text to get out.
+    // Everything read from outside counts: the person's folders and files,
+    // the screen, mail, a connection's answer, another assistant's answer, a
+    // web page and its own computer. Private text can be carried out by an
+    // address or a tool's arguments; the rest may be telling it what to do.
+    // Reading mail counts for everything but mail itself, and a web page for
+    // mail neither: reading a second message, or a mail search after a page,
+    // is no new way for private text to get out.
     planned = deps.mail?.owns(name)
-      ? deps.mail.plan(
-          name,
-          rawArguments,
-          seen.files || seen.screen || seen.computer === true,
-        )
+      ? deps.mail.plan(name, rawArguments, seenKind(seen, ["mail", "web"]))
       : deps.mcp?.owns(name)
-        ? deps.mcp.plan(
-            name,
-            rawArguments,
-            seen.files || seen.screen || seen.mail || seen.computer === true,
-          )
-        : planCall(
-            assistant,
-            name,
-            rawArguments,
-            deps.web,
-            seen.screen
-              ? "screen"
-              : seen.mail
-                ? "mail"
-                : seen.computer === true
-                  ? "computer"
-                  : seen.files,
-          );
+        ? deps.mcp.plan(name, rawArguments, seenKind(seen))
+        : planCall(assistant, name, rawArguments, deps.web, seenKind(seen));
   } catch (error) {
     steps.push({ label: "Turned down a step that is not allowed", ok: false });
     return toolFailure(error);

@@ -50,7 +50,10 @@ whole team of AI Agent Assistants works for your company in the cloud.
   opens the chat at the message. Save a chat as a Markdown file where you
   pick, with no key in it, and copy any answer.
 - **Folders you pick.** An assistant can list, find and read files there, and
-  save a new file. It can never change, replace, move or delete one.
+  save a new file. It can never change, replace, move or delete one. Files and
+  folders whose names start with a dot, and files that hold keys, are never
+  opened. Saving a script or a build file asks first, and so does any save
+  once the answer has read something from outside.
 - **Web pages, with your Approve.** It asks before it reaches a site for the
   first time. You can allow a site for good, and take that back.
 - **Connections.** Let an assistant use the tools of a remote MCP server by
@@ -106,8 +109,10 @@ whole team of AI Agent Assistants works for your company in the cloud.
   Docker container on this computer, never in a cloud. The assistant clicks,
   types and runs commands there without asking, because that computer has no
   network unless you allow it, no capabilities, limits on memory and
-  processors, and no folder of yours but its own exchange folder. Saving a
-  file from it into one of your folders asks every time. You watch it beside
+  processors, and no folder of yours but its own exchange folder. With its
+  network on, a command, typing or a key press asks once the answer has read
+  something of yours. Saving a file from it into one of your folders asks
+  every time. You watch it beside
   the chat, and can pause it or take over. Needs Docker Desktop, Docker
   Engine, OrbStack, Colima or Podman. See [docs/COMPUTER.md](docs/COMPUTER.md).
 - **Record how you work.** On an assistant's page, show it a task once:

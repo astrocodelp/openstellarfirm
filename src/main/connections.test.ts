@@ -17,6 +17,7 @@ import {
   type CallTool,
   ConnectionService,
   connectionInput,
+  TOO_LONG_FOR_CARD,
 } from "./connections";
 import { McpError } from "./mcp";
 import type { ToolCall, TurnEvent, WireMessage } from "./models";
@@ -151,29 +152,44 @@ describe("the gate", () => {
     ).toBeUndefined();
   });
 
-  it("shows the connection, the tool and the arguments as readable lines, each cut", () => {
+  it("shows the connection, the tool and every argument in full", () => {
     const { gate } = gateOf(["n"]);
-    const planned = gate.plan(
-      "c1_create_note",
-      JSON.stringify({
-        title: "Hello",
-        body: "b".repeat(1000),
-        tags: ["a", "b"],
-        note: "line one\nline two\u0000",
-      }),
-      false,
-    );
-    const lines = planned.ask?.detail.split("\n") ?? [];
+    const args = {
+      title: "Hello",
+      body: `${"b".repeat(1000)}SECRET-TAIL`,
+      tags: ["a", "b"],
+      note: "line one\nline two\u0000",
+      ...Object.fromEntries(
+        Array.from({ length: 30 }, (_, i) => [`extra${i}`, i]),
+      ),
+    };
+    const planned = gate.plan("c1_create_note", JSON.stringify(args), false);
+    const detail = planned.ask?.detail ?? "";
+    const lines = detail.split("\n");
     expect(lines[0]).toBe("Connection: Team notes");
     expect(lines[1]).toBe("Tool: create_note");
-    expect(lines).toContain("title: Hello");
-    expect(lines).toContain('tags: ["a","b"]');
-    expect(lines).toContain("note: line one line two");
-    const body = lines.find((l) => l.startsWith("body: ")) ?? "";
-    expect(body.length).toBeLessThanOrEqual(306);
-    expect(body.endsWith("…")).toBe(true);
+    expect(lines[2]).toBe("Arguments:");
+    // Nothing is cut and nothing is left out: the card is the whole call.
+    expect(JSON.parse(lines.slice(3).join("\n"))).toEqual(args);
+    expect(detail).toContain("SECRET-TAIL");
+    expect(detail).toContain('"extra29": 29');
+    expect(detail).not.toContain("…");
+    // A value cannot pose as a line of the card: strings stay quoted.
+    expect(lines).toContain('  "note": "line one\\nline two\\u0000",');
     expect(gate.plan("c1_create_note", "{}", false).ask?.detail).toContain(
       "(no arguments)",
+    );
+  });
+
+  it("turns down a call too long to show whole, rather than showing it cut", () => {
+    const { gate } = gateOf(["n"]);
+    // Within the size a call may have, but longer than a card shows.
+    const long = JSON.stringify({
+      items: Array.from({ length: 7000 }, () => "abcdefghij"),
+    });
+    expect(long.length).toBeLessThan(100_000);
+    expect(() => gate.plan("c1_create_note", long, false)).toThrow(
+      TOO_LONG_FOR_CARD,
     );
   });
 
@@ -209,6 +225,27 @@ describe("the gate", () => {
     const after = gate.plan("c1_search_notes", '{"q":"secret"}', true);
     expect(after.ask?.why).toMatch(/read from your folders/);
     expect(after.ask?.remember).toBeUndefined();
+  });
+
+  it("asks again for an allowed read after any outside text, a connection's or another assistant's answer too", () => {
+    const { gate } = gateOf(["n"], ["n:search_notes"]);
+    const why = {
+      connection: /what one of its connections sent/,
+      assistant: /asked another assistant/,
+      web: /read a web page/,
+      computer: /its own computer/,
+      mail: /read your mail/,
+      screen: /looked at your screen/,
+    };
+    for (const [kind, pattern] of Object.entries(why)) {
+      const ask = gate.plan(
+        "c1_search_notes",
+        '{"q":"x"}',
+        kind as keyof typeof why,
+      ).ask;
+      expect(ask?.why, kind).toMatch(pattern);
+      expect(ask?.remember, kind).toBeUndefined();
+    }
   });
 
   it("does not use another assistant's permission", () => {
@@ -331,7 +368,7 @@ describe("inside an answer", () => {
     expect(result.steps[0]?.ok).toBe(false);
   });
 
-  it("remembers a read on 'always', and asks again after a folder was read", async () => {
+  it("remembers a read on 'always', and asks again after its answer or a folder was read", async () => {
     const { gate, ran, persisted } = gateOf(["n"]);
     const model = script([
       [{ type: "calls", calls: [callOf("c1_search_notes", { q: "a" })] }],
@@ -361,9 +398,12 @@ describe("inside an answer", () => {
     );
     expect(ran.map((r) => r.args.q)).toEqual(["a", "b", "c"]);
     expect(persisted).toEqual(["n:search_notes"]);
-    // Asked the first time, not the second, and again after the file was read.
-    expect(asked).toHaveLength(2);
-    expect(asked[1]).toMatch(/read from your folders/);
+    // Asked the first time. The second asks too: the first one's answer is
+    // in this answer now, and its arguments could carry that out. After the
+    // file was read, the strongest reason is the file.
+    expect(asked).toHaveLength(3);
+    expect(asked[1]).toMatch(/what one of its connections sent/);
+    expect(asked[2]).toMatch(/read from your folders/);
   });
 
   it("refuses a connection tool the model made up, and one when there is no gate", async () => {

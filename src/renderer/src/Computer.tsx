@@ -131,7 +131,9 @@ export function ComputerChoice({
           <p className="faint">
             Off: nothing on its computer can reach a website or anything else.
             On: its browser and commands can reach the internet, and pages it
-            reads there may try to tell it what to do. Changing this starts a
+            reads there may try to tell it what to do. Once it has read your
+            files, mail, screen or a connection in an answer, each command,
+            typing or key press there asks you first. Changing this starts a
             fresh computer next time; files in its exchange folder stay.
           </p>
           <div className="wrap">
