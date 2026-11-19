@@ -36,3 +36,7 @@ In the app, Settings, About, "Licences of others' work" opens it.
 
 Build tools (esbuild, Vite, TypeScript, Vitest, Biome, electron-builder) are
 used to make the app and are not part of it.
+
+The desk pet firmware (`firmware/pet/`) is built with other libraries, listed
+in [firmware/pet/THIRD-PARTY-NOTICES.md](firmware/pet/THIRD-PARTY-NOTICES.md).
+Nothing in that list ships inside the desktop app.
