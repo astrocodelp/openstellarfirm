@@ -20,7 +20,11 @@ export function ApprovalsSection({
   onChanged(): Promise<void>;
 }) {
   const remembered = state.assistants.reduce(
-    (n, a) => n + a.sites.length + a.connectionTools.length,
+    (n, a) =>
+      n +
+      a.sites.length +
+      a.connectionTools.length +
+      (a.mailReads?.length ?? 0),
     0,
   );
   const [asking, setAsking] = useState(false);
@@ -30,11 +34,11 @@ export function ApprovalsSection({
   return (
     <Section title="Approvals">
       <p className="faint">
-        An assistant asks before it reads a website, or uses a read-only tool of
-        a connection, for the first time. If you choose "Always allow", the app
-        remembers that site or that tool for that assistant only. Nothing else
-        is remembered: a look at your screen and any tool that can change
-        something ask every time.
+        An assistant asks before it reads a website, uses a read-only tool of a
+        connection, or reads a mail account, for the first time. If you choose
+        "Always allow", the app remembers that site, that tool or that mailbox
+        for that assistant only. Nothing else is remembered: a look at your
+        screen and any tool that can change something ask every time.
       </p>
       <p>
         {remembered === 0
@@ -43,7 +47,7 @@ export function ApprovalsSection({
       </p>
       {asking ? (
         <Confirm
-          text="Every assistant will ask again before it reads any site or uses any connection, even the ones you allowed before. Your assistants, chats and folders stay as they are."
+          text="Every assistant will ask again before it reads any site, mailbox or connection, even the ones you allowed before. Your assistants, chats and folders stay as they are."
           doLabel="Ask again for everything"
           keepLabel="Keep them"
           busy={busy}

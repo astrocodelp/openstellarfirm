@@ -1,5 +1,6 @@
 import type { ChatStep, Decision } from "../shared/types";
 import type { McpGate } from "./connections";
+import type { MailGate } from "./mail";
 import {
   assistantTurn,
   type ImagePart,
@@ -60,6 +61,8 @@ export interface AgentDeps {
   screen?: ScreenDeps;
   /** The tools of the assistant's connections, behind the same gate. */
   mcp?: McpGate;
+  /** The assistant's mail tools, behind the same kind of gate. */
+  mail?: MailGate;
   /**
    * Names the model source and model, so that once a model has refused tools
    * the next answers go straight to asking for them in writing.
@@ -91,6 +94,8 @@ interface Seen {
   files: boolean;
   /** Set once this answer has looked at the screen. */
   screen: boolean;
+  /** Set once this answer has read the person's mail. */
+  mail: boolean;
   /** The picture the last call made, taken by the loop right after it. */
   picture?: ImagePart;
 }
@@ -101,7 +106,11 @@ async function run(
   deps: AgentDeps,
 ): Promise<AgentResult> {
   const steps: ChatStep[] = [];
-  const specs = [...toolsFor(assistant), ...(deps.mcp?.specs ?? [])];
+  const specs = [
+    ...toolsFor(assistant),
+    ...(deps.mcp?.specs ?? []),
+    ...(deps.mail?.specs ?? []),
+  ];
   // A model that asks for tools in writing is never offered the screen: a
   // picture needs a real tool result to travel in.
   const textSpecs = specs.filter((spec) => spec.name !== SCREEN_TOOL_NAME);
@@ -109,7 +118,7 @@ async function run(
   // The assistant's own list, so a site allowed mid-answer counts at once.
   const live: ToolAssistant = { ...assistant, sites: [...assistant.sites] };
   /** Set once this answer has read from the person's folders. */
-  const seen: Seen = { files: false, screen: false };
+  const seen: Seen = { files: false, screen: false, mail: false };
   let full = "";
   /** Tools asked for in writing, for a model that cannot call them itself. */
   let textMode = needsTextMode(deps.modeKey) && textSpecs.length > 0;
@@ -276,15 +285,23 @@ async function runCall(
   try {
     // A look at the screen counts like reading files: it can hold private text
     // that a web address or a connection's arguments could carry out.
-    planned = deps.mcp?.owns(name)
-      ? deps.mcp.plan(name, rawArguments, seen.files || seen.screen)
-      : planCall(
-          assistant,
-          name,
-          rawArguments,
-          deps.web,
-          seen.screen ? "screen" : seen.files,
-        );
+    // Reading mail counts the same, for everything but mail itself: reading
+    // a second message is no new way for private text to get out.
+    planned = deps.mail?.owns(name)
+      ? deps.mail.plan(name, rawArguments, seen.files || seen.screen)
+      : deps.mcp?.owns(name)
+        ? deps.mcp.plan(
+            name,
+            rawArguments,
+            seen.files || seen.screen || seen.mail,
+          )
+        : planCall(
+            assistant,
+            name,
+            rawArguments,
+            deps.web,
+            seen.screen ? "screen" : seen.mail ? "mail" : seen.files,
+          );
   } catch (error) {
     steps.push({ label: "Turned down a step that is not allowed", ok: false });
     return toolFailure(error);
@@ -300,11 +317,11 @@ async function runCall(
       assistant.sites.push(planned.ask.site);
       deps.allowSite(planned.ask.site);
     } else if (decision === "always" && planned.ask.remember) {
-      // Only a read the gate offered to remember is ever remembered.
-      deps.mcp?.remember(
-        planned.ask.remember.connectionId,
-        planned.ask.remember.tool,
-      );
+      // Only what the gate offered to remember is ever remembered.
+      const remember = planned.ask.remember;
+      if ("mailAccountId" in remember)
+        deps.mail?.remember(remember.mailAccountId);
+      else deps.mcp?.remember(remember.connectionId, remember.tool);
     }
   }
   deps.onActivity(planned.doing);
@@ -312,6 +329,7 @@ async function runCall(
     const result = await planned.run();
     steps.push({ label: planned.label, ok: true });
     if (FOLDER_READS.has(name)) seen.files = true;
+    if (deps.mail?.owns(name)) seen.mail = true;
     return result;
   } catch (error) {
     steps.push({

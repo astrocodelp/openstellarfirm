@@ -47,6 +47,11 @@ const api: OpenApi = {
   lookupCompany: (domain) => call(IPC.lookupCompany, domain),
   removeConnectionTool: (assistantId, connectionId, tool) =>
     call(IPC.removeConnectionTool, assistantId, connectionId, tool),
+  checkMail: (input) => call(IPC.checkMail, input),
+  saveMail: (input) => call(IPC.saveMail, input),
+  removeMail: (id) => call(IPC.removeMail, id),
+  removeMailRead: (assistantId, accountId) =>
+    call(IPC.removeMailRead, assistantId, accountId),
   saveSource: (input) => call(IPC.saveSource, input),
   removeSource: (id) => call(IPC.removeSource, id),
   probeModels: (input) => call(IPC.probeModels, input),

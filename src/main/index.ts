@@ -53,6 +53,7 @@ import {
   connectionInput,
 } from "./connections";
 import { folderLabels } from "./folders";
+import { MailService, mailInput } from "./mail";
 import { listModels, ModelError, streamTurn, type WireMessage } from "./models";
 import { lookupCompany } from "./poppy";
 import { electronScreen } from "./screen-capture";
@@ -81,6 +82,7 @@ function str(value: unknown, max = 4096): string {
 let store: Store;
 let secrets: Secrets;
 let connections: ConnectionService;
+let mail: MailService;
 let updates: UpdateChecker;
 const running = new Map<string, AbortController>();
 /** The step that waits for the person, by assistant. One at a time each. */
@@ -121,6 +123,7 @@ async function state(): Promise<AppState> {
     assistants: store.assistants(),
     sources: store.sources().map(withKey),
     connections: connections.list(),
+    mailAccounts: mail.list(),
     settings: store.settings(),
     keychain: await secrets.available(),
     platform: process.platform,
@@ -247,6 +250,7 @@ async function answer(
       .map((m) => ({ role: m.role, content: m.text }));
     const apiKey = await secrets.get(source.id);
     const mcp = connections.gateFor(assistant, controller.signal);
+    const mailGate = mail.gateFor(assistant, controller.signal);
     const prompt = systemPrompt({
       ...assistant,
       folderLabels: folderLabels(assistant.folders).map((f) => f.label),
@@ -256,6 +260,12 @@ async function answer(
             .filter((c) => assistant.connections.includes(c.id))
             .filter((c) => c.tools.length > 0)
             .map((c) => c.name)
+        : [],
+      mailNames: mailGate
+        ? store
+            .mailAccounts()
+            .filter((m) => (assistant.mail ?? []).includes(m.id))
+            .map((m) => m.name)
         : [],
     });
     const result = await runAgent(
@@ -275,6 +285,7 @@ async function answer(
           }),
         modeKey: `${source.id}\n${assistant.model ?? source.model}`,
         ...(mcp ? { mcp } : {}),
+        ...(mailGate ? { mail: mailGate } : {}),
         ask: (ask) => askPerson(window, assistant.id, ask, controller.signal),
         allowSite: (site) => {
           store.addSite(assistant.id, site);
@@ -515,6 +526,14 @@ function register(window: BrowserWindow): void {
     (_e, id: unknown, connectionId: unknown, tool: unknown) =>
       store.removeAllowedTool(str(id), str(connectionId), str(tool, 200)),
   );
+  handle(IPC.checkMail, (_e, input: unknown) => mail.check(mailInput(input)));
+  handle(IPC.saveMail, (_e, input: unknown) => mail.save(mailInput(input)));
+  handle(IPC.removeMail, (_e, id: unknown) => {
+    mail.remove(str(id));
+  });
+  handle(IPC.removeMailRead, (_e, id: unknown, accountId: unknown) =>
+    store.removeAllowedMail(str(id), str(accountId)),
+  );
   handle(IPC.saveSource, (_e, input: ModelSourceInput) => saveSource(input));
   handle(IPC.removeSource, (_e, id: string) => {
     store.removeSource(id);
@@ -656,6 +675,7 @@ app.whenReady().then(() => {
     secrets,
     appVersion: app.getVersion(),
   });
+  mail = new MailService({ store, secrets });
   updates = new UpdateChecker({
     fetch,
     now: () => new Date(),

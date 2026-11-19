@@ -6,6 +6,7 @@ import type {
   ChatDone,
   ChatMessage,
   Connection,
+  MailAccount,
   ModelSource,
   OpenApi,
 } from "../../shared/types";
@@ -64,6 +65,7 @@ function preview(): OpenApi {
     ],
     sources: [source],
     connections: [],
+    mailAccounts: [],
     settings: {
       onboarded: true,
       theme: "system",
@@ -269,6 +271,40 @@ function preview(): OpenApi {
         connectionTools: a.connectionTools.filter(
           (t) => t !== `${connectionId}:${tool}`,
         ),
+      })),
+    checkMail: async () => ({
+      folders: ["INBOX", "Sent", "Drafts", "Archive"],
+      more: 0,
+    }),
+    saveMail: async (input) => {
+      const next: MailAccount = {
+        id: input.id ?? id(),
+        name: input.name,
+        host: input.host,
+        port: input.port,
+        username: input.username,
+        ownNetwork: input.ownNetwork,
+        hasPassword: true,
+        checkedAt: now(),
+      };
+      state.mailAccounts = [
+        ...state.mailAccounts.filter((m) => m.id !== next.id),
+        next,
+      ];
+      return next;
+    },
+    removeMail: async (accountId) => {
+      state.mailAccounts = state.mailAccounts.filter((m) => m.id !== accountId);
+      state.assistants = state.assistants.map((a) => ({
+        ...a,
+        mail: (a.mail ?? []).filter((m) => m !== accountId),
+        mailReads: (a.mailReads ?? []).filter((m) => m !== accountId),
+      }));
+    },
+    removeMailRead: async (assistantId, accountId) =>
+      change(assistantId, (a) => ({
+        ...a,
+        mailReads: (a.mailReads ?? []).filter((m) => m !== accountId),
       })),
     saveSource: async (input) => {
       const next: ModelSource = {
