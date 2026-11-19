@@ -1466,6 +1466,9 @@ function createWindow(): BrowserWindow {
     icon: windowIcon,
     title: "OpenStellarFirm",
     titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "default",
+    // On Linux and Windows the menu sits inside the window, under the title
+    // bar. It stays out of sight until Alt is pressed; its keys still work.
+    autoHideMenuBar: process.platform !== "darwin",
     webPreferences: {
       preload: join(__dirname, "../preload/index.cjs"),
       contextIsolation: true,
