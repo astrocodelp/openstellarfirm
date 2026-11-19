@@ -429,7 +429,10 @@ export function ComputerPanel({
 
   /** A point on the picture, in the computer's own pixels. */
   function point(event: MouseEvent | WheelEvent): { x: number; y: number } {
-    const rect = event.currentTarget.getBoundingClientRect();
+    // The picture itself, inside the frame's border, so a click lands on the
+    // pixel under the pointer.
+    const frame = event.currentTarget as HTMLElement;
+    const rect = (frame.querySelector("img") ?? frame).getBoundingClientRect();
     const x = Math.round(
       ((event.clientX - rect.left) / rect.width) * SCREEN_WIDTH,
     );
