@@ -9,7 +9,7 @@ import type {
   ComputerView,
 } from "../../shared/computer";
 import { type Assistant, IPC } from "../../shared/types";
-import { ComputerError } from "./args";
+import { ComputerError, computerIds } from "./args";
 import { dockerEnv, findDocker } from "./find";
 import { spawnRunner } from "./runner";
 import { ComputerService } from "./service";
@@ -43,6 +43,7 @@ export function createComputers(
   };
   return new ComputerService({
     dataDir,
+    ids: computerIds(process.platform, process.getuid?.(), process.getgid?.()),
     docker: () => {
       const path = findDocker({
         ...where,

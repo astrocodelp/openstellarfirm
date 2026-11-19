@@ -66,7 +66,7 @@ never one string built from a model's text (`src/main/computer/args.ts` and
 | `--network none`                          | No network, unless you turned on "Let its computer reach the internet".    |
 | `--cap-drop ALL`                          | No Linux capability at all, not even the ones Docker gives by default.     |
 | `--security-opt no-new-privileges`        | Nothing inside can gain privileges, through a setuid program or otherwise. |
-| `--user 1000:1000`                        | Every process is an ordinary user. The image has no `sudo`.                |
+| `--user 1000:1000`                        | An ordinary user, never root; on Linux your own ids. No `sudo`.            |
 | `--pids-limit 512`                        | A runaway command cannot fill the process table.                           |
 | `--memory`, `--memory-swap`, `--cpus`     | Your choice in the form: 1, 2, 4 or 8 GB, and 1, 2 or 4 processors.        |
 | `--shm-size 512m`                         | Room for Firefox.                                                          |
@@ -91,6 +91,19 @@ Each assistant has one, in the app's data folder:
 `<data folder>/computers/<assistant id>/exchange`, made private to your user.
 Inside the computer it is `~/exchange`. Put a file there to hand it to the
 assistant; the panel's **Open the exchange folder** opens it.
+
+On Linux, Docker Engine shares the folder as it is on disk: owned by your user
+and closed to every other one. So the app builds the image with your own user
+and group ids and starts the computer with them (`computerIds` in
+`src/main/computer/args.ts`), and the computer's user can read and write
+there. On macOS and Windows, Docker Desktop hands the folder over itself and
+the ids stay 1000. An id below 1000 (root's, or the system's) is never taken:
+the app keeps 1000, and then the computer cannot open the folder. The image's
+tag includes the ids, so a different user builds an image of their own.
+
+Rootless Docker and rootless Podman map the ids inside a container to other
+ids on your computer, so even your own ids do not reach your folder there. The
+computer still works; only the exchange folder stays closed to it.
 
 `computer_copy_out` reads a file from the computer (a regular file, 25 MB at
 most), and saves it as a new file in the exchange folder. A name that is taken

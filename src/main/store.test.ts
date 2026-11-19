@@ -2,7 +2,8 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { type SecretBox, Secrets } from "./secrets";
+import { noKeychainNote } from "../shared/keychain";
+import { keychainUsable, type SecretBox, Secrets } from "./secrets";
 import { Store } from "./store";
 
 let dir: string;
@@ -352,6 +353,40 @@ describe("secrets", () => {
       /no keychain/,
     );
     expect(secrets.has("a")).toBe(false);
+  });
+
+  it("takes only a real keyring on Linux, never Chromium's fixed key", async () => {
+    const yes = async () => true;
+    const no = async () => false;
+    const sealedAs = (mark: string) => async () =>
+      Buffer.concat([Buffer.from(mark), Buffer.from([1, 2, 3, 4])]);
+    const never = async (): Promise<Buffer> => {
+      throw new Error("not asked");
+    };
+    // macOS and Windows: the system's store, whatever the mark.
+    expect(await keychainUsable("darwin", yes, never)).toBe(true);
+    expect(await keychainUsable("win32", yes, never)).toBe(true);
+    expect(await keychainUsable("darwin", no, never)).toBe(false);
+    // Linux: a keyring's key, not the fixed one written in Chromium.
+    expect(await keychainUsable("linux", yes, sealedAs("v11"))).toBe(true);
+    expect(await keychainUsable("linux", yes, sealedAs("v10"))).toBe(false);
+    expect(await keychainUsable("linux", no, sealedAs("v11"))).toBe(false);
+    expect(
+      await keychainUsable("linux", yes, async (plain) => Buffer.from(plain)),
+    ).toBe(false);
+    expect(
+      await keychainUsable("linux", yes, async () => Buffer.alloc(0)),
+    ).toBe(false);
+    expect(await keychainUsable("linux", yes, never)).toBe(false);
+  });
+
+  it("tells a Linux user how to get a keychain", () => {
+    expect(noKeychainNote("darwin", "key")).toBe(
+      "This computer has no keychain, so a key cannot be saved here.",
+    );
+    expect(noKeychainNote("linux", "password")).toMatch(
+      /password cannot be saved here\. Start GNOME Keyring, KWallet/,
+    );
   });
 });
 

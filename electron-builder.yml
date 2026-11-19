@@ -50,10 +50,20 @@ win:
       arch: [x64]
 linux:
   category: Utility
+  icon: build/icon.png
+  # The .desktop file is named after desktopName in package.json, and its
+  # StartupWMClass matches the window's class, so a Linux desktop puts the
+  # running window under the app's own launcher and icon.
+  syncDesktopName: true
   # No deb or rpm yet: they need a maintainer email address the project has not chosen.
-  # icon: left to the change that adds build/icon.png.
   target:
     - target: AppImage
       arch: [x64]
     - target: tar.gz
       arch: [x64]
+appImage:
+  # electron-builder writes --no-sandbox into the AppImage's .desktop entry by
+  # default, which turns Chromium's sandbox off for every window, the reader
+  # of attached files too. The AppImage's own launcher adds it only where the
+  # system has no user namespaces, so the entry carries no switch.
+  executableArgs: []

@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { ChatMessage } from "../shared/types";
-import { chatFileName, chatMarkdown, hideKeys, stamp } from "./export";
+import {
+  chatFileName,
+  chatMarkdown,
+  hideKeys,
+  stamp,
+  withExtension,
+} from "./export";
 
 const now = new Date("2026-11-19T12:00:00Z");
 
@@ -151,5 +157,31 @@ describe("names and times", () => {
       "2026-11-20 01:30",
     );
     expect(stamp("not a time", "UTC")).toBe("");
+  });
+});
+
+describe("the file type's ending on a saved file", () => {
+  const none = () => false;
+  it("is added when the person typed none, as Linux's dialog leaves it off", () => {
+    expect(withExtension("/home/a/plain name", "md", none)).toBe(
+      "/home/a/plain name.md",
+    );
+    expect(withExtension("/home/a.b/notes", "json", none)).toBe(
+      "/home/a.b/notes.json",
+    );
+  });
+
+  it("is left as the person typed it when it has one", () => {
+    expect(withExtension("/home/a/notes.md", "md", none)).toBe(
+      "/home/a/notes.md",
+    );
+    expect(withExtension("/home/a/notes.txt", "md", none)).toBe(
+      "/home/a/notes.txt",
+    );
+  });
+
+  it("never replaces a file the dialog did not ask about", () => {
+    const taken = (path: string) => path === "/home/a/notes.md";
+    expect(withExtension("/home/a/notes", "md", taken)).toBe("/home/a/notes");
   });
 });

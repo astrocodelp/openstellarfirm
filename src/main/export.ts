@@ -125,3 +125,21 @@ export function chatFileName(assistantName: string, now: Date): string {
   const day = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
   return `${base} chat ${day}.md`;
 }
+
+/**
+ * The path a save dialog gave back, with the file type's ending added when
+ * the person typed none. The save dialog on Linux does not add it, as the ones
+ * on macOS and Windows do. The ending is added only when no file already has
+ * that name: the dialog asked before replacing the name it was given, and
+ * never about the other one.
+ */
+export function withExtension(
+  path: string,
+  extension: string,
+  exists: (path: string) => boolean,
+): string {
+  const name = path.slice(Math.max(path.lastIndexOf("/"), 0));
+  if (/\.[^./\\]+$/.test(name)) return path;
+  const longer = `${path}.${extension}`;
+  return exists(longer) ? path : longer;
+}

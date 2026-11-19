@@ -34,9 +34,47 @@ export function containerName(assistantId: string): string {
   return `openstellarfirm-computer-${assistantId}`;
 }
 
-/** The image's tag follows the files it is built from, so a change rebuilds. */
-export function imageTag(files: { name: string; content: string }[]): string {
+/** The user and group the computer's processes run as. */
+export interface UserIds {
+  uid: number;
+  gid: number;
+}
+
+export const DEFAULT_IDS: UserIds = { uid: 1000, gid: 1000 };
+
+/** Ids Docker and the image take: whole numbers below 2^31 - 1. */
+const MAX_ID = 2 ** 31 - 2;
+
+/**
+ * The ids the computer's user gets. With Docker Engine on Linux, the exchange
+ * folder is shared as it is on disk: owned by the person's own user, readable
+ * by no one else. The computer's user takes the same ids so it can read and
+ * write there. Docker Desktop on macOS and Windows hands the folder over
+ * itself, so there the ids stay 1000. Never root's: an id below 1000 belongs
+ * to the system, and the image keeps 1000.
+ */
+export function computerIds(
+  platform: string,
+  uid: number | undefined,
+  gid: number | undefined,
+): UserIds {
+  if (platform !== "linux") return DEFAULT_IDS;
+  const fits = (id: number | undefined, min: number): id is number =>
+    typeof id === "number" && Number.isInteger(id) && id >= min && id <= MAX_ID;
+  if (!fits(uid, 1000) || !fits(gid, 1)) return DEFAULT_IDS;
+  return { uid, gid };
+}
+
+/**
+ * The image's tag follows the files it is built from, and the ids its user is
+ * made with, so a change to either rebuilds.
+ */
+export function imageTag(
+  files: { name: string; content: string }[],
+  ids: UserIds = DEFAULT_IDS,
+): string {
   const hash = createHash("sha256");
+  hash.update(`ids\0${ids.uid}:${ids.gid}\0`);
   for (const file of [...files].sort((a, b) => a.name.localeCompare(b.name))) {
     hash.update(file.name);
     hash.update("\0");
@@ -56,8 +94,23 @@ export function configKey(settings: ComputerSettings, image: string): string {
   ].join("|");
 }
 
-export function buildArgs(tag: string, contextDir: string): string[] {
-  return ["build", "--label", `${LABEL}=image`, "--tag", tag, contextDir];
+export function buildArgs(
+  tag: string,
+  contextDir: string,
+  ids: UserIds = DEFAULT_IDS,
+): string[] {
+  return [
+    "build",
+    "--label",
+    `${LABEL}=image`,
+    "--build-arg",
+    `ASSISTANT_UID=${ids.uid}`,
+    "--build-arg",
+    `ASSISTANT_GID=${ids.gid}`,
+    "--tag",
+    tag,
+    contextDir,
+  ];
 }
 
 export interface RunSpec {
@@ -66,6 +119,8 @@ export interface RunSpec {
   /** The assistant's exchange folder on this computer. */
   exchange: string;
   settings: ComputerSettings;
+  /** The ids the image's user was made with; 1000 when not given. */
+  ids?: UserIds;
 }
 
 /** The source of a bind mount, quoted the way `--mount` reads it. */
@@ -78,6 +133,7 @@ function mountSource(path: string): string {
 export function runArgs(spec: RunSpec): string[] {
   const { settings } = spec;
   const memory = `${settings.memoryGb}g`;
+  const ids = spec.ids ?? DEFAULT_IDS;
   return [
     "run",
     "--detach",
@@ -93,7 +149,7 @@ export function runArgs(spec: RunSpec): string[] {
     `${LABEL_CONFIG}=${configKey(settings, spec.image)}`,
     "--init",
     "--user",
-    "1000:1000",
+    `${ids.uid}:${ids.gid}`,
     // With no "--network", the engine's default network is used, which
     // reaches the internet. The person turns that on; it is off by default.
     ...(settings.network ? [] : ["--network", "none"]),
