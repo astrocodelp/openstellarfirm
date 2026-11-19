@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Desk pets, phase 3: a pet can now talk and be told things (`src/main/pets/`).
+  What you say is heard with ElevenLabs Scribe on your own key, sent to the
+  assistant you chose as your own message (marked as from a desk pet, through
+  the same approval rules as a typed one) and the answer is spoken back with
+  ElevenLabs Flash, without numbers, amounts or links. The pet hears "done",
+  "stopped", "needs you" and a check's update, and only "needs you" for a step
+  that waits: it can never approve one. Its built-in lines are made on your
+  key as a voice pack, kept in the app's data folder. A refused or used-up key
+  is said by the pet and shown in the app's status. Still no Settings screen
+  for it; that comes next.
 - Desk pets, phase 2: the app can now be a desk pet's server (`src/main/pets/`):
   the certificate made by the app and kept in the keychain, an HTTPS server
   that only answers addresses on your own network, pairing with a setup code

@@ -63,6 +63,38 @@ describe("the desk pet server holds no way to decide an approval", () => {
     }
   });
 
+  it("holds the ElevenLabs key and address in voice.ts alone, and no other file fetches", () => {
+    for (const { name, text } of sources) {
+      const code = withoutComments(text);
+      if (name !== "voice.ts") {
+        expect(code, name).not.toMatch(/elevenlabs\.io|\bfetch\(/i);
+      }
+      // Only the service reads the saved key, and only to hand it to the client.
+      if (name !== "service.ts" && name !== "voice.ts") {
+        expect(code, name).not.toMatch(/xi-api-key|desk-pets:elevenlabs/);
+      }
+    }
+    const voice = sources.find((s) => s.name === "voice.ts")?.text ?? "";
+    expect(voice).toContain('redirect: "manual"');
+    expect(voice).toContain('"https://api.elevenlabs.io"');
+    // The key is never logged or put in an error.
+    expect(withoutComments(voice)).not.toMatch(/console\./);
+  });
+
+  it("lends the pets a host that can start a run and say a step waits, and nothing else", () => {
+    const backend = sources.find((s) => s.name === "backend.ts")?.text ?? "";
+    const block =
+      /interface PetTurnHost \{([\s\S]*?)\n\}/.exec(backend)?.[1] ?? "";
+    const members = [
+      ...withoutComments(block).matchAll(/^\s{2}([a-zA-Z]+)\(/gm),
+    ].map((m) => m[1]);
+    expect(members.sort()).toEqual(["busy", "start", "target"]);
+    // The run's signals are read only: a promise that a step waits, never an answer to it.
+    const run = /interface PetRun \{([\s\S]*?)\n\}/.exec(backend)?.[1] ?? "";
+    expect(withoutComments(run)).toMatch(/needsYou: Promise<void>/);
+    expect(withoutComments(run)).not.toMatch(/approve|reject|allow|always/i);
+  });
+
   it("writes no em dash or en dash", () => {
     for (const { name, text } of sources) {
       expect(text, name).not.toMatch(/[\u2013\u2014]/u);

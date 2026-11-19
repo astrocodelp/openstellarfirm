@@ -710,6 +710,10 @@ function deskPetsPreview(): Pick<
   | "petsConfirm"
   | "petsForget"
   | "petsRename"
+  | "petsSetVoiceKey"
+  | "petsClearVoiceKey"
+  | "petsSetConfig"
+  | "petsDiscardDraft"
 > {
   const off: DeskPetsStatus = {
     enabled: false,
@@ -720,6 +724,9 @@ function deskPetsPreview(): Pick<
     fingerprint: null,
     pets: [],
     pending: null,
+    drafts: [],
+    voiceKey: false,
+    voiceProblem: null,
     setupExpiresAt: null,
     problem: null,
   };
@@ -735,5 +742,9 @@ function deskPetsPreview(): Pick<
     petsConfirm: unavailable,
     petsForget: async () => off,
     petsRename: unavailable,
+    petsSetVoiceKey: unavailable,
+    petsClearVoiceKey: async () => off,
+    petsSetConfig: unavailable,
+    petsDiscardDraft: async () => off,
   };
 }

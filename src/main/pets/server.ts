@@ -1,10 +1,12 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { createServer, type Server } from "node:https";
 import type { Socket } from "node:net";
-import { PET_VOICE_IDS } from "../../shared/pets/kinds";
+import { parseAfter, parseWait } from "../../shared/pets/inbox";
 import { PET_LIMITS } from "../../shared/pets/limits";
 import {
   isQuietNow,
+  PET_AUDIO_DOWN_CONTENT_TYPE,
+  PET_HEADERS,
   type PetErrorCode,
   parseClaimRequest,
   parseHeartbeatRequest,
@@ -12,6 +14,7 @@ import {
   petError,
 } from "../../shared/pets/protocol";
 import { isPrivateAddress } from "./address";
+import type { BackendReply, PetBackend } from "./backend";
 import { sameText, sha256Hex } from "./digest";
 import { RateLimiter } from "./limits";
 import type { Pairing } from "./pairing";
@@ -50,16 +53,25 @@ export const PET_ROUTES: readonly RouteInfo[] = [
 export const JSON_BODY_MAX_BYTES = 4096;
 export const DEFAULT_PORT = 47820;
 
+/** Spoken calls a minute (the say route) for one pet. */
+const SAYS_PER_MINUTE = 20;
+const DAY_MS = 86_400_000;
+
 /** Calls a minute a pet may make that carry its token. */
 const AUTH_CALLS_PER_MINUTE = 30;
 const HEARTBEATS_PER_MINUTE = 12;
 /** Calls without a good token a minute, for one address. */
 const AUTH_FAILURES_PER_MINUTE = 30;
 const CLAIMS_PER_MINUTE = 30;
+const PACKS_PER_MINUTE = 20;
 
 export interface PetServerDeps {
   readonly store: PetStore;
   readonly pairing: Pairing;
+  /** Turns, notices, spoken lines and voice packs. Without it they answer 503. */
+  readonly backend?: PetBackend;
+  /** Called once a pet's claim worked, with its id (for its hello and its voice). */
+  readonly onPaired?: (petId: string) => void;
   readonly keyPem: string;
   readonly certPem: string;
   /** Epoch milliseconds. */
@@ -75,6 +87,26 @@ type Reply = (
   body: unknown,
   extra?: Record<string, string>,
 ) => void;
+
+/** Answers with bytes: speech or a voice pack. */
+type Raw = (
+  status: number,
+  type: string,
+  bytes: Uint8Array,
+  extra?: Record<string, string>,
+) => void;
+
+/** The `X-Pet-*` headers of a turn's or a notice's speech. */
+function speechHeaders(
+  reply: Extract<BackendReply, { kind: "audio" }>,
+): Record<string, string> {
+  return {
+    ...(reply.state ? { [PET_HEADERS.state]: reply.state } : {}),
+    [PET_HEADERS.line]: encodeURIComponent(reply.line),
+    ...(reply.chat ? { [PET_HEADERS.chat]: reply.chat } : {}),
+    ...(reply.run ? { [PET_HEADERS.run]: reply.run } : {}),
+  };
+}
 
 class TooLarge extends Error {}
 
@@ -172,11 +204,25 @@ export class PetServer {
       });
       res.end(text);
     };
+    const raw: Raw = (status, type, bytes, extra) => {
+      res.writeHead(status, {
+        "Content-Type": type,
+        "Content-Length": bytes.length,
+        "Cache-Control": "no-store",
+        "X-Content-Type-Options": "nosniff",
+        ...extra,
+      });
+      res.end(bytes);
+    };
     const fail = (code: PetErrorCode) => {
       const { status, body } = petError(code);
       reply(status, body);
     };
-    this.route(req, reply, fail).catch(() => {
+    // The answer's own close, not the request's: a pet that gives up on a held
+    // call closes the connection.
+    const closed = new AbortController();
+    res.on("close", () => closed.abort());
+    this.route(req, reply, fail, raw, closed.signal).catch(() => {
       if (!res.headersSent) fail("bad_request");
       else res.destroy();
     });
@@ -186,6 +232,8 @@ export class PetServer {
     req: IncomingMessage,
     reply: Reply,
     fail: (code: PetErrorCode) => void,
+    raw: Raw,
+    closed: AbortSignal,
   ): Promise<void> {
     const address = req.socket.remoteAddress ?? "unknown";
     // Only the path is read. The query is the inbox's own and is never logged.
@@ -207,34 +255,83 @@ export class PetServer {
     if (method === "POST" && path === "/api/pets/turn") {
       const pet = this.authenticate(req, address, fail);
       if (!pet) return;
-      if (!this.limiter.take(`turn:${pet.id}`, PET_LIMITS.turnsPerMinute)) {
+      if (
+        !this.limiter.take(`turn:${pet.id}`, PET_LIMITS.turnsPerMinute) ||
+        !this.limiter.take(`turn-day:${pet.id}`, PET_LIMITS.turnsPerDay, DAY_MS)
+      ) {
         return fail("too_many");
       }
       const length = Number(req.headers["content-length"] ?? 0);
       if (length > PET_LIMITS.uploadMaxBytes) return fail("too_long");
-      // P3 fills this in. The upload is read and thrown away so the pet gets
-      // its answer, not a reset.
-      await this.drain(req, PET_LIMITS.uploadMaxBytes).catch(() => undefined);
-      return fail("voice_off");
+      // The upload is read whole, then dropped from memory with the reply.
+      let body: Buffer;
+      try {
+        body = await this.readBody(req, PET_LIMITS.uploadMaxBytes);
+      } catch (error) {
+        return fail(error instanceof TooLarge ? "too_long" : "bad_request");
+      }
+      const backend = this.deps.backend;
+      if (!backend) return fail("voice_off");
+      const turnId = req.headers[PET_HEADERS.turn.toLowerCase()];
+      return this.give(
+        await backend.turn(pet, {
+          turnId: typeof turnId === "string" ? turnId : undefined,
+          offline: req.headers[PET_HEADERS.offline.toLowerCase()] === "1",
+          body,
+        }),
+        reply,
+        raw,
+      );
     }
     const say = /^\/api\/pets\/say\/(\d{1,10})$/.exec(path);
     if (method === "GET" && say) {
-      if (!this.authenticate(req, address, fail)) return;
-      return fail("voice_off");
+      const pet = this.authenticate(req, address, fail);
+      if (!pet) return;
+      if (!this.limiter.take(`say:${pet.id}`, SAYS_PER_MINUTE)) {
+        return fail("too_many");
+      }
+      const backend = this.deps.backend;
+      if (!backend) return fail("voice_off");
+      return this.give(await backend.say(pet, Number(say[1])), reply, raw);
     }
     if (method === "GET" && path === "/api/pets/inbox") {
-      if (!this.authenticate(req, address, fail)) return;
-      return fail("store_off");
+      const pet = this.authenticate(req, address, fail);
+      if (!pet) return;
+      const backend = this.deps.backend;
+      if (!backend) return fail("store_off");
+      const answer = await backend.inbox(
+        pet,
+        parseAfter(url.searchParams.get("after")),
+        parseWait(url.searchParams.get("wait")),
+        closed,
+      );
+      if (closed.aborted) return;
+      return reply(200, answer);
     }
     const pack = /^\/pets\/voice\/([a-z]{3,12})\.sfvp$/.exec(path);
     if (method === "GET" && pack) {
       // The firmware fetches a voice pack with no token, so this route cannot
       // ask for one. It answers only for the voices the protocol names.
-      return (PET_VOICE_IDS as readonly string[]).includes(pack[1] ?? "")
-        ? fail("voice_off")
-        : fail("off");
+      if (!this.limiter.take(`pack:${address}`, PACKS_PER_MINUTE)) {
+        return fail("too_many");
+      }
+      const backend = this.deps.backend;
+      if (!backend) return fail("voice_off");
+      const answer = await backend.pack(pack[1] ?? "");
+      return answer.kind === "file"
+        ? raw(200, "application/octet-stream", answer.bytes)
+        : reply(answer.status, answer.body);
     }
     reply(404, { error: "not_found" });
+  }
+
+  /** Writes a backend's answer: JSON, or speech with its `X-Pet-*` headers. */
+  private give(answer: BackendReply, reply: Reply, raw: Raw): void {
+    if (answer.kind === "json") {
+      reply(answer.status, answer.body);
+      return;
+    }
+    raw(200, PET_AUDIO_DOWN_CONTENT_TYPE, answer.pcm, speechHeaders(answer));
   }
 
   // -- Bodies ----------------------------------------------------------------
@@ -264,10 +361,6 @@ export class PetServer {
       req.on("end", () => resolve(Buffer.concat(chunks)));
       req.on("error", reject);
     });
-  }
-
-  private drain(req: IncomingMessage, max: number): Promise<void> {
-    return this.readBody(req, max).then(() => undefined);
   }
 
   private async json(
@@ -361,6 +454,11 @@ export class PetServer {
     if (outcome.kind === "gone") return fail("gone");
     if (outcome.kind === "waiting") return reply(202, { status: "waiting" });
     reply(200, outcome.value);
+    try {
+      this.deps.onPaired?.(outcome.value.deviceId);
+    } catch {
+      // A hello that could not be made never undoes a pairing.
+    }
   }
 
   private async heartbeat(

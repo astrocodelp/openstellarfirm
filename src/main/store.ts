@@ -372,6 +372,7 @@ export class Store {
     check?: ChatMessage["check"],
     at: Date = new Date(),
     attachments: AttachmentRef[] = [],
+    from?: ChatMessage["from"],
   ): ChatMessage {
     const message: ChatMessage = {
       id: randomUUID(),
@@ -381,6 +382,7 @@ export class Store {
       ...(failed ? { failed: true } : {}),
       ...(steps.length > 0 ? { steps } : {}),
       ...(check ? { check } : {}),
+      ...(from ? { from } : {}),
       ...(attachments.length > 0 ? { attachments } : {}),
     };
     const before = [...this.messages(assistantId), message];

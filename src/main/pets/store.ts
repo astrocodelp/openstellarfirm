@@ -22,6 +22,30 @@ import {
  * they live in the keychain-sealed `Secrets`.
  */
 
+/** What the owner chose for how a pet talks to the app; the pet is never told it. */
+export interface PetConfig {
+  /** The assistant its turns go to; null is the app's main assistant. */
+  assistantId: string | null;
+  /** Whether it says the assistant's answer or only a short done line. */
+  speakAnswers: boolean;
+}
+
+export function defaultPetConfig(): PetConfig {
+  return { assistantId: null, speakAnswers: true };
+}
+
+/** A saved note kept as text, to be read in the app and sent by the owner. */
+export interface StoredDraft {
+  readonly id: string;
+  readonly petId: string;
+  readonly assistantId: string;
+  readonly text: string;
+  /** ISO time. */
+  readonly at: string;
+}
+
+export const MAX_DRAFTS = 50;
+
 export interface StoredPet {
   readonly id: string;
   readonly name: string;
@@ -34,6 +58,8 @@ export interface StoredPet {
   readonly tokenHash: string;
   /** What the owner set; the pet is told it on a claim and on a heartbeat. */
   settings: PetSettings;
+  /** The app's own choices for this pet (assistant, speak answers). */
+  config: PetConfig;
   /** From the last heartbeat; null before one. */
   firmware: string | null;
   battery: number | null;
@@ -77,6 +103,7 @@ export interface DeskPetState {
   pets: StoredPet[];
   setup: StoredSetupCode[];
   requests: StoredPairRequest[];
+  drafts: StoredDraft[];
 }
 
 const HEX64 = /^[0-9a-f]{64}$/;
@@ -118,11 +145,45 @@ function readPet(value: unknown): StoredPet | null {
     lastSeenAt: iso(value.lastSeenAt),
     tokenHash: value.tokenHash,
     settings: settings.value,
+    config: readConfig(value.config),
     firmware: typeof value.firmware === "string" ? value.firmware : null,
     battery: number(value.battery),
     charging: typeof value.charging === "boolean" ? value.charging : null,
     rssi: number(value.rssi),
     queue: number(value.queue),
+  };
+}
+
+function readConfig(value: unknown): PetConfig {
+  if (!isRecord(value)) return defaultPetConfig();
+  return {
+    assistantId:
+      typeof value.assistantId === "string" &&
+      value.assistantId.length > 0 &&
+      value.assistantId.length <= 200
+        ? value.assistantId
+        : null,
+    speakAnswers: value.speakAnswers !== false,
+  };
+}
+
+function readDraft(value: unknown): StoredDraft | null {
+  if (
+    !isRecord(value) ||
+    typeof value.id !== "string" ||
+    typeof value.petId !== "string" ||
+    typeof value.assistantId !== "string" ||
+    typeof value.text !== "string" ||
+    !iso(value.at)
+  ) {
+    return null;
+  }
+  return {
+    id: value.id,
+    petId: value.petId,
+    assistantId: value.assistantId,
+    text: value.text.slice(0, 4000),
+    at: value.at as string,
   };
 }
 
@@ -226,6 +287,7 @@ export class PetStore {
       pets: list(o.pets, readPet),
       setup: list(o.setup, readSetup),
       requests: list(o.requests, readRequest),
+      drafts: list(o.drafts, readDraft).slice(-MAX_DRAFTS),
     };
   }
 

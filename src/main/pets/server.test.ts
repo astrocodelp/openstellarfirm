@@ -372,28 +372,28 @@ describe("the heartbeat and the token", () => {
 });
 
 describe("the routes P3 fills in", () => {
-  it("authenticate the token and answer a stable not-ready error", async () => {
+  it("authenticate the token and answer plain errors for a bad request", async () => {
     const { get } = await started();
     const { token } = await pairedPet(get);
     const auth = bearer(token);
+    // No turn id: a plain bad request, never a reset.
     const turn = await get("POST", "/api/pets/turn", {
       headers: { ...auth, "Content-Type": "audio/wav", "X-Pet-Turn": "x" },
       body: Buffer.alloc(2000),
     });
-    expect(turn.status).toBe(503);
-    expect(turn.json).toEqual({ error: "voice_off", line: "busy" });
+    expect([turn.status, turn.json]).toEqual([
+      400,
+      { error: "bad_request", line: "busy" },
+    ]);
     const say = await get("GET", "/api/pets/say/12", { headers: auth });
     expect([say.status, say.json]).toEqual([
-      503,
-      { error: "voice_off", line: "busy" },
+      404,
+      { error: "gone", line: "busy" },
     ]);
     const inbox = await get("GET", "/api/pets/inbox?after=0&wait=0", {
       headers: auth,
     });
-    expect([inbox.status, inbox.json]).toEqual([
-      503,
-      { error: "store_off", line: "busy" },
-    ]);
+    expect(inbox.status).toBe(200);
 
     for (const [method, path] of [
       ["POST", "/api/pets/turn"],
@@ -416,7 +416,12 @@ describe("the routes P3 fills in", () => {
 
   it("serves a voice pack path with no token, only for a known voice", async () => {
     const { get } = await started();
-    expect((await get("GET", "/pets/voice/talia.sfvp")).status).toBe(503);
+    // No ElevenLabs key is saved, so the pack cannot be made yet.
+    const noKey = await get("GET", "/pets/voice/talia.sfvp");
+    expect([noKey.status, noKey.json]).toEqual([
+      503,
+      { error: "voice_off", line: "no-access" },
+    ]);
     expect((await get("GET", "/pets/voice/nobody.sfvp")).status).toBe(404);
   });
 });

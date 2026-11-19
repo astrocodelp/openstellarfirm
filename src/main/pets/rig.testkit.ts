@@ -99,6 +99,8 @@ export function makeRig(extra: Partial<PetServiceDeps> = {}): Rig {
 }
 
 export interface Answer {
+  /** The body's bytes, for speech and files. */
+  bytes: Buffer;
   status: number;
   headers: Record<string, string | string[] | undefined>;
   json: unknown;
@@ -145,7 +147,8 @@ export function call(
             reject(new Error("The certificate is not the pinned one."));
             return;
           }
-          const text = Buffer.concat(chunks).toString("utf8");
+          const bytes = Buffer.concat(chunks);
+          const text = bytes.toString("utf8");
           let json: unknown;
           try {
             json = JSON.parse(text);
@@ -153,6 +156,7 @@ export function call(
             json = undefined;
           }
           resolve({
+            bytes,
             status: res.statusCode ?? 0,
             headers: res.headers,
             json,

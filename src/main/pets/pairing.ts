@@ -15,7 +15,11 @@ import type {
   PetErrorCode,
 } from "../../shared/pets/protocol";
 import { newToken, sameText, sha256Base64url, sha256Hex } from "./digest";
-import type { PetStore, StoredPairRequest } from "./store";
+import {
+  defaultPetConfig,
+  type PetStore,
+  type StoredPairRequest,
+} from "./store";
 
 /**
  * Pairing, in the order the plan gives it: the owner makes a setup code, the
@@ -202,6 +206,7 @@ export class Pairing {
           lastSeenAt: null,
           tokenHash: sha256Hex(token),
           settings,
+          config: defaultPetConfig(),
           firmware: found.firmware,
           battery: null,
           charging: null,

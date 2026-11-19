@@ -140,6 +140,10 @@ const api: OpenApi = {
   petsConfirm: (code) => call(IPC.petsConfirm, code),
   petsForget: (id) => call(IPC.petsForget, id),
   petsRename: (id, name) => call(IPC.petsRename, id, name),
+  petsSetVoiceKey: (key) => call(IPC.petsSetVoiceKey, key),
+  petsClearVoiceKey: () => call(IPC.petsClearVoiceKey),
+  petsSetConfig: (id, config) => call(IPC.petsSetConfig, id, config),
+  petsDiscardDraft: (id) => call(IPC.petsDiscardDraft, id),
   onComputerState: (listener) => listen(IPC.computerState, listener),
 };
 

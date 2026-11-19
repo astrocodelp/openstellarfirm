@@ -23,6 +23,13 @@ export const PET_VOICE_IDS = [
 
 export type PetVoiceId = (typeof PET_VOICE_IDS)[number];
 
+export function isPetVoiceId(value: unknown): value is PetVoiceId {
+  return (
+    typeof value === "string" &&
+    (PET_VOICE_IDS as readonly string[]).includes(value)
+  );
+}
+
 /** The name and voice a new pet gets before the owner changes them. */
 export const PET_KIND_DEFAULTS = {
   astronaut: { name: "Nova", voice: "talia" },
