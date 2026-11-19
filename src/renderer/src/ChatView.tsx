@@ -15,6 +15,32 @@ import type {
 } from "../../shared/types";
 import { ErrorLine, message as errorText, Icon, Pet } from "./ui";
 
+/** How close to the end of the chat still counts as "at the end". */
+const PINNED_WITHIN = 32;
+
+/**
+ * A message saved in the last few seconds arrived while the chat was open, so
+ * it enters with a short motion. History that was already there does not.
+ */
+function fresh(m: ChatMessage): boolean {
+  return Date.now() - Date.parse(m.at) < 4000;
+}
+
+/** What the person decided on the card, kept for the rest of the turn. */
+interface Resolved {
+  id: string;
+  title: string;
+  decision: Decision;
+  /** The activity line when they decided, which is no longer true after. */
+  activity: string | undefined;
+}
+
+const OUTCOME: Record<Decision, string> = {
+  approve: "Approved",
+  always: "Always allowed",
+  reject: "Rejected",
+};
+
 interface ChatViewProps {
   assistant: Assistant;
   /** One line that says which model answers, or none when no model is set up. */
@@ -44,9 +70,9 @@ function clock(at: string): string {
     : time.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
-function Steps({ steps }: { steps: ChatStep[] }) {
+function Steps({ steps, enter }: { steps: ChatStep[]; enter: boolean }) {
   return (
-    <ul className="steps" aria-label="What it did">
+    <ul className={enter ? "steps enter" : "steps"} aria-label="What it did">
       {steps.map((step, index) => (
         // biome-ignore lint/suspicious/noArrayIndexKey: a fixed list that never reorders
         <li key={index} className={step.ok ? "step" : "step step-failed"}>
@@ -70,9 +96,18 @@ function Approval({
   const [error, setError] = useState("");
   const first = useRef<HTMLButtonElement>(null);
 
+  // Focus moves to the card only when the person is not typing somewhere:
+  // a key pressed mid-sentence must never land on Approve. The chat is a live
+  // region, so the card is announced either way.
   // biome-ignore lint/correctness/useExhaustiveDependencies: focus once for each new card
   useEffect(() => {
-    first.current?.focus();
+    const active = document.activeElement;
+    const typing =
+      active instanceof HTMLTextAreaElement ||
+      active instanceof HTMLInputElement ||
+      active instanceof HTMLSelectElement ||
+      (active instanceof HTMLElement && active.isContentEditable);
+    if (!typing) first.current?.focus({ preventScroll: true });
   }, [card.id]);
 
   async function decide(decision: Decision) {
@@ -98,7 +133,7 @@ function Approval({
       <p className="mono approval-detail">{card.detail}</p>
       <p className="faint">Why it asks: {card.why}</p>
       <ErrorLine>{error}</ErrorLine>
-      <div className="wrap">
+      <div className="wrap" aria-busy={busy || undefined}>
         <button
           ref={first}
           type="button"
@@ -136,25 +171,74 @@ export function ChatView(props: ChatViewProps) {
     props;
   const [draft, setDraft] = useState("");
   const [error, setError] = useState("");
+  const [resolved, setResolved] = useState<Resolved | null>(null);
+  /** True when the person scrolled up, away from the newest text. */
+  const [away, setAway] = useState(false);
+  const pinned = useRef(true);
   const scroller = useRef<HTMLDivElement>(null);
+  const column = useRef<HTMLDivElement>(null);
   const box = useRef<HTMLTextAreaElement>(null);
   const busy = streaming !== undefined;
   const canAct =
     assistant.folders.length > 0 || assistant.web || assistant.screen === true;
 
-  // Keep the newest text in view while an answer is written.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: scroll when the chat's content changes
-  useLayoutEffect(() => {
+  function toEnd() {
     const el = scroller.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [messages.length, streaming, activity, approval?.id, assistant.id]);
+  }
+
+  // Keep the newest text in view while an answer is written, but only while
+  // the person is at the end: once they scroll up to read, they stay there.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: scroll when the chat's content changes
+  useLayoutEffect(() => {
+    if (pinned.current) toEnd();
+  }, [messages.length, streaming, activity, approval?.id, resolved, busy]);
+
+  // The column also changes size without a render: a window resize, the text
+  // size setting, a font that arrives late. The end stays in view then too.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: watch the column of each chat
+  useEffect(() => {
+    const el = column.current;
+    if (!el) return;
+    const observer = new ResizeObserver(() => {
+      if (pinned.current) toEnd();
+    });
+    observer.observe(el);
+    if (scroller.current) observer.observe(scroller.current);
+    return () => observer.disconnect();
+  }, [assistant.id, messages.length === 0 && !busy]);
+
+  function onScroll() {
+    const el = scroller.current;
+    if (!el) return;
+    const atEnd =
+      el.scrollHeight - el.scrollTop - el.clientHeight <= PINNED_WITHIN;
+    pinned.current = atEnd;
+    setAway(!atEnd);
+  }
+
+  function jumpToLatest() {
+    pinned.current = true;
+    setAway(false);
+    toEnd();
+    box.current?.focus({ preventScroll: true });
+  }
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: reset when another assistant is opened
   useEffect(() => {
     setDraft("");
     setError("");
+    setResolved(null);
+    pinned.current = true;
+    setAway(false);
+    toEnd();
     box.current?.focus();
   }, [assistant.id]);
+
+  // The outcome line belongs to the turn; it goes when the turn is over.
+  useEffect(() => {
+    if (!busy) setResolved(null);
+  }, [busy]);
 
   // The box grows with its text, up to the cap in the stylesheet.
   // biome-ignore lint/correctness/useExhaustiveDependencies: resize when the text changes
@@ -170,6 +254,9 @@ export function ChatView(props: ChatViewProps) {
     if (!text || busy) return;
     setError("");
     setDraft("");
+    // Sending is a wish to see the answer, so the chat follows it again.
+    pinned.current = true;
+    setAway(false);
     try {
       await props.onSend(text);
     } catch (e) {
@@ -200,9 +287,9 @@ export function ChatView(props: ChatViewProps) {
         </button>
       </header>
 
-      <div className="chat-scroll" ref={scroller}>
+      <div className="chat-scroll" ref={scroller} onScroll={onScroll}>
         {messages.length === 0 && !busy ? (
-          <div className="empty">
+          <div className="empty" key={assistant.id}>
             <Pet pet={assistant.pet} color={assistant.color} size={96} />
             <h2 className="section-title">
               Tell {assistant.name} what you need.
@@ -227,7 +314,12 @@ export function ChatView(props: ChatViewProps) {
             )}
           </div>
         ) : (
-          <div className="chat-column" aria-live="polite">
+          <div
+            className="chat-column"
+            aria-live="polite"
+            key={assistant.id}
+            ref={column}
+          >
             {messages.map((m) =>
               m.check === "request" ? (
                 <p key={m.id} className="check-note">
@@ -237,30 +329,60 @@ export function ChatView(props: ChatViewProps) {
               ) : m.failed ? (
                 <div key={m.id} className="turn">
                   {m.check ? <p className="check-note">Check update</p> : null}
-                  {m.steps ? <Steps steps={m.steps} /> : null}
-                  <p className="bubble bubble-failed">
+                  {m.steps ? <Steps steps={m.steps} enter={fresh(m)} /> : null}
+                  <p
+                    className={
+                      fresh(m)
+                        ? "bubble bubble-failed enter"
+                        : "bubble bubble-failed"
+                    }
+                  >
                     <Icon name="alert" />
                     <span>{m.text}</span>
                   </p>
                 </div>
               ) : m.role === "user" ? (
-                <p key={m.id} className="bubble bubble-user">
+                <p
+                  key={m.id}
+                  className={
+                    fresh(m) ? "bubble bubble-user enter" : "bubble bubble-user"
+                  }
+                >
                   {m.text}
                 </p>
               ) : (
                 <div key={m.id} className="turn">
                   {m.check ? <p className="check-note">Check update</p> : null}
-                  {m.steps ? <Steps steps={m.steps} /> : null}
-                  <p className="bubble">{m.text}</p>
+                  {m.steps ? <Steps steps={m.steps} enter={fresh(m)} /> : null}
+                  {/* The streamed answer already entered, so the saved one does not. */}
+                  <p className="bubble bubble-answer">{m.text}</p>
                 </div>
               ),
             )}
-            {busy ? (
+            {busy && (streaming || !approval) ? (
               <div className="turn">
-                {streaming ? <p className="bubble">{streaming}</p> : null}
+                {streaming ? (
+                  <p className="bubble bubble-answer enter">{streaming}</p>
+                ) : null}
+                {resolved && !approval ? (
+                  <p className="approval-outcome" role="status">
+                    <Icon
+                      name={resolved.decision === "reject" ? "close" : "check"}
+                      size={14}
+                    />
+                    <span>
+                      {OUTCOME[resolved.decision]}: {resolved.title}
+                    </span>
+                  </p>
+                ) : null}
                 {approval ? null : (
                   <p className="activity" role="status">
-                    {activity ? `${activity}…` : "Thinking…"}
+                    <span className="pulse" aria-hidden="true" />
+                    {activity && activity !== resolved?.activity
+                      ? `${activity}…`
+                      : streaming
+                        ? "Writing…"
+                        : "Thinking…"}
                   </p>
                 )}
               </div>
@@ -268,7 +390,17 @@ export function ChatView(props: ChatViewProps) {
             {approval ? (
               <Approval
                 card={approval}
-                onDecide={(decision) => props.onDecide(approval, decision)}
+                onDecide={async (decision) => {
+                  await props.onDecide(approval, decision);
+                  setResolved({
+                    id: approval.id,
+                    title: approval.title,
+                    decision,
+                    activity,
+                  });
+                  // The card is about to go; the caret goes back to the message box.
+                  box.current?.focus({ preventScroll: true });
+                }}
               />
             ) : null}
           </div>
@@ -276,6 +408,15 @@ export function ChatView(props: ChatViewProps) {
       </div>
 
       <div className="composer-wrap">
+        <button
+          type="button"
+          className="jump-latest"
+          hidden={!away}
+          onClick={jumpToLatest}
+        >
+          <Icon name="down" size={14} />
+          Jump to latest
+        </button>
         <ErrorLine>{error}</ErrorLine>
         <div className="composer">
           <label className="visually-hidden" htmlFor="message-box">
@@ -315,7 +456,9 @@ export function ChatView(props: ChatViewProps) {
           )}
         </div>
         <p className="faint composer-hint" id="send-hint">
-          {sendHint(props.sendWith, props.mac)}
+          {busy
+            ? "It is answering. You can type now and send when it is done, or press Stop."
+            : sendHint(props.sendWith, props.mac)}
         </p>
       </div>
     </>

@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect, useRef } from "react";
 import { COLORS, PETS } from "../../shared/catalog";
 import type { PetColor, PetId } from "../../shared/types";
 
@@ -17,16 +17,19 @@ export function Pet({
   pet,
   color,
   size = 36,
+  busy = false,
 }: {
   pet: PetId;
   color: PetColor;
   size?: number;
+  /** True while this assistant answers: the pet breathes, slowly and rarely. */
+  busy?: boolean;
 }) {
   const shape = PETS.find((p) => p.id === pet) ?? PETS[0];
   if (!shape) return null;
   return (
     <svg
-      className="pet"
+      className={busy ? "pet pet-busy" : "pet"}
       width={size}
       height={size}
       viewBox="0 0 48 48"
@@ -75,6 +78,7 @@ const ICONS = {
   check: <path d="m5 12 5 5 9-10" />,
   back: <path d="M19 12H5M11 6l-6 6 6 6" />,
   send: <path d="M12 19V5M5 12l7-7 7 7" />,
+  down: <path d="M12 5v14M5 12l7 7 7-7" />,
   stop: <rect x="7" y="7" width="10" height="10" rx="1.5" />,
   download: <path d="M12 4v11M7 10l5 5 5-5M5 20h14" />,
   upload: <path d="M12 20V9M7 14l5-5 5 5M5 4h14" />,
@@ -184,4 +188,151 @@ export function OkLine({ children }: { children: ReactNode }) {
 
 export function message(error: unknown): string {
   return error instanceof Error ? error.message : "Something went wrong.";
+}
+
+/** True when the person asked the system for less motion. */
+export function reducedMotion(): boolean {
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+/**
+ * The page's light or dark scheme comes from the main process, so a theme
+ * change lands a moment after the call that asks for it. This resolves once
+ * the scheme differs from `was`, or after `wait` when it does not change. It
+ * reads the query rather than waiting for its change event, which does not
+ * fire while a view transition holds the page still.
+ */
+function schemeChange(was: boolean, wait: number): Promise<void> {
+  const query = window.matchMedia("(prefers-color-scheme: dark)");
+  const until = performance.now() + wait;
+  return new Promise((resolve) => {
+    const look = () => {
+      if (query.matches !== was || performance.now() >= until) resolve();
+      else setTimeout(look, 8);
+    };
+    look();
+  });
+}
+
+/**
+ * Changes the theme with one quiet cross-fade of the whole page, instead of
+ * every control tweening on its own. With reduced motion it simply switches.
+ */
+export async function crossFadeTheme(
+  next: "system" | "dark" | "light",
+  update: () => Promise<void>,
+): Promise<void> {
+  const root = document.documentElement;
+  const dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  const same = (next === "dark" && dark) || (next === "light" && !dark);
+  if (same) {
+    await update();
+    return;
+  }
+  // The controls' own colour transitions are held until the new scheme has
+  // landed, so nothing tweens on its own behind the cross-fade.
+  root.dataset.themeSwap = "";
+  const change = () => schemeChange(dark, next === "system" ? 160 : 400);
+  try {
+    if (reducedMotion() || !("startViewTransition" in document)) {
+      await update();
+      await change();
+      return;
+    }
+    const fade = document.startViewTransition(async () => {
+      await update();
+      await change();
+    });
+    await fade.updateCallbackDone;
+  } finally {
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        delete root.dataset.themeSwap;
+      }),
+    );
+  }
+}
+
+/**
+ * The question before something that cannot be undone, shown in place. Focus
+ * moves into it (to the element marked data-autofocus, else its first button),
+ * Escape closes it, and when it closes focus goes back to whatever now stands
+ * where it was: the button that opened it.
+ */
+export function useInlineConfirm<T extends HTMLElement>(onClose: () => void) {
+  const ref = useRef<T>(null);
+  useEffect(() => {
+    const node = ref.current;
+    const parent = node?.parentElement;
+    if (!node || !parent) return;
+    const index = Array.prototype.indexOf.call(parent.children, node);
+    const first =
+      node.querySelector<HTMLElement>("[data-autofocus]") ??
+      node.querySelector<HTMLElement>("button:not(:disabled)");
+    first?.focus({ preventScroll: true });
+    // React has put the opening button back by the time this runs.
+    return () => {
+      setTimeout(() => {
+        const lost =
+          !document.activeElement || document.activeElement === document.body;
+        if (!lost || !parent.isConnected) return;
+        const slot = parent.children[index];
+        const target = slot?.matches("button:not(:disabled)")
+          ? (slot as HTMLElement)
+          : slot?.querySelector<HTMLElement>("button:not(:disabled)");
+        target?.focus({ preventScroll: true });
+      }, 0);
+    };
+  }, []);
+  return {
+    ref,
+    onKeyDown: (event: { key: string }) => {
+      if (event.key === "Escape") onClose();
+    },
+  };
+}
+
+/**
+ * When the light or dark scheme flips (from Settings or from the system), the
+ * controls' colour transitions are held for that frame, so nothing tweens on
+ * its own while the page around it has already changed.
+ */
+export function quietThemeSwaps(): void {
+  const root = document.documentElement;
+  window
+    .matchMedia("(prefers-color-scheme: dark)")
+    .addEventListener("change", () => {
+      root.dataset.themeSwap = "";
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() => {
+          delete root.dataset.themeSwap;
+        }),
+      );
+    });
+}
+
+/** A question asked in place, with the focus handling of useInlineConfirm. */
+export function InlineConfirm({
+  label,
+  className,
+  onClose,
+  children,
+}: {
+  label: string;
+  className: string;
+  onClose(): void;
+  children: ReactNode;
+}) {
+  const confirm = useInlineConfirm<HTMLDivElement>(onClose);
+  return (
+    <div
+      ref={confirm.ref}
+      className={className}
+      role="alertdialog"
+      aria-label={label}
+      onKeyDown={confirm.onKeyDown}
+    >
+      {children}
+    </div>
+  );
 }

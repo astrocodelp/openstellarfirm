@@ -15,6 +15,7 @@ import {
   ErrorLine,
   message as errorText,
   Icon,
+  InlineConfirm,
   OkLine,
   Pet,
   ScreenHead,
@@ -593,10 +594,10 @@ export function AssistantForm(props: AssistantFormProps) {
           {assistant ? (
             <section className="stack" aria-label="Remove">
               {removing ? (
-                <div
+                <InlineConfirm
                   className="card stack pad"
-                  role="alertdialog"
-                  aria-label={`Remove ${assistant.name}`}
+                  label={`Remove ${assistant.name}`}
+                  onClose={() => setRemoving(false)}
                 >
                   <p>
                     Remove {assistant.name} and its chat from this computer?
@@ -611,6 +612,7 @@ export function AssistantForm(props: AssistantFormProps) {
                       Remove
                     </button>
                     <button
+                      data-autofocus
                       type="button"
                       className="btn"
                       onClick={() => setRemoving(false)}
@@ -618,7 +620,7 @@ export function AssistantForm(props: AssistantFormProps) {
                       Keep it
                     </button>
                   </div>
-                </div>
+                </InlineConfirm>
               ) : (
                 <div>
                   <button
@@ -660,10 +662,10 @@ export function AssistantForm(props: AssistantFormProps) {
               Export as a file
             </button>
             {copying ? (
-              <div
+              <InlineConfirm
                 className="card stack pad"
-                role="alertdialog"
-                aria-label="Copy to StellarFirm cloud"
+                label="Copy to StellarFirm cloud"
+                onClose={() => setCopying(false)}
               >
                 <p>
                   This opens stellarfirm.ai in your browser with this
@@ -691,6 +693,7 @@ export function AssistantForm(props: AssistantFormProps) {
                     <Icon name="external" size={14} />
                   </button>
                   <button
+                    data-autofocus
                     type="button"
                     className="btn"
                     onClick={() => setCopying(false)}
@@ -698,7 +701,7 @@ export function AssistantForm(props: AssistantFormProps) {
                     Cancel
                   </button>
                 </div>
-              </div>
+              </InlineConfirm>
             ) : (
               <button
                 type="button"
