@@ -14,7 +14,7 @@ let dir: string;
 let store: Store;
 
 beforeEach(() => {
-  dir = mkdtempSync(join(tmpdir(), "stellarfirm-solo-"));
+  dir = mkdtempSync(join(tmpdir(), "openstellar-"));
   store = new Store(dir);
 });
 

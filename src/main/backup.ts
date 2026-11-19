@@ -64,7 +64,7 @@ export function buildBackup(
 
 export function backupName(now: Date = new Date()): string {
   const two = (n: number) => String(n).padStart(2, "0");
-  return `stellarfirm-solo-backup-${now.getFullYear()}-${two(now.getMonth() + 1)}-${two(now.getDate())}.json`;
+  return `openstellar-backup-${now.getFullYear()}-${two(now.getMonth() + 1)}-${two(now.getDate())}.json`;
 }
 
 /**

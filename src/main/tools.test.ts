@@ -35,7 +35,7 @@ let notes: string;
 let outside: string;
 
 beforeEach(() => {
-  base = realpathSync(mkdtempSync(join(tmpdir(), "stellarfirm-solo-tools-")));
+  base = realpathSync(mkdtempSync(join(tmpdir(), "openstellar-tools-")));
   notes = join(base, "Notes");
   outside = join(base, "Outside");
   mkdirSync(join(notes, "sub"), { recursive: true });

@@ -252,7 +252,7 @@ describe("inside an answer", () => {
   let base: string;
   beforeEach(() => {
     forgetTextModes();
-    base = realpathSync(mkdtempSync(join(tmpdir(), "stellarfirm-solo-conn-")));
+    base = realpathSync(mkdtempSync(join(tmpdir(), "openstellar-conn-")));
     mkdirSync(join(base, "Notes"));
     writeFileSync(join(base, "Notes", "plan.md"), "The plan.");
   });
@@ -478,7 +478,7 @@ describe("saving, sharing and removing", () => {
   let dir: string;
   let store: Store;
   beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "stellarfirm-solo-conn-store-"));
+    dir = mkdtempSync(join(tmpdir(), "openstellar-conn-store-"));
     store = new Store(dir);
   });
   afterEach(() => rmSync(dir, { recursive: true, force: true }));
@@ -706,7 +706,7 @@ describe("the service", () => {
   }) as unknown as typeof fetch;
 
   beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "stellarfirm-solo-conn-svc-"));
+    dir = mkdtempSync(join(tmpdir(), "openstellar-conn-svc-"));
     store = new Store(dir);
     secrets = new Secrets(join(dir, "keys.json"), box);
     requests = [];

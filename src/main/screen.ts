@@ -97,7 +97,7 @@ export interface ScreenResult {
 export class ScreenError extends Error {}
 
 export const PERMISSION_LINE =
-  "StellarFirm Solo is not allowed to record the screen yet. Tell the person to open System Settings, then Privacy & Security, then Screen Recording, allow StellarFirm Solo there, and try again. You cannot look until they do.";
+  "OpenStellar is not allowed to record the screen yet. Tell the person to open System Settings, then Privacy & Security, then Screen Recording, allow OpenStellar there, and try again. You cannot look until they do.";
 
 export function screenAsk(where: string): ScreenAsk {
   return {
@@ -204,7 +204,7 @@ export async function lookAtScreen(
       }
       return fail(
         PERMISSION_LINE,
-        "Could not look: allow StellarFirm Solo in Screen Recording",
+        "Could not look: allow OpenStellar in Screen Recording",
       );
     }
   }

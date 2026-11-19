@@ -98,7 +98,7 @@ describe("the handshake", () => {
     expect(init?.body.params).toMatchObject({
       protocolVersion: "2025-06-18",
       capabilities: {},
-      clientInfo: { name: "StellarFirm Solo", version: "1.2.3" },
+      clientInfo: { name: "OpenStellar", version: "1.2.3" },
     });
     // Every message goes to the one saved address, never another.
     expect(calls.every((c) => c.url === URL_)).toBe(true);

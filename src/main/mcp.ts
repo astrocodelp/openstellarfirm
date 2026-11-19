@@ -264,7 +264,7 @@ export class McpClient {
       protocolVersion: ASKED_VERSION,
       capabilities: {},
       clientInfo: {
-        name: "StellarFirm Solo",
+        name: "OpenStellar",
         version: this.options.appVersion ?? "0.0.0",
       },
     });

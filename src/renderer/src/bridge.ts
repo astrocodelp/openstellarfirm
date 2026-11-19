@@ -77,7 +77,7 @@ function preview(): OpenApi {
     keychain: true,
     platform: "browser",
     version: "0.0.0",
-    dataDir: "/Users/you/Library/Application Support/StellarFirm Solo",
+    dataDir: "/Users/you/Library/Application Support/OpenStellar",
   };
   const chats = new Map<string, ChatMessage[]>();
   const doneListeners = new Set<(done: ChatDone) => void>();

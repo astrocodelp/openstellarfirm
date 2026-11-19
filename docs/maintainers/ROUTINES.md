@@ -101,7 +101,7 @@ Post it where the maintainers told you to. Keep it under 30 lines.
 
 ```text
 Write a draft post for the Announcements category titled
-"This week in StellarFirm Solo" with: what was merged (one line each, with
+"This week in OpenStellar" with: what was merged (one line each, with
 the author's handle), new personas, new contributors by handle, three good
 first issues that are open, and what the maintainers said is next.
 Only state what the repository's history shows. No dates and no promises for

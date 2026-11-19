@@ -48,7 +48,7 @@ export function Welcome({ keychain, onDone, onCloud }: WelcomeProps) {
       <section className="welcome-hero">
         <Nova size={96} />
         <div className="dim" style={{ fontWeight: 500 }}>
-          StellarFirm Solo
+          OpenStellar
         </div>
         <h1>Your own assistant, on your own computer.</h1>
         <p

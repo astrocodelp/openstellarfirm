@@ -1,6 +1,6 @@
 # Third-party notices
 
-StellarFirm Solo is licensed under the Apache License 2.0 with the Commons
+OpenStellar is licensed under the Apache License 2.0 with the Commons
 Clause (see [LICENSE](LICENSE) and [NOTICE](NOTICE)). A built app also
 contains the work of others, under their own licences:
 

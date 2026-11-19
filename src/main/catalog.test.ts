@@ -140,7 +140,7 @@ describe("catalog connections", () => {
   const service = () => new ConnectionService({ store, secrets, fetchImpl });
 
   beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "stellarfirm-solo-catalog-"));
+    dir = mkdtempSync(join(tmpdir(), "openstellar-catalog-"));
     store = new Store(dir);
     secrets = new Secrets(join(dir, "keys.json"), box);
     seen = [];
