@@ -1,6 +1,6 @@
 # Contributors
 
-Thank you to everyone who has helped build StellarFirm Open.
+Thank you to everyone who has helped build StellarFirm Solo.
 
 To be listed, add your own line in the pull request that carries your
 contribution, in the right section, in alphabetical order by name. Use the

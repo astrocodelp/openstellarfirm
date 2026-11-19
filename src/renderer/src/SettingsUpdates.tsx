@@ -102,7 +102,7 @@ export function AboutSection({ version }: { version: string }) {
   const { error, run } = useAction();
   return (
     <Section title="About">
-      <p>StellarFirm Open, version {version}</p>
+      <p>StellarFirm Solo, version {version}</p>
       <p className="dim">Free to use, change and share. Not to sell.</p>
       <p className="faint">Apache License 2.0 with the Commons Clause.</p>
       <div className="wrap">

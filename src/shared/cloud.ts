@@ -24,7 +24,7 @@ export interface CloudAssistant {
 
 export function cloudHomeUrl(): string {
   // The tags say only that the visit came from this app. Nothing personal.
-  return `${CLOUD}/?utm_source=stellarfirm-open&utm_medium=app`;
+  return `${CLOUD}/?utm_source=stellarfirm-solo&utm_medium=app`;
 }
 
 function base64Url(text: string): string {

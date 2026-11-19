@@ -20,7 +20,7 @@ function contentSecurityPolicy(): Plugin {
     "form-action 'none'",
   ].join("; ");
   return {
-    name: "stellarfirm-open-csp",
+    name: "stellarfirm-solo-csp",
     apply: "build",
     transformIndexHtml(html) {
       return html.replace(

@@ -53,7 +53,7 @@ describe("the request", () => {
     expect(init.credentials).toBe("omit");
     expect(init.headers).toEqual({
       Accept: "application/vnd.github+json",
-      "User-Agent": "StellarFirm-Open/0.1.0",
+      "User-Agent": "StellarFirm-Solo/0.1.0",
     });
     expect(init.signal).toBeInstanceOf(AbortSignal);
   });

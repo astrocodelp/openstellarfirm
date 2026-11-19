@@ -161,7 +161,7 @@ describe("the Composio preset", () => {
   const service = () => new ConnectionService({ store, secrets, fetchImpl });
 
   beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "stellarfirm-open-composio-"));
+    dir = mkdtempSync(join(tmpdir(), "stellarfirm-solo-composio-"));
     store = new Store(dir);
     secrets = new Secrets(join(dir, "keys.json"), box);
     seen = [];

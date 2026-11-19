@@ -588,7 +588,7 @@ function CompanyLookup({
             </ul>
           )}
           <p className="faint">
-            This only shows what the company publishes. StellarFirm Open cannot
+            This only shows what the company publishes. StellarFirm Solo cannot
             sign in to a company for you yet.
           </p>
         </div>

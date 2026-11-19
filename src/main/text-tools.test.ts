@@ -138,7 +138,7 @@ describe("text mode in the agent", () => {
 
   beforeEach(() => {
     forgetTextModes();
-    base = realpathSync(mkdtempSync(join(tmpdir(), "stellarfirm-open-text-")));
+    base = realpathSync(mkdtempSync(join(tmpdir(), "stellarfirm-solo-text-")));
     notes = join(base, "Notes");
     mkdirSync(notes);
     writeFileSync(join(notes, "plan.md"), "The plan.");
