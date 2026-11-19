@@ -80,6 +80,9 @@ function publicV4(address: string): boolean {
   if (a === 192 && b === 168) return false;
   if (a === 192 && b === 0) return false;
   if (a === 198 && (b === 18 || b === 19)) return false;
+  // The documentation ranges (TEST-NET-1, -2 and -3) are never a real site.
+  if (a === 198 && b === 51 && parts[2] === 100) return false;
+  if (a === 203 && b === 0 && parts[2] === 113) return false;
   return true;
 }
 

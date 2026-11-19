@@ -129,6 +129,7 @@ import {
 } from "./team";
 import type { Ask } from "./tools";
 import { scheduleUpdateChecks, UpdateChecker } from "./update-check";
+import { allowWindowRequest } from "./window-rules";
 
 const pageUrl = pathToFileURL(join(__dirname, "../renderer/index.html")).href;
 // The dev server exists only when the app runs from source, and only on this
@@ -1626,6 +1627,19 @@ app.whenReady().then(() => {
   session.defaultSession.setPermissionRequestHandler(
     (_contents, _permission, done) => done(false),
   );
+  session.defaultSession.setPermissionCheckHandler(() => false);
+  // The window's page makes no network request of its own (it talks to the
+  // app through the bridge), so anything but the app's own files is
+  // cancelled, as in the reader. The dev server is allowed only from source.
+  session.defaultSession.webRequest.onBeforeRequest((details, callback) => {
+    callback({
+      cancel: !allowWindowRequest(details.url, {
+        pageUrl,
+        devUrl,
+        packaged: app.isPackaged,
+      }),
+    });
+  });
   // The app's own menu: edit, zoom and window items, and no developer tools
   // in an installed app.
   Menu.setApplicationMenu(

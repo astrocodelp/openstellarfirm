@@ -220,7 +220,10 @@ Check it: `sha256sum -c SHA256SUMS.txt --ignore-missing`.
 - **Copy to StellarFirm cloud.** One button opens stellarfirm.ai in your
   browser with an assistant's name, look and brief, where you can hire it to
   work in the cloud. StellarFirm is a separate paid service with its own
-  account and plans.
+  account and plans. The brief travels in the address's fragment (after the
+  `#`), which a browser never sends to a server, but the full address stays in
+  your browser's history and on your clipboard if you copy it, so treat it as
+  you would the brief itself.
 - **Light and dark**, following your computer or your choice.
 - **Accessibility first.** More contrast, less motion, underlined links, a
   stronger focus ring, more space for reading, larger click targets, and read

@@ -14,10 +14,15 @@ is what anyone can read.
 ## Before the first public release
 
 - [ ] **Signing.** Signed and notarized builds are the goal (see
-      [What is not done yet](#what-is-not-done-yet)). An unsigned v0.1.0 is
-      allowed only because the README's
-      [Install a release](../README.md#install-a-release) section and the
-      release notes say how to open it and check its sums.
+      [What is not done yet](#what-is-not-done-yet)). **An unsigned build must
+      not be the public launch build.** Publish an unsigned build only as a
+      clearly labelled pre-release for testers, with the README's
+      [Install a release](../README.md#install-a-release) steps and the sums
+      in the notes. For the launch, set the signing variables listed in
+      [Environment variables](#environment-variables): `WIN_CSC_LINK` and
+      `WIN_CSC_KEY_PASSWORD` for Windows, `CSC_LINK` and `CSC_KEY_PASSWORD` (or
+      `CSC_NAME`) plus `APPLE_API_KEY`, `APPLE_API_KEY_ID` and
+      `APPLE_API_ISSUER` for macOS.
 - [x] **A screenshot.** Add `docs/screenshot.png` (the app with an assistant
       and a short chat, light or dark, no personal data in it) and replace the
       `<!-- screenshot: docs/screenshot.png -->` line near the top of the README
@@ -86,6 +91,12 @@ build, delete the bad asset on GitHub first.
 | `CSC_LINK`, `CSC_KEY_PASSWORD`                          | Maintainer's shell (optional)                                                      | macOS Developer ID certificate (file or base64) and password.                                                 |
 | `CSC_NAME`                                              | Maintainer's shell (optional)                                                      | Alternative to `CSC_LINK`: a Developer ID identity already in the keychain.                                   |
 | `APPLE_API_KEY`, `APPLE_API_KEY_ID`, `APPLE_API_ISSUER` | Maintainer's shell (optional)                                                      | App Store Connect API key (path to the `.p8`), its id and issuer, for notarization. All or none.              |
+
+The scripts keep these secrets away from install, lint, test and build code:
+`ci.sh` runs with none of them, `electron-builder` gets only the signing
+variables (never `GITHUB_TOKEN`), and the token goes to `upload.sh` alone. The
+upload also writes the checksums into the draft's notes, so a download can be
+checked against the notes as well as against the `SHA256SUMS` assets.
 
 Set Fly app secrets with Fly's dashboard or CLI. Every Machine of the app
 receives them as environment variables. They are never put in the Machine's
