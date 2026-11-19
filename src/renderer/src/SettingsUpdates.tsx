@@ -89,7 +89,9 @@ export function UpdatesSection({
       <p className="faint">
         Your version is {version}.{last ? ` Last checked ${last}.` : ""}
       </p>
-      <div aria-live="polite">{result ? <OkLine>{result}</OkLine> : null}</div>
+      <div aria-live="polite">
+        {result ? <OkLine parentAnnounces>{result}</OkLine> : null}
+      </div>
       <ErrorLine>{error || saveError}</ErrorLine>
     </Section>
   );

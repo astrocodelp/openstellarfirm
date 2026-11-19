@@ -109,7 +109,9 @@ export function ReadingSection() {
           </button>
         </div>
       ) : null}
-      <div aria-live="polite">{done ? <OkLine>{done}</OkLine> : null}</div>
+      <div aria-live="polite">
+        {done ? <OkLine parentAnnounces>{done}</OkLine> : null}
+      </div>
       <ErrorLine>{error}</ErrorLine>
     </Section>
   );

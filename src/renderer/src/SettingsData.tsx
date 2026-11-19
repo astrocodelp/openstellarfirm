@@ -78,7 +78,9 @@ export function ApprovalsSection({
           </button>
         </div>
       )}
-      <div aria-live="polite">{done ? <OkLine>{done}</OkLine> : null}</div>
+      <div aria-live="polite">
+        {done ? <OkLine parentAnnounces>{done}</OkLine> : null}
+      </div>
       <ErrorLine>{error}</ErrorLine>
     </Section>
   );
@@ -155,7 +157,9 @@ export function DataSection({
           </button>
         </div>
       )}
-      <div aria-live="polite">{done ? <OkLine>{done}</OkLine> : null}</div>
+      <div aria-live="polite">
+        {done ? <OkLine parentAnnounces>{done}</OkLine> : null}
+      </div>
       <ErrorLine>{error}</ErrorLine>
     </Section>
   );
