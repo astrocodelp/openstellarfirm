@@ -83,10 +83,12 @@ function kindOf(id: string): "screen" | "window" {
 /** The screens and windows that may be recorded. This app's own window is never one. */
 export async function listSources(own: BrowserWindow): Promise<RecordSource[]> {
   const ownId = own.getMediaSourceId();
-  const sources = await desktopCapturer.getSources({
-    types: ["screen", "window"],
-    thumbnailSize: LIST_THUMB,
-  });
+  // When the system does not let the app see the screen (macOS without Screen
+  // Recording allowed), the list is empty and the page says where to allow
+  // it, instead of a bare "Something went wrong."
+  const sources = await desktopCapturer
+    .getSources({ types: ["screen", "window"], thumbnailSize: LIST_THUMB })
+    .catch(() => []);
   return sources
     .filter((s) => s.id !== ownId)
     .map((s) => ({

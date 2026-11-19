@@ -15,6 +15,7 @@ import {
   ModelError,
   type ToolSpec,
   type TurnEvent,
+  turnedDown,
   type WireMessage,
 } from "./models";
 import {
@@ -236,10 +237,10 @@ async function run(
       for (const mode of filesDropped) deps.files?.remember(mode);
       filesDropped = [];
     } catch (error) {
-      const refused = error instanceof ModelError && error.status === 400;
+      const refused = turnedDown(error);
       // Files the service refused are read on this computer and sent as text.
       if (
-        refused &&
+        turnedDown(error) &&
         !text &&
         deps.files &&
         carriesFiles(messages) &&
