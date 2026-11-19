@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Desk pets, phase 6: a user guide, `docs/desk-pets.md` (what you need, flashing, the firewall steps
+  for Windows, macOS and Linux, adding a pet over USB, privacy, troubleshooting). The pet's
+  greeting now tells you to plug it into your computer and open Settings, Desk pets, and no
+  longer spells the setup network's password (phone setup is off). Checking the guide by hand
+  on macOS and Windows is still open.
 - Desk pets, phase 5: the firmware now talks to the app (`firmware/pet/`). It has no server
   address in the build any more: over the USB cable (pet-usb version 2: `server`, `wifi`,
   `start`) the app tells the pet this computer's address, port, name and certificate
