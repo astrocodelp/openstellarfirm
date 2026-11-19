@@ -76,6 +76,13 @@ The app is at version 0.1.0. There is no tagged release yet.
   use, change and share, not to sell. Selling needs a commercial licence
   ([COMMERCIAL.md](COMMERCIAL.md)). [NOTICE](NOTICE) says what the licence
   covers.
+- The app is named OpenStellarFirm.
+- Motion and interactions: screens and new messages fade in; the chat follows
+  an answer only while you are at the end, with a "Jump to latest" button;
+  the approval card never takes focus while you type, and turns into its
+  outcome line after you decide; confirms take focus, close with Escape and
+  give focus back; the theme changes with one cross-fade. Everything is still
+  under reduced motion.
 - A redesigned interface: labelled navigation in the sidebar, pill buttons,
   one screen frame, and a compact persona picker.
 
