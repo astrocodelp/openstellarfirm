@@ -1,8 +1,9 @@
 # Community
 
-OpenStellarFirm is the open-source sibling of
-[StellarFirm](https://stellarfirm.ai), by Astro Code. It is built in the open
-by the people who use it. The goal is simple: personal assistants, each with
+OpenStellarFirm is the source-available sibling of
+[StellarFirm](https://stellarfirm.ai), by Astro Code: its code is open to
+read, change and share, not to sell. It is built in the open by the people
+who use it. The goal is simple: personal assistants, each with
 its own persona (a coder, a legal helper, a writer, a planner), that run on
 your own model, on your own computer.
 
