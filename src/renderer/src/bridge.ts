@@ -1,5 +1,6 @@
 import { presetOf } from "../../shared/catalog";
 import { catalogEntry, catalogPreset } from "../../shared/connection-catalog";
+import { searchChats } from "../../shared/search";
 import type {
   AppState,
   Assistant,
@@ -347,6 +348,16 @@ function preview(): OpenApi {
     checkNow: async () => {},
     checkForUpdate: async () => ({ status: "current" }),
     dismissUpdate: async () => state.settings,
+    searchChats: async (query) =>
+      searchChats(
+        [...chats].map(([assistantId, messages]) => ({
+          assistantId,
+          messages,
+        })),
+        query,
+      ),
+    exportChat: async () => false,
+    copyMessage: async () => {},
     onDelta: () => () => {},
     onDone: (listener) => {
       doneListeners.add(listener);

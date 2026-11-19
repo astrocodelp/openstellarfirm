@@ -31,6 +31,11 @@ team of AI Agent Assistants works for your company in the cloud.
   can have a model of its own. Google Vertex AI is not supported: it signs in
   with a service account, not a key.
 - **Chat that streams**, with Stop. Each assistant keeps its own chat.
+- **Find anything.** Ctrl+K (Cmd+K on a Mac), or Find anything in the
+  sidebar, finds an assistant, a screen, a setting, a connection or an action,
+  and searches every chat on this computer, case and accents aside. A result
+  opens the chat at the message. Save a chat as a Markdown file where you
+  pick, with no key in it, and copy any answer.
 - **Folders you pick.** An assistant can list, find and read files there, and
   save a new file. It can never change, replace, move or delete one.
 - **Web pages, with your Approve.** It asks before it reaches a site for the

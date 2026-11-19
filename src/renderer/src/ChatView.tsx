@@ -13,6 +13,12 @@ import type {
   ChatStep,
   Decision,
 } from "../../shared/types";
+import {
+  CopyButton,
+  type FoundMessage,
+  SaveChatButton,
+  useFoundMessage,
+} from "./ChatTools";
 import { ErrorLine, message as errorText, Icon, Pet } from "./ui";
 
 /** How close to the end of the chat still counts as "at the end". */
@@ -60,6 +66,12 @@ interface ChatViewProps {
   /** What sends a message, and whether the keys are a Mac's. */
   sendWith: SendKey;
   mac: boolean;
+  /** Saves this chat as a Markdown file; false when the dialog was closed. */
+  onSaveChat?(): Promise<boolean>;
+  /** Copies one saved message, by its id. */
+  onCopy?(messageId: string): Promise<void>;
+  /** A message a search found in this chat, to bring into view. */
+  found?: FoundMessage | undefined;
 }
 
 /** The time a check started, as the person's computer writes it. */
@@ -240,6 +252,16 @@ export function ChatView(props: ChatViewProps) {
     if (!busy) setResolved(null);
   }, [busy]);
 
+  // A message found by a search: after the reset above, so it keeps the focus.
+  // A chat too short to scroll stays at its end; the scroll that follows says
+  // where a longer one is.
+  useFoundMessage(props.found, messages, column, () => {
+    const el = scroller.current;
+    const scrolls = !!el && el.scrollHeight - el.clientHeight > PINNED_WITHIN;
+    pinned.current = !scrolls;
+    setAway(scrolls);
+  });
+
   // The box grows with its text, up to the cap in the stylesheet.
   // biome-ignore lint/correctness/useExhaustiveDependencies: resize when the text changes
   useLayoutEffect(() => {
@@ -282,6 +304,13 @@ export function ChatView(props: ChatViewProps) {
           <h1 className="chat-title">{assistant.name}</h1>
           <span className="faint">{modelLine ?? "No model is set up yet"}</span>
         </div>
+        {props.onSaveChat ? (
+          <SaveChatButton
+            disabled={messages.length === 0}
+            onSave={props.onSaveChat}
+            onError={setError}
+          />
+        ) : null}
         <button type="button" className="btn" onClick={props.onCustomize}>
           Customize
         </button>
@@ -322,12 +351,12 @@ export function ChatView(props: ChatViewProps) {
           >
             {messages.map((m) =>
               m.check === "request" ? (
-                <p key={m.id} className="check-note">
+                <p key={m.id} className="check-note" data-message-id={m.id}>
                   <Icon name="check" size={14} />
                   <span>Started a check at {clock(m.at)}</span>
                 </p>
               ) : m.failed ? (
-                <div key={m.id} className="turn">
+                <div key={m.id} className="turn" data-message-id={m.id}>
                   {m.check ? <p className="check-note">Check update</p> : null}
                   {m.steps ? <Steps steps={m.steps} enter={fresh(m)} /> : null}
                   <p
@@ -344,6 +373,7 @@ export function ChatView(props: ChatViewProps) {
               ) : m.role === "user" ? (
                 <p
                   key={m.id}
+                  data-message-id={m.id}
                   className={
                     fresh(m) ? "bubble bubble-user enter" : "bubble bubble-user"
                   }
@@ -351,11 +381,17 @@ export function ChatView(props: ChatViewProps) {
                   {m.text}
                 </p>
               ) : (
-                <div key={m.id} className="turn">
+                <div key={m.id} className="turn" data-message-id={m.id}>
                   {m.check ? <p className="check-note">Check update</p> : null}
                   {m.steps ? <Steps steps={m.steps} enter={fresh(m)} /> : null}
                   {/* The streamed answer already entered, so the saved one does not. */}
                   <p className="bubble bubble-answer">{m.text}</p>
+                  {props.onCopy ? (
+                    <CopyButton
+                      onCopy={() => props.onCopy?.(m.id) ?? Promise.resolve()}
+                      onError={setError}
+                    />
+                  ) : null}
                 </div>
               ),
             )}

@@ -162,6 +162,9 @@ Said plainly, so nobody relies on more than is there:
   earlier answer, a later web read on an allowed site does not ask again.
 - **A backup file is not encrypted.** If you include chats it holds your
   private text, so keep it somewhere you trust.
+- **A saved chat is plain Markdown.** It is written only where you pick, and
+  saved keys and the usual shapes of keys are hidden. A secret in another
+  shape that you typed into the chat is written as you typed it.
 - **Another program running as you** can read the app's data folder and your
   files anyway. The app does not defend against that.
 - **Keys on Linux** depend on the desktop's secret store. With none, a key is

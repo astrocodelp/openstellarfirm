@@ -1,5 +1,6 @@
 import { type ReactNode, useLayoutEffect, useRef } from "react";
 import type { Assistant } from "../../shared/types";
+import { SearchGlyph } from "./Palette";
 import { Icon, Nova, OkLine, Pet } from "./ui";
 
 interface SidebarProps {
@@ -32,6 +33,10 @@ interface SidebarProps {
   onHideCloudCard(): void;
   /** A quiet notice above the foot, such as "a new version is available". */
   notice?: ReactNode;
+  /** Opens Find anything, for people who do not use the shortcut. */
+  onFind?: () => void;
+  /** The shortcut as this computer writes it, such as "Ctrl K". */
+  findKeys?: { text: string; aria: string };
 }
 
 /**
@@ -119,6 +124,22 @@ export function Sidebar(props: SidebarProps) {
           <Icon name="plus" size={18} />
           New assistant
         </button>
+        {props.onFind ? (
+          <button
+            type="button"
+            className="nav-item find-btn"
+            aria-keyshortcuts={props.findKeys?.aria}
+            onClick={props.onFind}
+          >
+            <SearchGlyph size={18} />
+            Find anything
+            {props.findKeys ? (
+              <span className="kbd" aria-hidden="true">
+                {props.findKeys.text}
+              </span>
+            ) : null}
+          </button>
+        ) : null}
         <button type="button" className="nav-item" onClick={props.onImport}>
           <Icon name="upload" size={18} />
           Import an assistant file

@@ -10,10 +10,20 @@ import { availableUpdate } from "../../shared/update";
 import { AssistantForm } from "./AssistantForm";
 import { BackupScreen } from "./Backup";
 import { api } from "./bridge";
+import type { FoundMessage } from "./ChatTools";
 import { ChatView } from "./ChatView";
 import { ConnectionsScreen } from "./Connections";
 import { MailScreen } from "./Mail";
 import { ModelsScreen } from "./Models";
+import {
+  afterPaint,
+  findKeys,
+  focusScreen,
+  Palette,
+  revealSection,
+  usePaletteShortcut,
+} from "./Palette";
+import type { PaletteTarget } from "./palette-items";
 import { SettingsScreen } from "./Settings";
 import { Sidebar } from "./Sidebar";
 import { UpdateNotice } from "./UpdateNotice";
@@ -46,6 +56,21 @@ export function App() {
   /** The step that waits for the person, by assistant. */
   const [approvals, setApprovals] = useState<Record<string, ApprovalCard>>({});
   const [error, setError] = useState("");
+  /** Find anything (Ctrl or Cmd+K), and where its last pick leads. */
+  const [finding, setFinding] = useState(false);
+  const [found, setFound] = useState<FoundMessage | undefined>(undefined);
+  const [section, setSection] = useState<string | null>(null);
+  const mac = state?.platform === "darwin";
+  const toggleFind = useCallback(() => setFinding((open) => !open), []);
+  usePaletteShortcut(state?.settings.onboarded === true, mac, toggleFind);
+
+  // A Settings section picked in Find anything is brought into view once shown.
+  useEffect(() => {
+    if (view.name !== "settings" || !section) return;
+    const title = section;
+    setSection(null);
+    afterPaint(() => revealSection(title));
+  }, [view.name, section]);
 
   const refresh = useCallback(async () => {
     try {
@@ -215,6 +240,45 @@ export function App() {
     if (decision === "always") await refresh();
   }
 
+  /** Where a pick in Find anything leads. */
+  function go(target: PaletteTarget) {
+    setFinding(false);
+    switch (target.kind) {
+      case "assistant":
+        setSelected(target.id);
+        setView({ name: "chat" });
+        afterPaint(() => document.getElementById("message-box")?.focus());
+        return;
+      case "message":
+        setSelected(target.assistantId);
+        setView({ name: "chat" });
+        setFound((last) => ({
+          assistantId: target.assistantId,
+          messageId: target.messageId,
+          nonce: (last?.nonce ?? 0) + 1,
+        }));
+        return;
+      case "screen":
+        setView({ name: target.screen } as View);
+        afterPaint(focusScreen);
+        return;
+      case "section":
+        setView({ name: "settings" });
+        setSection(target.title);
+        return;
+      case "new":
+        setView({ name: "assistant" });
+        afterPaint(focusScreen);
+        return;
+      case "import":
+        void importFile();
+        return;
+      case "save-chat":
+        void act(() => api.exportChat(target.assistantId));
+        return;
+    }
+  }
+
   async function importFile() {
     await act(async () => {
       const imported = await api.importAssistant();
@@ -269,6 +333,8 @@ export function App() {
         onConnections={() => setView({ name: "connections" })}
         onMail={() => setView({ name: "mail" })}
         onCloud={() => void act(() => api.openCloud("home"))}
+        onFind={() => setFinding(true)}
+        findKeys={findKeys(mac)}
         onHideCloudCard={() =>
           void act(async () => {
             await api.setSettings({ hideCloudCard: true });
@@ -350,6 +416,9 @@ export function App() {
             onModels={() => setView({ name: "models" })}
             sendWith={state.settings.sendWith}
             mac={state.platform === "darwin"}
+            onSaveChat={() => api.exportChat(assistant.id)}
+            onCopy={(messageId) => api.copyMessage(assistant.id, messageId)}
+            found={found?.assistantId === assistant.id ? found : undefined}
           />
         ) : (
           <div className="empty">
@@ -365,6 +434,21 @@ export function App() {
           </div>
         )}
       </main>
+      {finding ? (
+        <Palette
+          state={state}
+          savableId={
+            view.name === "chat" &&
+            assistant &&
+            (chats[assistant.id]?.length ?? 0) > 0
+              ? assistant.id
+              : null
+          }
+          mac={mac}
+          onGo={go}
+          onClose={() => setFinding(false)}
+        />
+      ) : null}
     </div>
   );
 }

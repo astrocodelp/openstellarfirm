@@ -5,6 +5,7 @@ import { pathToFileURL } from "node:url";
 import {
   app,
   BrowserWindow,
+  clipboard,
   dialog,
   type IpcMainInvokeEvent,
   ipcMain,
@@ -62,11 +63,13 @@ import {
   composioInput,
   connectionInput,
 } from "./connections";
+import { chatFileName, chatMarkdown } from "./export";
 import { folderLabels } from "./folders";
 import { MailService, mailInput } from "./mail";
 import { listModels, ModelError, streamTurn, type WireMessage } from "./models";
 import { lookupCompany } from "./poppy";
 import { electronScreen } from "./screen-capture";
+import { searchQuery, searchStore } from "./search";
 import { Secrets } from "./secrets";
 import type { Seen } from "./seen";
 import { Store } from "./store";
@@ -609,6 +612,56 @@ async function importBackup(
   return restoreBackup(store, readFileSync(path, "utf8"));
 }
 
+/**
+ * "Save this chat": the save dialog is opened here, so the file goes only where
+ * the person picked. Every saved key is read here, only to be hidden.
+ */
+async function exportChat(window: BrowserWindow, id: string): Promise<boolean> {
+  const assistant = store.assistant(id);
+  const messages = store.messages(id);
+  if (messages.length === 0)
+    throw new Error("There is nothing in this chat to save yet.");
+  const now = new Date();
+  const picked = await dialog.showSaveDialog(window, {
+    title: "Save this chat",
+    defaultPath: chatFileName(assistant.name, now),
+    filters: [{ name: "Markdown", extensions: ["md"] }],
+  });
+  if (picked.canceled || !picked.filePath) return false;
+  writeFileSync(
+    picked.filePath,
+    chatMarkdown(assistant.name, messages, { now, hide: await savedKeys() }),
+    { mode: 0o600 },
+  );
+  return true;
+}
+
+/** Every key the app keeps, opened only so an export can leave each one out. */
+async function savedKeys(): Promise<string[]> {
+  const ids = [
+    ...store.sources().map((s) => s.id),
+    ...store.connections().map((c) => c.id),
+    ...store.mailAccounts().map((m) => m.id),
+  ];
+  const keys: string[] = [];
+  for (const id of ids) {
+    try {
+      const key = await secrets.get(id);
+      if (key) keys.push(key);
+    } catch {
+      // A key the keychain cannot open is not in the chat either.
+    }
+  }
+  return keys;
+}
+
+/** One saved message to the clipboard. The page names it; the text comes from here. */
+function copyMessage(id: string, messageId: string): void {
+  const found = store.messages(id).find((m) => m.id === messageId);
+  if (!found) throw new Error("That message is no longer here.");
+  clipboard.writeText(found.text);
+}
+
 /** Only the system's own picker, opened here, can give an assistant a folder. */
 async function addFolder(
   window: BrowserWindow,
@@ -812,6 +865,13 @@ function register(window: BrowserWindow): void {
   );
   handle(IPC.dismissUpdate, () => store.dismissUpdate());
   handle(IPC.checkNow, () => checker.start());
+  handle(IPC.searchChats, (_e, query: unknown) =>
+    searchStore(store, searchQuery(query)),
+  );
+  handle(IPC.exportChat, (_e, id: unknown) => exportChat(window, str(id, 64)));
+  handle(IPC.copyMessage, (_e, id: unknown, messageId: unknown) =>
+    copyMessage(str(id, 64), str(messageId, 64)),
+  );
 }
 
 /**
