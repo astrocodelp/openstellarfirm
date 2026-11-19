@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A GitHub Actions release workflow (`.github/workflows/release.yml`), ported from pull request
+  #6 onto the current history: a `vX.Y.Z` or `vX.Y.Z-rc.N` tag builds the macOS and Windows
+  installers on GitHub's runners and publishes the release, with `SHA256SUMS.txt` and the
+  checksums in the notes. Checks and build scripts run with no secrets, signing values reach only
+  the `electron-builder` step, and only the publish job holds the token. It is the second way to
+  release beside `scripts/release/` (one per tag); see `docs/RELEASING.md`.
 - Desk pets, phase 6: a user guide, `docs/desk-pets.md` (what you need, flashing, the firewall steps
   for Windows, macOS and Linux, adding a pet over USB, privacy, troubleshooting). The pet's
   greeting now tells you to plug it into your computer and open Settings, Desk pets, and no

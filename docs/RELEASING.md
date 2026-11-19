@@ -6,10 +6,20 @@ is `astrocodelp/openstellarfirm`. Its address lives in one place,
 `repository` in `package.json`; the release scripts read it from there, and a
 test holds the app's links (`src/shared/links.ts`) to it.
 
-GitHub Actions is blocked for this organization, so releases are built on a
-short-lived Fly Machine (Linux and Windows) and on a maintainer's Mac (macOS).
-A release is only ever built from a tag in the public repository. What is built
-is what anyone can read.
+There are two ways to build a release, and each tag uses **one** of them:
+
+- **The scripts** (`scripts/release/`): a short-lived Fly Machine builds Linux
+  and Windows and a maintainer's Mac builds macOS. Everything goes to one
+  **draft** release that a person publishes by hand. This is the way the
+  steps below describe, and the way for the first public release.
+- **The workflow** ([GitHub Actions](#github-actions)): a tag push builds macOS
+  and Windows on GitHub's runners and **publishes** the release. It is for when
+  GitHub Actions is allowed for this organization. It does not build Linux.
+
+Do not run both for the same tag: the scripts make a draft and the workflow
+publishes one, and they upload files with the same names. A release is only
+ever built from a tag in the public repository. What is built is what anyone
+can read.
 
 ## Before the first public release
 
@@ -29,7 +39,7 @@ is what anyone can read.
       with the image.
 - [ ] **The smoke test** below passes on every system.
 
-## The steps, in order
+## The steps, in order (the scripts)
 
 1. **Version.** `version` in `package.json` must be the version you release.
    If it already matches (0.1.0 does), skip this step. Otherwise change it and
@@ -134,13 +144,118 @@ secrets, so a release build can only ever see its own. That is why `FLY_APP`
 has no default: name that app every time, for example
 `openstellarfirm-release`.
 
+## GitHub Actions
+
+[`.github/workflows/release.yml`](../.github/workflows/release.yml) runs when
+someone pushes a tag, and from the Actions tab. It does not run on a pull
+request. The parse and publish jobs use the org's self-hosted Fly runners
+(`self-hosted`, `fly`, `linux`, `x64`), and those must not build code from a
+fork. This is the second way to release, beside the scripts above: use one
+per tag.
+
+| Tag                                       | What the workflow publishes                             |
+| ----------------------------------------- | ------------------------------------------------------- |
+| `vX.Y.Z` (for example `v0.1.0`)           | A stable release, marked as the latest                  |
+| `vX.Y.Z-rc.N` (for example `v0.1.0-rc.1`) | A release candidate, as a prerelease, not marked latest |
+
+**The workflow publishes, it does not leave a draft.** For the first public
+release, or any release you want to smoke-test before anyone can download it,
+use the scripts (they stop at a draft), or push a `-rc.N` tag. Never push a
+`vX.Y.Z` tag to the workflow before the points in
+[Before the first public release](#before-the-first-public-release) are done.
+
+The workflow writes the tag's version into `package.json` before it packages,
+so a release candidate does not need a version bump first. The Fly and Mac
+scripts still require the tag to match `package.json` exactly.
+
+A manual run (**Release**, **Run workflow**) builds installers versioned
+`0.0.0-dev.<run number>` and keeps them as workflow artifacts. It publishes
+nothing. Tick **sign** to try the signing secrets. That run fails, and names
+the missing secrets, when the set is not complete.
+
+| File                                                 | Runner           |
+| ---------------------------------------------------- | ---------------- |
+| `OpenStellarFirm-<version>-mac-x64.dmg` and `.zip`   | `macos-15-intel` |
+| `OpenStellarFirm-<version>-mac-arm64.dmg` and `.zip` | `macos-15`       |
+| `OpenStellarFirm-<version>-win-x64.exe`              | `windows-latest` |
+| `SHA256SUMS.txt`                                     | the publish job  |
+
+Linux (AppImage and tar.gz) is not built by the workflow: it stays on the Fly
+script, because a macOS disk image cannot be made on Linux and Windows signing
+here runs on Windows. Parse and publish stay on the
+Fly runners. The release notes the workflow writes say that Linux comes from
+the scripts.
+
+`macos-15-intel` is a larger runner. It starts only after the org's GitHub
+Actions billing is fixed. The Fly jobs do not use Actions minutes. They
+start only when the Fly runner group is allowed to serve this public
+repository (org **Settings, Actions, Runner groups**). The pinned actions
+run on Node 24, so the Fly runners need Actions Runner 2.327.1 or newer.
+
+### Secrets in the workflow
+
+The workflow keeps the same rules as the scripts. Each build job runs, in
+order:
+
+1. **Checks** (`scripts/ci.sh`: install, lint, typecheck, test, build). The
+   step has no `env` at all, so install and build code never sees a signing
+   value or a token.
+2. **Stamp** the version from the tag. No secrets.
+3. **Decide signing**. It is told only whether each secret is set (the word
+   `set`), never its value, and writes `electron-builder.signed.json` (names
+   and the Azure variables, no secret) and a signing status file.
+4. **Package**. The only step that holds signing values, and only when signing
+   is on for that platform. It runs `electron-builder` alone (the app was
+   built in Checks), never a package script, and has no `GITHUB_TOKEN`.
+
+Only the **publish** job has `contents: write`. It downloads the installers,
+writes `SHA256SUMS.txt` and the release notes (which list the same sums, like
+`upload.sh`), and creates the Release with the job's `GITHUB_TOKEN`. No other
+token is needed.
+
+Signing in the workflow is optional, and a tag publishes either way. When a
+platform's values are all absent, that installer is unsigned, the release
+title ends with `(unsigned)`, and the notes say so. A half-filled set fails
+the job and names what is missing. Mac and Windows are decided separately.
+An unsigned build must still not be the public launch build.
+
+The workflow reads GitHub Actions secrets, not Fly app secrets. macOS uses
+`CSC_LINK` and `CSC_KEY_PASSWORD`, plus either `APPLE_API_KEY` (the text of
+the `.p8`), `APPLE_API_KEY_ID` and `APPLE_API_ISSUER`, or `APPLE_ID`,
+`APPLE_APP_SPECIFIC_PASSWORD` and `APPLE_TEAM_ID`. Windows uses Azure Trusted
+Signing (`AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, and the
+variables `AZURE_TRUSTED_SIGNING_ENDPOINT`, `AZURE_TRUSTED_SIGNING_ACCOUNT`,
+`AZURE_TRUSTED_SIGNING_PROFILE`, `AZURE_TRUSTED_SIGNING_PUBLISHER`) or, when
+every Azure value is empty, `WIN_CSC_LINK` and `WIN_CSC_KEY_PASSWORD`. On the
+Mac script, `APPLE_API_KEY` is a path to the `.p8`. In the workflow it is the
+key text, and the Package step writes that text to a temporary file (mode
+0600, removed when the step ends).
+
+The workflow builds the commit the tag points at. Re-running a run builds
+that same commit again. If the fix landed after the tag, push the next
+release candidate from the fixed commit.
+
+## Building on your own machine
+
+From a machine for that system, after `pnpm install`:
+
+```bash
+pnpm package:mac     # both Mac architectures, unsigned
+pnpm package:win
+pnpm package:linux
+```
+
+The files land in `release/` (gitignored). The scripts pass `--publish never`,
+so a local build cannot open a GitHub Release.
+
 ## What is not done yet
 
 - **Signing.** Builds are unsigned until certificates exist. macOS needs an Apple
   Developer ID and an App Store Connect API key. Windows needs a code signing
   certificate. The scripts sign automatically when the variables above are set
-  and say "unsigned" in one line when they are not. Unsigned apps show warnings
-  on first run.
+  and say "unsigned" in one line when they are not. The GitHub Actions release
+  says `(unsigned)` in its title when any installer is unsigned. Unsigned apps
+  show warnings on first run.
 - **deb and rpm.** They need a maintainer email address the project has not
   chosen. Only AppImage and tar.gz are built for Linux.
 - **Auto-update.** Not built. People download new versions by hand.
