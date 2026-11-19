@@ -1,6 +1,7 @@
 import { type ReactNode, useId, useState } from "react";
 import type { Settings } from "../../shared/types";
 import { api } from "./bridge";
+import { type SettingsSectionId, sectionTitle } from "./settings-sections";
 import { ErrorLine, message as errorText, useInlineConfirm } from "./ui";
 
 /** Pieces the settings sections share. */
@@ -20,15 +21,19 @@ export function useSettingsSave(onChanged: () => Promise<void>) {
   return { error, save };
 }
 
-/** One section of the screen, with a heading a screen reader can jump to. */
+/**
+ * One section of the screen, with a heading a screen reader can jump to. Its
+ * heading comes from the one list Find anything also reads.
+ */
 export function Section({
-  title,
+  section,
   children,
 }: {
-  title: string;
+  section: SettingsSectionId;
   children: ReactNode;
 }) {
   const id = useId();
+  const title = sectionTitle(section);
   return (
     <section className="settings-section stack" aria-labelledby={id}>
       <h2 className="section-title" id={id}>
@@ -39,24 +44,33 @@ export function Section({
   );
 }
 
-/** A few native radio buttons that choose one value. */
+/**
+ * A few native radio buttons that choose one value, drawn as pills. One tab
+ * stop, and the arrow keys move the choice, as a screen reader expects.
+ */
 export function Choices<T extends string>({
   legend,
+  legendHidden,
   value,
   options,
   note,
   onPick,
 }: {
   legend: string;
+  /** For a filter whose heading is already on the page. */
+  legendHidden?: boolean;
   value: T;
-  options: readonly { id: T; name: string }[];
+  options: readonly { id: T; name: ReactNode }[];
   note?: string;
   onPick(next: T): void;
 }) {
   const ids = useId();
   return (
     <fieldset className="plain stack">
-      <legend className="field-label" id={`${ids}-legend`}>
+      <legend
+        className={legendHidden ? "visually-hidden" : "field-label"}
+        id={`${ids}-legend`}
+      >
         {legend}
       </legend>
       <div

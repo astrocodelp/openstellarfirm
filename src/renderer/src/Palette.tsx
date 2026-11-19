@@ -21,6 +21,7 @@ import {
   paletteItems,
   resultCount,
 } from "./palette-items";
+import { SearchInput } from "./SearchInput";
 import { Icon, Pet } from "./ui";
 
 /**
@@ -81,11 +82,6 @@ export function usePaletteShortcut(
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [enabled, mac, toggle]);
-}
-
-/** After the next paint, when a new screen is in place. */
-export function afterPaint(run: () => void) {
-  requestAnimationFrame(() => requestAnimationFrame(run));
 }
 
 /** Jumps to one heading on the Settings screen and puts the focus on it. */
@@ -168,6 +164,8 @@ export function Palette({
   const listId = `${ids}-list`;
   const optionId = (index: number) => `${ids}-option-${index}`;
   const picked = useRef(false);
+  /** True when the arrows or new words moved the choice, not the pointer. */
+  const fromKeys = useRef(false);
 
   // The dialog is modal: the page behind it cannot be reached. When it closes
   // without a pick, the focus goes back to where it was.
@@ -259,28 +257,41 @@ export function Palette({
 
   // A new search starts at the top of the list.
   // biome-ignore lint/correctness/useExhaustiveDependencies: reset when the words change
-  useEffect(() => setActive(0), [query]);
+  useEffect(() => {
+    fromKeys.current = true;
+    setActive(0);
+  }, [query]);
   const current = Math.min(active, Math.max(rows.length - 1, 0));
 
-  // The choice stays in view as the arrows move it. No smooth scroll: keys are fast.
+  // The choice stays in view as the arrows move it. No smooth scroll: keys are
+  // fast. Never for the pointer: the list must not move under the cursor.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: only when the choice moves
   useEffect(() => {
+    if (!fromKeys.current) return;
+    fromKeys.current = false;
     document
       .getElementById(optionId(current))
       ?.scrollIntoView({ block: "nearest" });
-  });
+  }, [current, query]);
 
   // The count is said once the chats have answered, not on every key.
   useEffect(() => {
     if (!query.trim()) setHeard("");
-    else if (!searching) setHeard(resultCount(rows.length));
-  }, [query, searching, rows.length]);
+    else if (!searching)
+      setHeard(
+        failed
+          ? `${resultCount(rows.length)}. Your chats could not be searched just now.`
+          : resultCount(rows.length),
+      );
+  }, [query, searching, rows.length, failed]);
 
   function pick(row: Row | undefined) {
     if (!row) return;
     // A pick that opens a dialog of its own gives the focus back afterwards;
     // one that moves to another place puts the focus there itself.
     const kind = row.item.target.kind;
-    picked.current = kind !== "save-chat" && kind !== "import";
+    picked.current =
+      kind !== "save-chat" && kind !== "import" && kind !== "shortcuts";
     onGo(row.item.target);
   }
 
@@ -289,9 +300,11 @@ export function Palette({
     const count = rows.length;
     if (event.key === "ArrowDown" && count > 0) {
       event.preventDefault();
+      fromKeys.current = true;
       setActive((current + 1) % count);
     } else if (event.key === "ArrowUp" && count > 0) {
       event.preventDefault();
+      fromKeys.current = true;
       setActive((current - 1 + count) % count);
     } else if (event.key === "Enter") {
       event.preventDefault();
@@ -332,12 +345,19 @@ export function Palette({
       }}
       onClick={onBackdrop}
     >
-      <div className="palette-box">
+      {/* The box keeps the focus: a click on a heading or a line must not take it. */}
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: only keeps the focus in the box */}
+      <div
+        className="palette-box"
+        onMouseDown={(event) => {
+          if (event.target !== input.current) event.preventDefault();
+        }}
+      >
         <div className="palette-field">
           <SearchGlyph size={18} />
-          <input
+          {/* Esc clears the words first, then closes; Enter opens the choice. */}
+          <SearchInput
             ref={input}
-            type="text"
             role="combobox"
             className="palette-input"
             aria-label="Find an assistant, a chat, a screen or a setting"
@@ -351,11 +371,9 @@ export function Palette({
             placeholder="Find anything"
             value={query}
             maxLength={SEARCH_QUERY_MAX}
-            spellCheck={false}
-            autoComplete="off"
             enterKeyHint="go"
             data-1p-ignore
-            onChange={(event) => setQuery(event.target.value)}
+            onValueChange={setQuery}
             onKeyDown={onKeyDown}
           />
           <span className="kbd" aria-hidden="true">
@@ -503,6 +521,8 @@ function glyphFor(
       return "plus";
     case "import":
       return "upload";
+    case "shortcuts":
+      return "sliders";
     case "save-chat":
       return "download";
     case "section":

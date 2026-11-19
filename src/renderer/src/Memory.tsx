@@ -19,6 +19,7 @@ import type {
   ChatMessage,
   ChatStep,
 } from "../../shared/types";
+import { refocusIfLost } from "./a11y";
 import { api } from "./bridge";
 import {
   ErrorLine,
@@ -89,6 +90,25 @@ function Notes({ assistant }: { assistant: Assistant }) {
   const [busy, setBusy] = useState(false);
   /** The note just deleted, so Undo can add it again. */
   const [deleted, setDeleted] = useState<string | null>(null);
+  const listRef = useRef<HTMLUListElement>(null);
+  const undoRef = useRef<HTMLButtonElement>(null);
+  const draftRef = useRef<HTMLInputElement>(null);
+
+  /** Back to the note's Edit button once its editor has gone. */
+  function backToNote(id: string) {
+    refocusIfLost(
+      () =>
+        listRef.current?.querySelector<HTMLElement>(
+          `[data-note-edit="${CSS.escape(id)}"]`,
+        ) ?? draftRef.current,
+    );
+  }
+
+  function closeEdit() {
+    const id = editing?.id;
+    setEditing(null);
+    if (id) backToNote(id);
+  }
 
   async function act(
     change: () => Promise<AssistantMemory>,
@@ -120,19 +140,27 @@ function Notes({ assistant }: { assistant: Assistant }) {
   async function saveEdit() {
     if (!editing) return;
     const { id, text } = editing;
-    if (await act(() => api.editNote(assistant.id, id, text), "Note saved"))
+    if (await act(() => api.editNote(assistant.id, id, text), "Note saved")) {
       setEditing(null);
+      backToNote(id);
+    }
   }
 
   async function remove(id: string, text: string) {
-    if (await act(() => api.removeNote(assistant.id, id))) setDeleted(text);
+    if (await act(() => api.removeNote(assistant.id, id))) {
+      setDeleted(text);
+      // The row went with its Delete button; Undo is the next thing wanted.
+      refocusIfLost(() => undoRef.current);
+    }
   }
 
   async function undoDelete() {
     const text = deleted;
     if (!text) return;
-    if (await act(() => api.addNote(assistant.id, text), "Note is back"))
+    if (await act(() => api.addNote(assistant.id, text), "Note is back")) {
       setDeleted(null);
+      refocusIfLost(() => draftRef.current);
+    }
   }
 
   /** Enter adds; the assistant form around this is never submitted from here. */
@@ -146,7 +174,7 @@ function Notes({ assistant }: { assistant: Assistant }) {
   function onEditKey(event: KeyboardEvent<HTMLTextAreaElement>) {
     if (event.key === "Escape") {
       event.preventDefault();
-      setEditing(null);
+      closeEdit();
     } else if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
       event.preventDefault();
       void saveEdit();
@@ -195,7 +223,11 @@ function Notes({ assistant }: { assistant: Assistant }) {
       ) : null}
 
       {notes.length > 0 ? (
-        <ul className="list card" aria-label={`Notes for ${assistant.name}`}>
+        <ul
+          ref={listRef}
+          className="list card"
+          aria-label={`Notes for ${assistant.name}`}
+        >
           {notes.map((note) =>
             editing?.id === note.id ? (
               <li key={note.id} className="memory-edit">
@@ -223,11 +255,7 @@ function Notes({ assistant }: { assistant: Assistant }) {
                   >
                     {busy ? "Saving…" : "Save note"}
                   </button>
-                  <button
-                    type="button"
-                    className="btn"
-                    onClick={() => setEditing(null)}
-                  >
+                  <button type="button" className="btn" onClick={closeEdit}>
                     Cancel
                   </button>
                 </div>
@@ -244,6 +272,7 @@ function Notes({ assistant }: { assistant: Assistant }) {
                   <button
                     type="button"
                     className="btn btn-small"
+                    data-note-edit={note.id}
                     aria-label={`Edit the note “${short(note.text)}”`}
                     disabled={busy}
                     onClick={() => {
@@ -275,6 +304,7 @@ function Notes({ assistant }: { assistant: Assistant }) {
         <p className="memory-status" role="status">
           <span>Note deleted.</span>
           <button
+            ref={undoRef}
             type="button"
             className="link-btn"
             disabled={busy}
@@ -291,6 +321,7 @@ function Notes({ assistant }: { assistant: Assistant }) {
         </label>
         <div className="wrap memory-add">
           <input
+            ref={draftRef}
             id="memory-draft"
             className="input grow"
             value={draft}
@@ -385,11 +416,15 @@ export function RememberedStep({
 export function useChatTools(
   assistantId: string,
   onChatChanged: (messages: ChatMessage[]) => void,
+  /** Where the focus goes when the button that ran a change went with it. */
+  focusBox: () => HTMLElement | null | undefined,
 ) {
   const [error, setError] = useState("");
   const [forgot, setForgot] = useState(false);
   const [summarising, setSummarising] = useState(false);
   const [working, setWorking] = useState(false);
+  /** "Not now" on the summary offer, for this chat. */
+  const [offerDismissed, setOfferDismissed] = useState(false);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: reset when another assistant is opened
   useEffect(() => {
@@ -397,6 +432,7 @@ export function useChatTools(
     setForgot(false);
     setSummarising(false);
     setWorking(false);
+    setOfferDismissed(false);
   }, [assistantId]);
 
   async function run(change: () => Promise<ChatMessage[]>): Promise<boolean> {
@@ -410,6 +446,8 @@ export function useChatTools(
       return false;
     } finally {
       setWorking(false);
+      // Keep summary, Undo, Clear: their buttons go with the change.
+      refocusIfLost(focusBox);
     }
   }
 
@@ -418,6 +456,11 @@ export function useChatTools(
     forgot,
     summarising,
     working,
+    offerDismissed,
+    dismissOffer: () => {
+      setOfferDismissed(true);
+      refocusIfLost(focusBox);
+    },
     clearError: () => setError(""),
     async forget(messageId: string) {
       if (await run(() => api.forgetMessage(assistantId, messageId)))
@@ -440,6 +483,8 @@ export function useChatTools(
         return await run(() => api.summariseChat(assistantId));
       } finally {
         setSummarising(false);
+        // The Stop link that had the focus has gone too.
+        refocusIfLost(focusBox);
       }
     },
     stop() {
@@ -455,6 +500,19 @@ export function useChatTools(
 }
 
 export type ChatTools = ReturnType<typeof useChatTools>;
+
+/** True while the long-chat offer shows, so the bar does not offer it twice. */
+export function offerShown(
+  tools: ChatTools,
+  share: number | undefined,
+): boolean {
+  return (
+    share !== undefined &&
+    share >= OFFER_SUMMARY_AT &&
+    !tools.offerDismissed &&
+    !tools.summarising
+  );
+}
 
 /** How full the model's window is, as an estimate. */
 export function contextUse(input: {
@@ -486,9 +544,36 @@ export function ContextBar({
   busy: boolean;
 }) {
   const [clearing, setClearing] = useState(false);
+  const clearButton = useRef<HTMLButtonElement>(null);
+  const stopButton = useRef<HTMLButtonElement>(null);
+  /** Keep it or Esc: the focus goes back to Clear chat, which opened the question. */
+  const backToClear = useRef(false);
   const percent =
     use.share === undefined ? undefined : Math.round(use.share * 100);
-  if (!hasMessages && !tools.error) return null;
+
+  useEffect(() => {
+    if (clearing || !backToClear.current) return;
+    backToClear.current = false;
+    clearButton.current?.focus({ preventScroll: true });
+  }, [clearing]);
+
+  // The Summarise button that had the focus became this line: Stop takes it.
+  useEffect(() => {
+    if (!tools.summarising) return;
+    const active = document.activeElement;
+    if (!active || active === document.body)
+      stopButton.current?.focus({ preventScroll: true });
+  }, [tools.summarising]);
+
+  function keep() {
+    backToClear.current = true;
+    setClearing(false);
+  }
+
+  // Always in place, empty before the first message, so the chat below never
+  // jumps down when the first message is sent.
+  if (!hasMessages && !tools.error)
+    return <div className="context-bar" data-empty="true" />;
   return (
     <div className="context-bar">
       {percent !== undefined && use.window ? (
@@ -527,7 +612,12 @@ export function ContextBar({
         <p className="activity context-working" role="status">
           <span className="pulse" aria-hidden="true" />
           Summarising the older messages…
-          <button type="button" className="link-btn" onClick={tools.stop}>
+          <button
+            ref={stopButton}
+            type="button"
+            className="link-btn"
+            onClick={tools.stop}
+          >
             Stop
           </button>
         </p>
@@ -535,7 +625,7 @@ export function ContextBar({
         <InlineConfirm
           className="context-confirm"
           label="Clear this chat"
-          onClose={() => setClearing(false)}
+          onClose={keep}
         >
           <span>Clear this chat? Its notes stay.</span>
           <button
@@ -554,22 +644,26 @@ export function ContextBar({
             data-autofocus
             type="button"
             className="btn btn-small"
-            onClick={() => setClearing(false)}
+            onClick={keep}
           >
             Keep it
           </button>
         </InlineConfirm>
       ) : hasMessages ? (
         <div className="wrap context-actions">
+          {/* The offer below the chat asks the same, so it is not asked twice. */}
+          {offerShown(tools, use.share) ? null : (
+            <button
+              type="button"
+              className="btn btn-small"
+              disabled={busy || tools.working}
+              onClick={() => void tools.summarise()}
+            >
+              Summarise and continue
+            </button>
+          )}
           <button
-            type="button"
-            className="btn btn-small"
-            disabled={busy || tools.working}
-            onClick={() => void tools.summarise()}
-          >
-            Summarise and continue
-          </button>
-          <button
+            ref={clearButton}
             type="button"
             className="btn btn-small"
             disabled={busy || tools.working}
@@ -593,9 +687,7 @@ export function SummaryOffer({
   share: number | undefined;
   busy: boolean;
 }) {
-  const [later, setLater] = useState(false);
-  if (share === undefined || share < OFFER_SUMMARY_AT || later) return null;
-  if (tools.summarising) return null;
+  if (share === undefined || !offerShown(tools, share)) return null;
   return (
     <section className="summary-offer" aria-label="This chat is getting long">
       <p>
@@ -614,7 +706,7 @@ export function SummaryOffer({
         <button
           type="button"
           className="btn btn-small"
-          onClick={() => setLater(true)}
+          onClick={tools.dismissOffer}
         >
           Not now
         </button>
@@ -639,7 +731,11 @@ export function SummaryBlock({
 }) {
   const pending = summary.summary === "pending";
   return (
-    <section className="summary" aria-label="Summary of earlier messages">
+    <section
+      className="summary"
+      aria-label="Summary of earlier messages"
+      data-message-id={summary.id}
+    >
       <p className="summary-kicker">
         <Icon name="check" size={14} />
         {pending

@@ -44,7 +44,7 @@ export function MainAssistantSection({
   useEffect(() => setLookFor(check.lookFor), [check.lookFor]);
 
   return (
-    <Section title="Main assistant">
+    <Section section="main">
       <p className="faint">
         Pick one assistant to check on things for you. It only works while this
         app is open. Each check uses your model, which costs you money if the

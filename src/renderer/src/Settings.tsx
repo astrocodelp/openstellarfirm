@@ -56,7 +56,7 @@ export function SettingsScreen({
       <div className="screen-body">
         <ScreenHead title="Settings" onBack={onBack} />
 
-        <Section title="Appearance">
+        <Section section="appearance">
           <Choices
             legend="Theme"
             value={settings.theme}
@@ -84,7 +84,7 @@ export function SettingsScreen({
           onShortcuts={onShortcuts}
         />
 
-        <Section title="Chat">
+        <Section section="chat">
           <Choices
             legend="Send with"
             value={settings.sendWith}
@@ -104,7 +104,7 @@ export function SettingsScreen({
           />
         </Section>
 
-        <Section title="StellarFirm cloud">
+        <Section section="cloud">
           <label className="choice" style={{ alignSelf: "flex-start" }}>
             <input
               type="checkbox"

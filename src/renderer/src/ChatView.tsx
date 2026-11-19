@@ -23,6 +23,7 @@ import {
   useAttachments,
   useDropFiles,
 } from "./Attachments";
+import { refocusIfLost } from "./a11y";
 import { api } from "./bridge";
 import {
   CopyButton,
@@ -236,6 +237,8 @@ export function ChatView(props: ChatViewProps) {
     props;
   const [draft, setDraft] = useState("");
   const [error, setError] = useState("");
+  /** A copy or a save that failed: about that button, not about the message box. */
+  const [actionError, setActionError] = useState("");
   const [resolved, setResolved] = useState<Resolved | null>(null);
   /** True when the person scrolled up, away from the newest text. */
   const [away, setAway] = useState(false);
@@ -252,7 +255,11 @@ export function ChatView(props: ChatViewProps) {
     assistant.screen === true ||
     assistant.computer !== undefined;
   const [memory, setMemory] = useMemory(assistant.id, messages.length);
-  const tools = useChatTools(assistant.id, props.onChatChanged);
+  const tools = useChatTools(
+    assistant.id,
+    props.onChatChanged,
+    () => box.current,
+  );
   const use = contextUse({
     assistant,
     memory,
@@ -263,6 +270,8 @@ export function ChatView(props: ChatViewProps) {
   const noteIds = memory ? new Set(memory.notes.map((n) => n.id)) : undefined;
   async function undoNote(id: string) {
     setMemory(await api.removeNote(assistant.id, id));
+    // Undo went with the note; the caret goes back to the message box.
+    refocusIfLost(() => box.current);
   }
 
   /** One saved message, as the chat shows it. */
@@ -322,7 +331,7 @@ export function ChatView(props: ChatViewProps) {
         {props.onCopy ? (
           <CopyButton
             onCopy={() => props.onCopy?.(m.id) ?? Promise.resolve()}
-            onError={setError}
+            onError={setActionError}
           />
         ) : null}
         <ReadAloud id={m.id} text={m.text} rate={props.readRate ?? 1} />
@@ -412,6 +421,7 @@ export function ChatView(props: ChatViewProps) {
     const ids = files.files.map((f) => f.id);
     if ((!text && ids.length === 0) || busy || files.adding) return;
     setError("");
+    setActionError("");
     setDraft("");
     // Sending is a wish to see the answer, so the chat follows it again.
     pinned.current = true;
@@ -447,7 +457,7 @@ export function ChatView(props: ChatViewProps) {
           <SaveChatButton
             disabled={messages.length === 0}
             onSave={props.onSaveChat}
-            onError={setError}
+            onError={setActionError}
           />
         ) : null}
         {props.headExtra}
@@ -469,8 +479,9 @@ export function ChatView(props: ChatViewProps) {
         {...drop.handlers}
       >
         {drop.over ? (
+          // A line of no height, so the chat under it never moves.
           <div className="drop-note" aria-hidden="true">
-            Drop files to attach them
+            <span>Drop files to attach them</span>
           </div>
         ) : null}
         {messages.length === 0 && !busy ? (
@@ -521,13 +532,7 @@ export function ChatView(props: ChatViewProps) {
                 ) : (
                   <div key={m.id} className={`msg msg-${m.role}`}>
                     {renderMessage(m)}
-                    {m.summary === "pending" ? null : (
-                      <ForgetButton
-                        tools={tools}
-                        busy={busy}
-                        messageId={m.id}
-                      />
-                    )}
+                    <ForgetButton tools={tools} busy={busy} messageId={m.id} />
                   </div>
                 ),
               )}
@@ -592,10 +597,8 @@ export function ChatView(props: ChatViewProps) {
         <ForgotLine tools={tools} />
         <SummaryOffer tools={tools} share={use.share} busy={busy} />
         <ErrorLine>{tools.error}</ErrorLine>
+        <ErrorLine>{actionError}</ErrorLine>
         <ErrorLine id="send-error">{error || files.problem}</ErrorLine>
-        <p className="visually-hidden" aria-live="polite">
-          {files.note}
-        </p>
         <PendingFiles box={files} />
         <div className="composer">
           <AttachButton box={files} />
@@ -616,7 +619,9 @@ export function ChatView(props: ChatViewProps) {
               event.preventDefault();
               void files.addFiles(pasted);
             }}
-            aria-describedby={error ? "send-error send-hint" : "send-hint"}
+            aria-describedby={
+              error || files.problem ? "send-error send-hint" : "send-hint"
+            }
           />
           {busy ? (
             <button

@@ -106,3 +106,14 @@ export function filterConnections<T extends { name: string }>(
     return words.every((word) => text.includes(word));
   });
 }
+
+/**
+ * The last card in the row of the card at `index`, in a grid of `columns`.
+ * An open card's form goes straight after it, so the card stays where it was
+ * and no row is left with a hole.
+ */
+export function rowEnd(index: number, count: number, columns: number): number {
+  const across = Math.max(1, Math.floor(columns));
+  const last = Math.floor(index / across) * across + across - 1;
+  return Math.min(Math.max(count - 1, 0), last);
+}

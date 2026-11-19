@@ -32,7 +32,7 @@ export function ApprovalsSection({
   const { busy, error, run } = useAction();
 
   return (
-    <Section title="Approvals">
+    <Section section="approvals">
       <p className="faint">
         An assistant asks before it reads a website, uses a read-only tool of a
         connection, or reads a mail account, for the first time. If you choose
@@ -100,7 +100,7 @@ export function DataSection({
   const { busy, error, run } = useAction();
 
   return (
-    <Section title="Your data">
+    <Section section="data">
       <p className="faint">
         Everything is saved in this folder on this computer, and nowhere else.
       </p>
