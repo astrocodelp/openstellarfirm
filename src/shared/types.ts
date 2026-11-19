@@ -2,11 +2,20 @@
 
 import type { CheckEvery } from "./checks";
 import type { LinkName } from "./links";
+import type { AssistantMemory, MemoryNote } from "./memory";
 import type { SendKey, TextSize } from "./preferences";
 import type { Theme } from "./theme";
 import type { UpdateCheck } from "./update";
 
-export type { CheckEvery, LinkName, SendKey, TextSize, UpdateCheck };
+export type {
+  AssistantMemory,
+  CheckEvery,
+  LinkName,
+  MemoryNote,
+  SendKey,
+  TextSize,
+  UpdateCheck,
+};
 
 export const PET_IDS = [
   "blip",
@@ -130,6 +139,8 @@ export type AssistantInput = Pick<
 export interface ChatStep {
   label: string;
   ok: boolean;
+  /** Set when it saved a note with `remember`, so the chat can offer Undo. */
+  note?: { id: string; text: string };
 }
 
 export interface ChatMessage {
@@ -145,6 +156,13 @@ export interface ChatMessage {
    * the app started (not something the person typed), "update" is the reply.
    */
   check?: "request" | "update";
+  /**
+   * A summary of older messages, written by the assistant's own model.
+   * "pending" until the person keeps it; the older messages stay until then.
+   */
+  summary?: "pending" | "kept";
+  /** The id of the pending summary that stands in for this message. Not sent. */
+  summarised?: string;
 }
 
 /** A step that waits for the person. Built by the main process, in plain words. */
@@ -466,6 +484,27 @@ export interface OpenApi {
   checkForUpdate(): Promise<UpdateCheck>;
   /** Closes the notice for the version that is shown now. */
   dismissUpdate(): Promise<Settings>;
+  /** An assistant's memory: whether it is on, and its notes. */
+  memory(assistantId: string): Promise<AssistantMemory>;
+  addNote(assistantId: string, text: string): Promise<AssistantMemory>;
+  editNote(
+    assistantId: string,
+    noteId: string,
+    text: string,
+  ): Promise<AssistantMemory>;
+  removeNote(assistantId: string, noteId: string): Promise<AssistantMemory>;
+  setMemoryOn(assistantId: string, on: boolean): Promise<AssistantMemory>;
+  /** Takes one message out of the chat. The newest one forgotten can be brought back. */
+  forgetMessage(assistantId: string, messageId: string): Promise<ChatMessage[]>;
+  undoForget(assistantId: string): Promise<ChatMessage[]>;
+  /** Deletes this assistant's chat. Its notes stay. */
+  clearChat(assistantId: string): Promise<void>;
+  /** Has the assistant's own model sum up the older messages. Nothing is deleted yet. */
+  summariseChat(assistantId: string): Promise<ChatMessage[]>;
+  /** Keeps a summary and deletes the messages it stands in for. */
+  keepSummary(assistantId: string, summaryId: string): Promise<ChatMessage[]>;
+  /** Takes a summary away and sends the older messages again. */
+  undoSummary(assistantId: string, summaryId: string): Promise<ChatMessage[]>;
   onDelta(listener: (delta: ChatDelta) => void): () => void;
   onDone(listener: (done: ChatDone) => void): () => void;
   onActivity(listener: (activity: ChatActivity) => void): () => void;
@@ -515,6 +554,17 @@ export const IPC = {
   checkNow: "checks:now",
   checkForUpdate: "update:check",
   dismissUpdate: "update:dismiss",
+  memory: "memory:get",
+  addNote: "memory:note:add",
+  editNote: "memory:note:edit",
+  removeNote: "memory:note:remove",
+  setMemoryOn: "memory:on",
+  forgetMessage: "chat:message:forget",
+  undoForget: "chat:message:unforget",
+  clearChat: "chat:clear",
+  summariseChat: "chat:summarise",
+  keepSummary: "chat:summary:keep",
+  undoSummary: "chat:summary:undo",
   delta: "chat:delta",
   done: "chat:done",
   activity: "chat:activity",

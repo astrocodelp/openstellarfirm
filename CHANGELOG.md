@@ -63,6 +63,16 @@ The app is at version 0.1.0. There is no tagged release yet.
   remembered, the data folder, delete all chats, and About.
 - An update check that is off until you turn it on. It only asks GitHub for
   the newest version and shows a notice. It never downloads or installs.
+- Memory: each assistant keeps up to 100 short notes, shown and edited in a
+  Memory section of its page, and memory can be turned off per assistant. The
+  assistant can save a note with `remember` (at most 3 an answer, never a
+  key-like text, and never once the answer has read outside text), shown in
+  the chat with Undo. Notes travel in a backup only with chats, never in a
+  shared file.
+- Chat context: a meter of how full the model's window is (an estimate, shown
+  when the window is known), Forget on any message with Undo, Clear chat, and
+  "Summarise and continue", which the assistant's own model writes and you
+  keep or undo. Past 80% the chat offers it; it never does it on its own.
 - An app icon, and Linux builds (AppImage and tar.gz).
 - Release and check scripts that run without GitHub Actions
   ([docs/RELEASING.md](docs/RELEASING.md)).

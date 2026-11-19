@@ -13,6 +13,18 @@ import type {
   ChatStep,
   Decision,
 } from "../../shared/types";
+import { api } from "./bridge";
+import {
+  ContextBar,
+  contextUse,
+  ForgetButton,
+  ForgotLine,
+  RememberedStep,
+  SummaryBlock,
+  SummaryOffer,
+  useChatTools,
+  useMemory,
+} from "./Memory";
 import { ErrorLine, message as errorText, Icon, Pet } from "./ui";
 
 /** How close to the end of the chat still counts as "at the end". */
@@ -60,6 +72,11 @@ interface ChatViewProps {
   /** What sends a message, and whether the keys are a Mac's. */
   sendWith: SendKey;
   mac: boolean;
+  /** The model that answers and its preset, for the context meter. */
+  model?: string;
+  preset?: string;
+  /** The chat after a message was forgotten, the chat cleared or summed up. */
+  onChatChanged(messages: ChatMessage[]): void;
 }
 
 /** The time a check started, as the person's computer writes it. */
@@ -70,16 +87,38 @@ function clock(at: string): string {
     : time.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
-function Steps({ steps, enter }: { steps: ChatStep[]; enter: boolean }) {
+function Steps({
+  steps,
+  enter,
+  noteIds,
+  onUndoNote,
+}: {
+  steps: ChatStep[];
+  enter: boolean;
+  /** The notes still in memory, so a saved note offers Undo only while it is there. */
+  noteIds?: Set<string> | undefined;
+  onUndoNote?: (id: string) => Promise<void>;
+}) {
   return (
     <ul className={enter ? "steps enter" : "steps"} aria-label="What it did">
-      {steps.map((step, index) => (
-        // biome-ignore lint/suspicious/noArrayIndexKey: a fixed list that never reorders
-        <li key={index} className={step.ok ? "step" : "step step-failed"}>
-          <Icon name={step.ok ? "check" : "alert"} size={14} />
-          <span>{step.label}</span>
-        </li>
-      ))}
+      {steps.map((step, index) => {
+        const note = step.note;
+        return note && onUndoNote ? (
+          <RememberedStep
+            // biome-ignore lint/suspicious/noArrayIndexKey: a fixed list that never reorders
+            key={index}
+            step={{ ...step, note }}
+            kept={noteIds ? noteIds.has(note.id) : undefined}
+            onUndo={() => onUndoNote(note.id)}
+          />
+        ) : (
+          // biome-ignore lint/suspicious/noArrayIndexKey: a fixed list that never reorders
+          <li key={index} className={step.ok ? "step" : "step step-failed"}>
+            <Icon name={step.ok ? "check" : "alert"} size={14} />
+            <span>{step.label}</span>
+          </li>
+        );
+      })}
     </ul>
   );
 }
@@ -181,6 +220,63 @@ export function ChatView(props: ChatViewProps) {
   const busy = streaming !== undefined;
   const canAct =
     assistant.folders.length > 0 || assistant.web || assistant.screen === true;
+  const [memory, setMemory] = useMemory(assistant.id, messages.length);
+  const tools = useChatTools(assistant.id, props.onChatChanged);
+  const use = contextUse({
+    assistant,
+    memory,
+    messages,
+    ...(props.model ? { model: props.model } : {}),
+    ...(props.preset ? { preset: props.preset } : {}),
+  });
+  const noteIds = memory ? new Set(memory.notes.map((n) => n.id)) : undefined;
+  async function undoNote(id: string) {
+    setMemory(await api.removeNote(assistant.id, id));
+  }
+
+  /** One saved message, as the chat shows it. */
+  function renderMessage(m: ChatMessage) {
+    return m.check === "request" ? (
+      <p key={m.id} className="check-note">
+        <Icon name="check" size={14} />
+        <span>Started a check at {clock(m.at)}</span>
+      </p>
+    ) : m.failed ? (
+      <div key={m.id} className="turn">
+        {m.check ? <p className="check-note">Check update</p> : null}
+        {m.steps ? <Steps steps={m.steps} enter={fresh(m)} /> : null}
+        <p
+          className={
+            fresh(m) ? "bubble bubble-failed enter" : "bubble bubble-failed"
+          }
+        >
+          <Icon name="alert" />
+          <span>{m.text}</span>
+        </p>
+      </div>
+    ) : m.role === "user" ? (
+      <p
+        key={m.id}
+        className={fresh(m) ? "bubble bubble-user enter" : "bubble bubble-user"}
+      >
+        {m.text}
+      </p>
+    ) : (
+      <div key={m.id} className="turn">
+        {m.check ? <p className="check-note">Check update</p> : null}
+        {m.steps ? (
+          <Steps
+            steps={m.steps}
+            enter={fresh(m)}
+            noteIds={noteIds}
+            onUndoNote={undoNote}
+          />
+        ) : null}
+        {/* The streamed answer already entered, so the saved one does not. */}
+        <p className="bubble bubble-answer">{m.text}</p>
+      </div>
+    );
+  }
 
   function toEnd() {
     const el = scroller.current;
@@ -286,6 +382,12 @@ export function ChatView(props: ChatViewProps) {
           Customize
         </button>
       </header>
+      <ContextBar
+        tools={tools}
+        use={use}
+        hasMessages={messages.length > 0}
+        busy={busy}
+      />
 
       <div className="chat-scroll" ref={scroller} onScroll={onScroll}>
         {messages.length === 0 && !busy ? (
@@ -320,45 +422,35 @@ export function ChatView(props: ChatViewProps) {
             key={assistant.id}
             ref={column}
           >
-            {messages.map((m) =>
-              m.check === "request" ? (
-                <p key={m.id} className="check-note">
-                  <Icon name="check" size={14} />
-                  <span>Started a check at {clock(m.at)}</span>
-                </p>
-              ) : m.failed ? (
-                <div key={m.id} className="turn">
-                  {m.check ? <p className="check-note">Check update</p> : null}
-                  {m.steps ? <Steps steps={m.steps} enter={fresh(m)} /> : null}
-                  <p
-                    className={
-                      fresh(m)
-                        ? "bubble bubble-failed enter"
-                        : "bubble bubble-failed"
-                    }
-                  >
-                    <Icon name="alert" />
-                    <span>{m.text}</span>
-                  </p>
-                </div>
-              ) : m.role === "user" ? (
-                <p
-                  key={m.id}
-                  className={
-                    fresh(m) ? "bubble bubble-user enter" : "bubble bubble-user"
-                  }
-                >
-                  {m.text}
-                </p>
-              ) : (
-                <div key={m.id} className="turn">
-                  {m.check ? <p className="check-note">Check update</p> : null}
-                  {m.steps ? <Steps steps={m.steps} enter={fresh(m)} /> : null}
-                  {/* The streamed answer already entered, so the saved one does not. */}
-                  <p className="bubble bubble-answer">{m.text}</p>
-                </div>
-              ),
-            )}
+            {messages
+              .filter((m) => !m.summarised)
+              .map((m) =>
+                m.summary ? (
+                  <SummaryBlock
+                    key={m.id}
+                    summary={m}
+                    covered={messages.filter((c) => c.summarised === m.id)}
+                    tools={tools}
+                    busy={busy}
+                    renderMessage={(c) => (
+                      <div key={c.id} className={`msg msg-${c.role}`}>
+                        {renderMessage(c)}
+                      </div>
+                    )}
+                  />
+                ) : (
+                  <div key={m.id} className={`msg msg-${m.role}`}>
+                    {renderMessage(m)}
+                    {m.summary === "pending" ? null : (
+                      <ForgetButton
+                        tools={tools}
+                        busy={busy}
+                        messageId={m.id}
+                      />
+                    )}
+                  </div>
+                ),
+              )}
             {busy && (streaming || !approval) ? (
               <div className="turn">
                 {streaming ? (
@@ -417,6 +509,9 @@ export function ChatView(props: ChatViewProps) {
           <Icon name="down" size={14} />
           Jump to latest
         </button>
+        <ForgotLine tools={tools} />
+        <SummaryOffer tools={tools} share={use.share} busy={busy} />
+        <ErrorLine>{tools.error}</ErrorLine>
         <ErrorLine>{error}</ErrorLine>
         <div className="composer">
           <label className="visually-hidden" htmlFor="message-box">

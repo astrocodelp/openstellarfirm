@@ -354,6 +354,22 @@ export class Store {
     return message;
   }
 
+  /**
+   * Writes a chat as a whole, as forgetting a message, clearing or summing up
+   * does. The list is built in the main process from the chat that is saved.
+   */
+  replaceMessages(assistantId: string, messages: ChatMessage[]): void {
+    this.assistant(assistantId);
+    this.writeFile(this.chatFile(assistantId), messages.slice(-MAX_MESSAGES));
+    const last = messages.at(-1);
+    this.change(assistantId, (a) => {
+      const { lastLine: _old, ...rest } = a;
+      return last
+        ? { ...rest, lastLine: last.text.replace(/\s+/g, " ").slice(0, 90) }
+        : rest;
+    });
+  }
+
   private change(id: string, edit: (a: Assistant) => Assistant): Assistant {
     const state = this.read();
     const found = state.assistants.find((a) => a.id === id);

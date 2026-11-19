@@ -63,6 +63,12 @@ team of AI Agent Assistants works for your company in the cloud.
   check only reads: anything that would need your Approve is left for you.
 - **A look at your screen.** Off until you turn it on for an assistant. Every
   look asks first, and the picture is never saved. It can only look.
+- **Memory you can see.** Each assistant keeps up to 100 short notes you
+  give it in its Memory section, and it can save one itself when you tell it
+  something worth keeping. Every note it saves shows in the chat with Undo,
+  and you can turn memory off for an assistant. A chat shows how full the
+  model's window is, lets you forget a message or clear the chat, and offers
+  to sum up the older messages when it gets long.
 - **Tools on small models too.** A model that cannot call tools asks for them
   in writing, through the same approvals.
 - **Move or back up.** One file with all your assistants, and your chats only

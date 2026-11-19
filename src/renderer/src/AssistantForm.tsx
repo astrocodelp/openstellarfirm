@@ -10,6 +10,7 @@ import type {
   PetId,
 } from "../../shared/types";
 import { api } from "./bridge";
+import { MemorySection } from "./Memory";
 import { PERSONAS } from "./personas";
 import {
   ErrorLine,
@@ -541,6 +542,8 @@ export function AssistantForm(props: AssistantFormProps) {
               </>
             )}
           </fieldset>
+
+          <MemorySection assistant={assistant} />
 
           <div className="wrap" style={{ alignItems: "flex-start" }}>
             <label className="field grow">

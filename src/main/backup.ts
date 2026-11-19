@@ -4,12 +4,14 @@ import {
   readAssistantFile,
 } from "../shared/assistant-file";
 import type { BackupResult } from "../shared/types";
+import type { MemoryStore } from "./memory";
 import type { Store } from "./store";
 
 /**
  * Moving everything to another computer. The file holds assistants (name,
- * look, brief and skills) and, only when the person asks, their chats. It never
- * holds a key, a model source, a model, a folder, a site or a setting.
+ * look, brief and skills) and, only when the person asks, their chats and the
+ * notes in their memory. It never holds a key, a model source, a model, a
+ * folder, a site or a setting.
  */
 
 export const MAX_BACKUP_BYTES = 50 * 1024 * 1024;
@@ -26,12 +28,18 @@ export interface BackupFile {
     string,
     { role: string; text: string; at: string; failed?: boolean }[]
   >;
+  /**
+   * Memory by position in `assistants`, only when chats are in the file too:
+   * notes are as personal as a chat. Missing in a backup made before memory.
+   */
+  memory?: Record<string, { on: boolean; notes: string[] }>;
 }
 
 export function buildBackup(
   store: Store,
   includeChats: boolean,
   now: Date = new Date(),
+  memory?: Pick<MemoryStore, "read">,
 ): BackupFile {
   const list = store.assistants();
   const file: BackupFile = {
@@ -58,8 +66,27 @@ export function buildBackup(
       if (messages.length > 0) chats[String(index)] = messages;
     });
     file.chats = chats;
+    if (memory) file.memory = memoryOf(list, memory);
   }
   return file;
+}
+
+/** Each assistant's notes, by position. Off with no notes is the default: left out. */
+function memoryOf(
+  list: { id: string }[],
+  memory: Pick<MemoryStore, "read">,
+): NonNullable<BackupFile["memory"]> {
+  const out: NonNullable<BackupFile["memory"]> = {};
+  list.forEach((a, index) => {
+    try {
+      const m = memory.read(a.id);
+      if (m.notes.length > 0 || !m.on)
+        out[String(index)] = { on: m.on, notes: m.notes.map((n) => n.text) };
+    } catch {
+      // Memory this version cannot read stays on this computer.
+    }
+  });
+  return out;
 }
 
 export function backupName(now: Date = new Date()): string {
@@ -71,7 +98,11 @@ export function backupName(now: Date = new Date()): string {
  * Adds what a backup holds as new assistants. Nothing here is overwritten or
  * deleted, and a bad assistant is skipped and counted, never fatal.
  */
-export function restoreBackup(store: Store, raw: string): BackupResult {
+export function restoreBackup(
+  store: Store,
+  raw: string,
+  memory?: Pick<MemoryStore, "restore">,
+): BackupResult {
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
@@ -95,6 +126,12 @@ export function restoreBackup(store: Store, raw: string): BackupResult {
     !Array.isArray(file.chats)
       ? file.chats
       : {};
+  const memories =
+    typeof file.memory === "object" &&
+    file.memory !== null &&
+    !Array.isArray(file.memory)
+      ? file.memory
+      : {};
   let added = 0;
   let chatCount = 0;
   let full = false;
@@ -111,8 +148,17 @@ export function restoreBackup(store: Store, raw: string): BackupResult {
       const chat = Object.hasOwn(chats, key)
         ? cleanMessages(chats[key], MAX_BACKUP_MESSAGES)
         : [];
-      store.addImported(assistant, chat);
+      const saved = store.addImported(assistant, chat);
       added += 1;
+      const notes = Object.hasOwn(memories, key) ? memories[key] : undefined;
+      // Notes are checked one by one: one that reads like a secret stays out.
+      if (memory && notes && typeof notes === "object") {
+        try {
+          memory.restore(saved.id, notes);
+        } catch {
+          // The assistant is in; only its notes could not be written.
+        }
+      }
       if (chat.length > 0) chatCount += 1;
     } catch (error) {
       skipped += 1;

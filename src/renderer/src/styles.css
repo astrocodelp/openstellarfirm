@@ -1313,6 +1313,237 @@ html[data-text-size="large"] {
   border-top: 0;
 }
 
+/* Memory and the chat's context */
+
+.btn-small {
+  position: relative;
+  height: 2rem;
+  padding: 0 0.875rem;
+  font-size: var(--text-caption);
+}
+
+/* 32px to look at, 40px to hit. */
+.btn-small::after {
+  content: "";
+  position: absolute;
+  inset: -0.25rem 0;
+}
+
+.context-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  min-height: 3rem;
+  padding: 0.5rem 1.25rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.context-meter {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.625rem;
+}
+
+.context-track {
+  position: relative;
+  width: 6rem;
+  height: 0.375rem;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: var(--active);
+}
+
+/* It grows by scale, never by width, so the bar never moves the layout. */
+.context-fill {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--dim);
+  transform-origin: 0 50%;
+}
+
+.context-meter[data-level="high"] .context-fill {
+  background: var(--danger);
+}
+
+.context-meter[data-level="high"] .faint {
+  color: var(--text);
+}
+
+.context-actions {
+  margin-left: auto;
+}
+
+.context-working {
+  margin-left: auto;
+}
+
+.context-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin-left: auto;
+  font-size: var(--text-ui);
+}
+
+/* One message and what can be done to it. */
+.msg {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.125rem;
+}
+
+.msg-user {
+  align-items: flex-end;
+}
+
+.forget-btn {
+  position: relative;
+  min-height: 1.75rem;
+  padding: 0 0.5rem;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--faint);
+  font-size: var(--text-caption);
+  cursor: pointer;
+  opacity: 0;
+}
+
+.forget-btn::after {
+  content: "";
+  position: absolute;
+  inset: -0.375rem -0.25rem;
+}
+
+.forget-btn:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+/* Shown when the message is pointed at or holds the focus, and always on touch. */
+.msg:hover > .forget-btn,
+.msg:focus-within > .forget-btn,
+.forget-btn:focus-visible {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .forget-btn {
+    opacity: 1;
+  }
+}
+
+.forget-btn:disabled {
+  cursor: default;
+}
+
+.memory-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--dim);
+  font-size: var(--text-ui);
+}
+
+.forgot-line {
+  margin-bottom: 0.5rem;
+}
+
+.summary-offer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  margin-bottom: 0.625rem;
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-card);
+  background: var(--raised);
+  font-size: var(--text-ui);
+}
+
+.summary {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  padding: 1rem 1.125rem;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-card);
+}
+
+.summary-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  color: var(--dim);
+  font-size: var(--text-caption);
+  font-weight: 500;
+}
+
+.summary-text {
+  max-width: 65ch;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.summary-older > summary {
+  width: fit-content;
+  color: var(--dim);
+  font-size: var(--text-ui);
+  cursor: pointer;
+}
+
+.summary-older-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+  opacity: 0.75;
+}
+
+.step-note {
+  flex-wrap: wrap;
+}
+
+.step-undo {
+  position: relative;
+  font-size: var(--text-caption);
+}
+
+.step-undo::after {
+  content: "";
+  position: absolute;
+  inset: -0.5rem -0.375rem;
+}
+
+.step-error {
+  color: var(--danger);
+}
+
+.memory-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.memory-edit {
+  align-items: flex-start;
+}
+
+.memory-actions {
+  flex-shrink: 0;
+  gap: 0.375rem;
+}
+
+.memory-add .input {
+  flex: 1 1 16rem;
+}
+
 /*
  * Motion. It answers a click, shows where something came from, or carries the
  * eye to what changed. Only transform, opacity and colour move, never the
@@ -1372,7 +1603,9 @@ html[data-text-size="large"] {
   .approval-outcome,
   .activity,
   .ok-line,
-  .error {
+  .error,
+  .summary-offer,
+  .memory-status {
     animation: fade-in var(--dur-quick) var(--ease-out);
   }
 
@@ -1435,7 +1668,9 @@ html[data-text-size="large"] {
   /* What arrives while the chat is open. History already there stays still. */
   .enter,
   .activity,
-  .approval-outcome {
+  .approval-outcome,
+  .summary-offer,
+  .memory-status {
     --rise: 0.25rem;
     animation: rise-in var(--dur-enter) var(--ease-out);
   }
@@ -1451,6 +1686,19 @@ html[data-text-size="large"] {
 
   .pulse {
     animation: pulse 1.6s var(--ease-in-out) infinite;
+  }
+
+  /* The meter moves to its new level instead of jumping. */
+  .context-fill {
+    transition: transform var(--dur-enter) var(--ease-out);
+  }
+
+  /* "Forget" fades in where its room is already kept. */
+  .forget-btn {
+    transition:
+      opacity var(--dur-quick) var(--ease-out),
+      background-color var(--dur-press) var(--ease-out),
+      color var(--dur-press) var(--ease-out);
   }
 
   .pet-busy {
