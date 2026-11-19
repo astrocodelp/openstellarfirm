@@ -126,7 +126,14 @@ export function toGemini(messages: WireMessage[]): {
     } else if (message.role === "system") {
       system.push(message.content);
     } else {
-      push("user", [{ text: message.content }]);
+      push("user", [
+        { text: message.content },
+        ...(message.images ?? []).map(
+          (image): Part => ({
+            inlineData: { mimeType: image.mediaType, data: image.data },
+          }),
+        ),
+      ]);
     }
   }
   flush();

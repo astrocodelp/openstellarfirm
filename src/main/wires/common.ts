@@ -33,7 +33,13 @@ export interface ImagePart {
 
 /** The neutral message list. Each wire maps it to its own service's shape. */
 export type WireMessage =
-  | { role: "system" | "user"; content: string }
+  | { role: "system"; content: string }
+  | {
+      role: "user";
+      content: string;
+      /** Pictures beside the text, such as the ones a recording kept. */
+      images?: ImagePart[];
+    }
   | { role: "assistant"; content: string; tool_calls?: WireToolCall[] }
   | {
       role: "tool";

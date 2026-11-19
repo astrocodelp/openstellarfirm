@@ -94,6 +94,17 @@ function outgoing(messages: WireMessage[]): unknown[] {
           ({ signature: _s, ...rest }) => rest,
         ),
       });
+    } else if (message.role === "user" && message.images?.length) {
+      out.push({
+        role: "user",
+        content: [
+          { type: "text", text: message.content },
+          ...message.images.map((image) => ({
+            type: "image_url",
+            image_url: { url: `data:${image.mediaType};base64,${image.data}` },
+          })),
+        ],
+      });
     } else {
       out.push(message);
     }

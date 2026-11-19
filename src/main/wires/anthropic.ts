@@ -34,6 +34,10 @@ function headers(apiKey?: string): Record<string, string> {
 
 type Block =
   | { type: "text"; text: string }
+  | {
+      type: "image";
+      source: { type: "base64"; media_type: string; data: string };
+    }
   | { type: "tool_use"; id: string; name: string; input: unknown }
   | {
       type: "tool_result";
@@ -118,7 +122,19 @@ export function toAnthropic(messages: WireMessage[]): {
     } else if (message.role === "system") {
       system.push(message.content);
     } else {
-      push("user", [{ type: "text", text: message.content }]);
+      push("user", [
+        { type: "text", text: message.content },
+        ...(message.images ?? []).map(
+          (image): Block => ({
+            type: "image",
+            source: {
+              type: "base64",
+              media_type: image.mediaType,
+              data: image.data,
+            },
+          }),
+        ),
+      ]);
     }
   }
   // The conversation has to open with the person.
