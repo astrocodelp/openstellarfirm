@@ -90,6 +90,20 @@ The app is at version 0.1.0. There is no tagged release yet.
 - [COMMUNITY.md](COMMUNITY.md), [CONTRIBUTORS.md](CONTRIBUTORS.md), and
   public instructions for the maintainer assistant in
   [`docs/maintainers/`](docs/maintainers).
+- Find anything: Ctrl+K (Cmd+K on a Mac), or the Find anything button in the
+  sidebar, opens one box that finds assistants, screens, Settings sections,
+  connections and actions, and searches every chat on this computer. The
+  search runs in the main process over the chat files, ignores case and
+  accents, ranks whole words first and newest first within a rank, and shows a
+  short piece of the message with the words marked. A result opens the chat,
+  jumps to the message and lights it for a moment. Arrow keys, Enter and
+  Escape work, and the number of results is announced.
+- Save this chat: one chat as a Markdown file, through the system's save
+  dialog, with names, times, and what you and the assistant wrote. The steps
+  an assistant took are left out, and every saved key, and the usual shapes
+  of keys, are hidden wherever they appear.
+- A Copy button under each answer. The words are copied by the main process
+  from the saved chat; the page sends only which message.
 
 ### Changed
 

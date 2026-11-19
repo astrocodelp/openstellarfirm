@@ -370,6 +370,21 @@ export interface BackupResult {
   full: boolean;
 }
 
+/** A piece of a search result's snippet; `match` marks the words found. */
+export interface SearchPart {
+  text: string;
+  match: boolean;
+}
+
+/** One message a search found, with a short piece of it around the match. */
+export interface SearchHit {
+  assistantId: string;
+  messageId: string;
+  role: ChatMessage["role"];
+  at: string;
+  parts: SearchPart[];
+}
+
 /** What the page can ask the main process to do. */
 export interface OpenApi {
   getState(): Promise<AppState>;
@@ -466,6 +481,18 @@ export interface OpenApi {
   checkForUpdate(): Promise<UpdateCheck>;
   /** Closes the notice for the version that is shown now. */
   dismissUpdate(): Promise<Settings>;
+  /**
+   * Searches every chat on this computer. Plain text in, plain parts out: the
+   * snippet never holds HTML.
+   */
+  searchChats(query: string): Promise<SearchHit[]>;
+  /**
+   * Saves one chat as a Markdown file, through the system's save dialog. False
+   * when the person closed the dialog. The page never names a path.
+   */
+  exportChat(assistantId: string): Promise<boolean>;
+  /** Copies one saved message to the clipboard. The page sends ids, not text. */
+  copyMessage(assistantId: string, messageId: string): Promise<void>;
   onDelta(listener: (delta: ChatDelta) => void): () => void;
   onDone(listener: (done: ChatDone) => void): () => void;
   onActivity(listener: (activity: ChatActivity) => void): () => void;
@@ -515,6 +542,9 @@ export const IPC = {
   checkNow: "checks:now",
   checkForUpdate: "update:check",
   dismissUpdate: "update:dismiss",
+  searchChats: "chat:search",
+  exportChat: "chat:export",
+  copyMessage: "chat:copy",
   delta: "chat:delta",
   done: "chat:done",
   activity: "chat:activity",
