@@ -432,7 +432,7 @@ describe("one answer", () => {
 
   it("asks again about mail itself after a file was read, even when allowed for good", async () => {
     const base = realpathSync(
-      mkdtempSync(join(tmpdir(), "stellarfirm-open-mf-")),
+      mkdtempSync(join(tmpdir(), "stellarfirm-solo-mf-")),
     );
     try {
       mkdirSync(join(base, "Notes"));
@@ -526,7 +526,7 @@ const box = (): SecretBox => ({
 });
 
 beforeEach(() => {
-  dir = mkdtempSync(join(tmpdir(), "stellarfirm-open-mail-"));
+  dir = mkdtempSync(join(tmpdir(), "stellarfirm-solo-mail-"));
   store = new Store(dir);
   secrets = new Secrets(join(dir, "keys.json"), box());
 });
