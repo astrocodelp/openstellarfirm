@@ -5,6 +5,7 @@ import {
   catalogIdOf,
   serviceLabel,
 } from "../../shared/connection-catalog";
+import { noKeychainNote } from "../../shared/keychain";
 import type {
   AppState,
   CompanyOffer,
@@ -164,7 +165,7 @@ function ConnectionForm({
         <span className="faint" id={`${ids}-key-note`}>
           {keychain
             ? "Kept in this computer's keychain. It is sent only to this address, and never shown again."
-            : "This computer has no keychain, so a key cannot be saved here."}
+            : noKeychainNote(document.documentElement.dataset.platform, "key")}
         </span>
       </label>
 
@@ -317,7 +318,7 @@ function CatalogForm({
         <span className="faint" id={`${ids}-key-note`}>
           {keychain
             ? KEY_PROMISE(entry.name)
-            : "This computer has no keychain, so a key cannot be saved here."}
+            : noKeychainNote(document.documentElement.dataset.platform, "key")}
         </span>
       </label>
       <div className="wrap">
@@ -458,7 +459,7 @@ function ComposioForm({
         <span className="faint" id={`${ids}-key-note`}>
           {keychain
             ? "Kept in this computer's keychain. It is sent only to Composio, and never shown again."
-            : "This computer has no keychain, so a key cannot be saved here."}
+            : noKeychainNote(document.documentElement.dataset.platform, "key")}
         </span>
       </label>
       <div className="wrap">

@@ -1,6 +1,7 @@
 import { type FormEvent, useId, useState } from "react";
 import { BEDROCK_REGIONS } from "../../shared/address";
 import { PRESET_GROUPS, PRESETS, presetOf } from "../../shared/catalog";
+import { noKeychainNote } from "../../shared/keychain";
 import type {
   AppState,
   ModelPick,
@@ -215,7 +216,10 @@ export function SourceForm({
           <span className="faint" id={`${ids}-key-note`}>
             {keychain
               ? "Kept in this computer's keychain. It is sent only to this address, and never shown again."
-              : "This computer has no keychain, so a key cannot be saved here."}
+              : noKeychainNote(
+                  document.documentElement.dataset.platform,
+                  "key",
+                )}
           </span>
         </label>
       ) : null}

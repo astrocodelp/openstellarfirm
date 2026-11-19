@@ -12,6 +12,42 @@ export interface SecretBox {
   open(sealed: Buffer): Promise<{ plain: string; stale: boolean }>;
 }
 
+/**
+ * The mark Chromium puts on a value sealed with its fixed fallback key. On
+ * Linux, with no keyring running (GNOME Keyring, KWallet, KeePassXC or any
+ * other Secret Service), it seals with a key written in its own source, so
+ * anyone who copies the file can read what is in it. Electron still calls that
+ * "available", and with the async API its backend name reads "basic_text"
+ * even when a keyring is used, so the app looks at what sealing gives back.
+ * A keyring's key gives "v11".
+ */
+const FIXED_KEY_MARK = "v10";
+const CHECK_TEXT = "OpenStellarFirm keychain check";
+
+/**
+ * Whether sealing with safeStorage keeps a key private. On macOS and Windows
+ * the system's own store does; on Linux only a real keyring does, so a value
+ * is sealed once to see which key was used.
+ */
+export async function keychainUsable(
+  platform: string,
+  available: () => Promise<boolean>,
+  seal: (plain: string) => Promise<Buffer>,
+): Promise<boolean> {
+  try {
+    if (!(await available())) return false;
+    if (platform !== "linux") return true;
+    const sealed = await seal(CHECK_TEXT);
+    return (
+      sealed.length > FIXED_KEY_MARK.length &&
+      sealed.subarray(0, 3).toString("latin1") !== FIXED_KEY_MARK &&
+      !sealed.toString("latin1").includes(CHECK_TEXT)
+    );
+  } catch {
+    return false;
+  }
+}
+
 export class Secrets {
   constructor(
     private readonly file: string,

@@ -106,7 +106,7 @@ import { Reader, ReaderError, registerReaderScheme } from "./reader";
 import { type DraftModel, registerRecording } from "./recording/service";
 import { electronScreen } from "./screen-capture";
 import { searchQuery, searchStore } from "./search";
-import { Secrets } from "./secrets";
+import { keychainUsable, Secrets } from "./secrets";
 import { newSeen, type Seen } from "./seen";
 import { Store } from "./store";
 import {
@@ -1445,6 +1445,9 @@ function paintWindows(): void {
 
 const windowIcon = join(__dirname, "../icon.png");
 
+/** Whether keys can be kept in this computer's keychain, asked once a run. */
+let keychainCheck: Promise<boolean> | undefined;
+
 function createWindow(): BrowserWindow {
   const window = new BrowserWindow({
     width: 1280,
@@ -1493,7 +1496,16 @@ app.whenReady().then(() => {
   store = new Store(dir);
   memory = new MemoryStore(dir);
   secrets = new Secrets(join(dir, "keys.json"), {
-    available: () => safeStorage.isAsyncEncryptionAvailable(),
+    // Decided once a run: the keyring a Linux desktop has does not appear
+    // while the app is open, and the app says to open it again.
+    available: () => {
+      keychainCheck ??= keychainUsable(
+        process.platform,
+        () => safeStorage.isAsyncEncryptionAvailable(),
+        (plain) => safeStorage.encryptStringAsync(plain),
+      );
+      return keychainCheck;
+    },
     seal: (plain) => safeStorage.encryptStringAsync(plain),
     open: async (sealed) => {
       const opened = await safeStorage.decryptStringAsync(sealed);

@@ -1,4 +1,5 @@
 import { type FormEvent, useId, useState } from "react";
+import { noKeychainNote } from "../../shared/keychain";
 import type { AppState, MailAccount, MailCheck } from "../../shared/types";
 import { api } from "./bridge";
 import {
@@ -160,7 +161,10 @@ function MailForm({
         <span className="faint" id={`${ids}-pw-note`}>
           {keychain
             ? "Kept in this computer's keychain. It is sent only to this server, over a secure connection, and never shown again."
-            : "This computer has no keychain, so a password cannot be saved here."}
+            : noKeychainNote(
+                document.documentElement.dataset.platform,
+                "password",
+              )}
         </span>
       </label>
       <label className="choice" style={{ alignSelf: "flex-start" }}>
