@@ -1,0 +1,99 @@
+/*
+ * The connections gallery. Only tokens from
+ * styles.css; motion only when the person has not asked for less.
+ */
+
+.gallery-tools {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.gallery-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/* A filter has no box to tick, so it is padded evenly. */
+.gallery-filter {
+  padding: 0 1rem;
+}
+
+.gallery-num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* The count keeps its line, so the cards never jump when it changes. */
+p.gallery-num {
+  min-height: 1lh;
+}
+
+.gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.gallery-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 1rem 1.125rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background: var(--raised);
+}
+
+.gallery-card:hover {
+  border-color: var(--line-strong);
+}
+
+/* An open card takes the whole row, so its form has room. */
+.gallery-card[data-open="true"] {
+  grid-column: 1 / -1;
+  border-color: var(--line-strong);
+}
+
+.gallery-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-height: 1.5rem;
+}
+
+.gallery-desc {
+  flex: 1 1 auto;
+  text-wrap: pretty;
+}
+
+.gallery-card-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.gallery-card-foot .grow {
+  flex-basis: 8rem;
+}
+
+.gallery-form {
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--line);
+}
+
+.gallery-empty p {
+  max-width: 65ch;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .gallery-card {
+    transition: border-color var(--dur-press) var(--ease-out);
+  }
+}

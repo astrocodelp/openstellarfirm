@@ -1,6 +1,5 @@
 import { type FormEvent, useId, useState } from "react";
 import {
-  CATALOG,
   type CatalogEntry,
   catalogEntry,
   catalogIdOf,
@@ -13,6 +12,7 @@ import type {
   ConnectionTool,
 } from "../../shared/types";
 import { api } from "./bridge";
+import { ConnectionGallery } from "./ConnectionGallery";
 import { ErrorLine, message as errorText, OkLine, ScreenHead } from "./ui";
 
 /** Each tool, with whether it only reads or asks every time. */
@@ -626,9 +626,7 @@ export function ConnectionsScreen({ state, onChanged, onBack }: ScreenProps) {
   const [removing, setRemoving] = useState<string | null>(null);
   const [checked, setChecked] = useState<Record<string, string>>({});
   const [checking, setChecking] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
   const [error, setError] = useState("");
-  const searchId = useId();
 
   const names = state.connections.map((c) => c.name);
   const close = () => setOpen(null);
@@ -691,13 +689,13 @@ export function ConnectionsScreen({ state, onChanged, onBack }: ScreenProps) {
   const usedBy = (id: string) =>
     state.assistants.filter((a) => a.connections.includes(id));
 
-  const wanted = search.trim().toLowerCase();
-  const shown = CATALOG.filter(
-    (e) =>
-      !wanted ||
-      e.name.toLowerCase().includes(wanted) ||
-      e.description.toLowerCase().includes(wanted),
-  );
+  /** Opens one of the forms lower down and brings its section into view. */
+  function openSection(next: Open, titleId: string) {
+    setOpen(next);
+    requestAnimationFrame(() =>
+      document.getElementById(titleId)?.scrollIntoView({ block: "start" }),
+    );
+  }
 
   return (
     <div className="screen">
@@ -852,61 +850,29 @@ export function ConnectionsScreen({ state, onChanged, onBack }: ScreenProps) {
             Services that let you make a key of your own. Add the same one more
             than once if you have more than one account.
           </p>
-          <label className="field">
-            <span className="field-label" id={`${searchId}-label`}>
-              Find a service
-            </span>
-            <input
-              aria-labelledby={`${searchId}-label`}
-              className="input"
-              type="search"
-              value={search}
-              placeholder="GitHub, search, email…"
-              autoComplete="off"
-              onChange={(event) => setSearch(event.target.value)}
-            />
-          </label>
-          {shown.length === 0 ? (
-            <p className="dim" role="status">
-              No service matches that. You can add one by its address below.
-            </p>
-          ) : (
-            <ul className="list card" aria-label="Services you can add">
-              {shown.map((entry) => {
-                const here = open?.kind === "catalog" && open.id === entry.id;
-                return (
-                  <li key={entry.id} style={{ flexWrap: "wrap" }}>
-                    <span className="grow stack-tight">
-                      <span className="row-name">{entry.name}</span>
-                      <span className="faint">{entry.description}</span>
-                    </span>
-                    <button
-                      type="button"
-                      className="btn"
-                      aria-expanded={here}
-                      aria-label={`${here ? "Close" : "Add"} ${entry.name}`}
-                      onClick={() =>
-                        setOpen(here ? null : { kind: "catalog", id: entry.id })
-                      }
-                    >
-                      {here ? "Close" : "Add"}
-                    </button>
-                    {here ? (
-                      <div style={{ flexBasis: "100%" }}>
-                        <CatalogForm
-                          entry={entry}
-                          keychain={state.keychain}
-                          suggestedName={freeName(entry.name, names)}
-                          onSaved={saved}
-                          onCancel={close}
-                        />
-                      </div>
-                    ) : null}
-                  </li>
-                );
-              })}
-            </ul>
-          )}
+          <ConnectionGallery
+            connections={state.connections}
+            openId={open?.kind === "catalog" ? open.id : null}
+            onToggle={(id) => setOpen(id ? { kind: "catalog", id } : null)}
+            renderForm={(entry) => (
+              <CatalogForm
+                entry={entry}
+                keychain={state.keychain}
+                suggestedName={freeName(entry.name, names)}
+                onSaved={saved}
+                onCancel={close}
+              />
+            )}
+            onAddByAddress={() =>
+              openSection(
+                { kind: "address", n: 0, name: "", baseUrl: "" },
+                "add-connection-title",
+              )
+            }
+            onAddComposio={() =>
+              openSection({ kind: "composio" }, "add-composio-title")
+            }
+          />
         </section>
 
         <section className="stack" aria-labelledby="add-composio-title">

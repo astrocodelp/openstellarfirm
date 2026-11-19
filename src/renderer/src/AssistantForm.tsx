@@ -1,6 +1,5 @@
 import { type FormEvent, useState } from "react";
 import { COLORS, PETS, SKILLS } from "../../shared/catalog";
-import { serviceLabel } from "../../shared/connection-catalog";
 import type {
   Assistant,
   Connection,
@@ -10,6 +9,7 @@ import type {
   PetId,
 } from "../../shared/types";
 import { api } from "./bridge";
+import { ConnectionPicker } from "./ConnectionPicker";
 import { PERSONAS } from "./personas";
 import {
   ErrorLine,
@@ -380,30 +380,11 @@ export function AssistantForm(props: AssistantFormProps) {
                   The tools of these connections are offered to this assistant.
                   Each call still asks you first.
                 </p>
-                <div className="stack-tight">
-                  {connections.map((connection) => (
-                    <label className="choice" key={connection.id}>
-                      <input
-                        type="checkbox"
-                        checked={connectionIds.includes(connection.id)}
-                        onChange={(event) =>
-                          setConnectionIds((ids) =>
-                            event.target.checked
-                              ? [...ids, connection.id]
-                              : ids.filter((id) => id !== connection.id),
-                          )
-                        }
-                      />
-                      <span>
-                        {connection.name}
-                        <span className="faint">
-                          {" · "}
-                          {serviceLabel(connection)}
-                        </span>
-                      </span>
-                    </label>
-                  ))}
-                </div>
+                <ConnectionPicker
+                  connections={connections}
+                  chosen={connectionIds}
+                  onChange={setConnectionIds}
+                />
               </>
             )}
             {assistant && assistant.connectionTools.length > 0 ? (
