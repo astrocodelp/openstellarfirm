@@ -100,3 +100,46 @@ describe("Record how you work", () => {
     expect(capture).toMatch(/getSources\([\s\S]{0,120}\.catch\(\(\) => \[\]\)/);
   });
 });
+
+describe("the assistant's form", () => {
+  /**
+   * The founder's rule: at most one short sentence explains a part of the
+   * page. A longer story goes in a "How … works" fold (a details element).
+   */
+  it("explains each part in one sentence, with longer text folded away", () => {
+    for (const name of [
+      "AssistantForm.tsx",
+      "PersonaGallery.tsx",
+      "SkillPicker.tsx",
+      "RecordSkill.tsx",
+    ]) {
+      const page = read(name)
+        // The longer story, one click away.
+        .replace(/<details[\s\S]*?<\/details>/g, "")
+        // A question asked in place (Remove, Copy) is not part of the page.
+        .replace(/<InlineConfirm[\s\S]*?<\/InlineConfirm>/g, "")
+        .replace(/<RecordDialog[\s\S]*?\/>/g, "");
+      const top =
+        name === "RecordSkill.tsx"
+          ? page.slice(0, page.indexOf("function RecordDialog"))
+          : page;
+      for (const [, text = ""] of top.matchAll(
+        /className="faint"[^>]*>([^<]*)</g,
+      )) {
+        const sentences = text
+          .replace(/\s+/g, " ")
+          .trim()
+          .match(/[.?!](\s|$)/g);
+        expect(
+          sentences?.length ?? 0,
+          `${name}: ${text.trim()}`,
+        ).toBeLessThanOrEqual(1);
+      }
+    }
+  });
+
+  it("keeps Save in view while the form scrolls", () => {
+    expect(rule(".form-actions")).toMatch(/position:\s*sticky/);
+    expect(rule(".assistant-form")).toMatch(/scroll-padding-bottom/);
+  });
+});

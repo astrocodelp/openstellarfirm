@@ -58,11 +58,10 @@ export function SkillPicker({
 
   return (
     <fieldset className="stack-tight plain">
-      <legend className="field-label">Skills</legend>
-      <p className="faint">
-        Each skill adds a few lines to how it works. It is guidance, not access.
-        Up to {MAX_SKILLS}.
-      </p>
+      <legend>
+        <h2 className="section-title">Skills</h2>
+      </legend>
+      <p className="faint">Each one guides how it works but gives no access.</p>
 
       {ticked.length > 0 ? (
         <ul

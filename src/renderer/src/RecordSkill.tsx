@@ -88,20 +88,31 @@ export function RecordSkill({
 }) {
   const [open, setOpen] = useState(false);
   return (
-    <section className="card pad stack-tight" aria-labelledby="record-title">
-      <h2 className="section-title" id="record-title">
-        Record how you work
-      </h2>
-      <p className="faint">
-        Show it a task once. Record your screen or one window, or pick a video
-        you have. Its model drafts a skill from the pictures; you read and edit
-        it, and nothing is kept until you save.
-      </p>
+    <section className="stack-tight" aria-labelledby="record-title">
+      <h3 className="field-label" id="record-title">
+        Teach it a skill
+      </h3>
       <div>
-        <button type="button" className="btn" onClick={() => setOpen(true)}>
+        <button
+          type="button"
+          className="btn"
+          aria-describedby="record-hint"
+          onClick={() => setOpen(true)}
+        >
           Record how you work
         </button>
       </div>
+      <span className="faint" id="record-hint">
+        Show it a task once, and it drafts a skill for you to check.
+      </span>
+      <details className="how">
+        <summary>How recording works</summary>
+        <p className="faint">
+          Record your screen or one window, or pick a video you have. Its model
+          drafts a skill from the pictures; you read and edit it, and nothing is
+          kept until you save.
+        </p>
+      </details>
       {open ? (
         <RecordDialog
           assistant={assistant}

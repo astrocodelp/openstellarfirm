@@ -1304,6 +1304,69 @@ textarea.input {
   overflow-wrap: anywhere;
 }
 
+/*
+ * Save stays in view at the foot of the pane while the form scrolls, and a
+ * field the keyboard reaches is never hidden behind it.
+ */
+.assistant-form {
+  scroll-padding-bottom: 6rem;
+}
+
+.form-actions {
+  position: sticky;
+  /* The pane's own bottom padding is 3rem: the bar sits in it, flush. */
+  bottom: -3rem;
+  z-index: 1;
+  margin: 0 -0.5rem;
+  padding: 0.875rem 0.5rem;
+  border-top: 1px solid var(--line);
+  background: var(--bg);
+}
+
+/* Removing is the quiet last thing on the page, well away from Save. */
+.form-remove {
+  padding-top: 0.5rem;
+}
+
+.link-danger {
+  color: var(--danger);
+}
+
+.link-danger:hover {
+  color: var(--danger);
+  text-decoration-thickness: 2px;
+}
+
+h3.field-label,
+h4.field-label {
+  margin: 0;
+  font-size: inherit;
+}
+
+/* "How asking works" and the like: the longer story, one click away. */
+.how > summary {
+  position: relative;
+  width: fit-content;
+  color: var(--dim);
+  font-size: var(--text-caption);
+  cursor: pointer;
+}
+
+/* A short line to look at, 40px to hit. */
+.how > summary::after {
+  content: "";
+  position: absolute;
+  inset: -0.75rem -0.25rem;
+}
+
+.how > summary:hover {
+  color: var(--text);
+}
+
+.how > p {
+  margin-top: 0.5rem;
+}
+
 /* The gallery of ready-made assistants, and the skills picker */
 
 .gallery-body {
@@ -1330,8 +1393,8 @@ textarea.input {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  min-height: 3.5rem;
-  padding: 0.5rem 0.75rem;
+  min-height: 2.75rem;
+  padding: 0.375rem 0.75rem;
   border: 1px solid transparent;
   border-radius: var(--radius-inset);
   background: transparent;
@@ -1352,23 +1415,12 @@ textarea.input {
   flex-shrink: 0;
 }
 
-.gallery-card-text {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.125rem;
-}
-
 .gallery-card-name {
+  min-width: 0;
   font-weight: 500;
-}
-
-.gallery-card-summary {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
+  white-space: nowrap;
   overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .gallery-preview {

@@ -103,7 +103,7 @@ export function PersonaGallery({ used, onUse }: PersonaGalleryProps) {
       <section className="stack-tight" aria-label="Ready-made assistants">
         <p className="dim" ref={doneRef} tabIndex={-1}>
           {used
-            ? `Filled in from ${used.assistant.name}. Change anything below, then save.`
+            ? `Filled in from ${used.assistant.name}. Change anything, then save.`
             : "Start from a ready-made assistant, or fill in the form yourself."}
         </p>
         <div>
@@ -129,17 +129,22 @@ export function PersonaGallery({ used, onUse }: PersonaGalleryProps) {
         <h2 className="section-title" id={`${id}-title`}>
           Start from a ready-made assistant
         </h2>
-        <p className="faint">
-          Pick one to see its brief and skills. Using it fills in the form
-          below; nothing is saved until you press Save.
-        </p>
+        <details className="how">
+          <summary>What using one does</summary>
+          <p className="faint">
+            It fills in the name, look, brief and skills below, and nothing is
+            saved until you press Save. It brings no model, folder, site or
+            other access: you choose those below.
+          </p>
+        </details>
       </div>
 
       <label className="field" htmlFor={`${id}-search`}>
-        <span className="field-label">Search by name, role or skill</span>
+        <span className="visually-hidden">Search by name, role or skill</span>
         <SearchInput
           id={`${id}-search`}
           className="input"
+          placeholder="Search by name, role or skill"
           value={query}
           onValueChange={setQuery}
         />
@@ -201,16 +206,9 @@ export function PersonaGallery({ used, onUse }: PersonaGalleryProps) {
                   <Pet
                     pet={p.assistant.pet}
                     color={p.assistant.color}
-                    size={32}
+                    size={24}
                   />
-                  <span className="gallery-card-text">
-                    <span className="gallery-card-name">
-                      {p.assistant.name}
-                    </span>
-                    <span className="faint gallery-card-summary">
-                      {p.summary}
-                    </span>
-                  </span>
+                  <span className="gallery-card-name">{p.assistant.name}</span>
                 </button>
               </li>
             ))}
@@ -260,7 +258,6 @@ function PersonaPreview({
           <span className="faint">{categoryName(persona.category)}</span>
         </div>
       </div>
-      <p className="dim">{persona.summary}</p>
       <div className="stack-tight">
         <h4 className="field-label">What it does</h4>
         <ul className="gallery-brief">
@@ -289,10 +286,6 @@ function PersonaPreview({
           Use this assistant
         </button>
       </div>
-      <p className="faint">
-        It brings no model, folder, site or other access. You choose those
-        below.
-      </p>
     </div>
   );
 }
