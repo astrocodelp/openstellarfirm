@@ -1,6 +1,6 @@
-# Selling OpenStellar
+# Selling OpenStellarFirm
 
-OpenStellar is free to use, change and share. Selling it is not included
+OpenStellarFirm is free to use, change and share. Selling it is not included
 in the licence. This page says where the line is.
 
 This page is a plain summary. The [LICENSE](LICENSE) file is what counts.
@@ -37,5 +37,5 @@ say what you want to sell and where.
 ## Names and marks
 
 A commercial licence, like the public one, does not include the names
-"StellarFirm" and "OpenStellar", the logos or the pet characters, unless
+"StellarFirm" and "OpenStellarFirm", the logos or the pet characters, unless
 it says so in writing.

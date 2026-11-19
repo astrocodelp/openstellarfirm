@@ -1,4 +1,4 @@
-# Releasing OpenStellar
+# Releasing OpenStellarFirm
 
 GitHub Actions is blocked for this organization, so releases are built on a
 short-lived Fly Machine (Linux and Windows) and on a maintainer's Mac (macOS).

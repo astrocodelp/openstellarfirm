@@ -1,6 +1,6 @@
-appId: ai.stellarfirm.openstellar
-productName: OpenStellar
-artifactName: OpenStellar-${version}-${os}-${arch}.${ext}
+appId: ai.stellarfirm.openstellarfirm
+productName: OpenStellarFirm
+artifactName: OpenStellarFirm-${version}-${os}-${arch}.${ext}
 copyright: Copyright © 2026 Vasileios Drosatos and Astro Code L.P. Apache-2.0 with the Commons Clause.
 directories:
   output: release

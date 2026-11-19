@@ -840,7 +840,7 @@ function createWindow(): BrowserWindow {
     show: false,
     backgroundColor: windowBackground(nativeTheme.shouldUseDarkColors),
     icon: windowIcon,
-    title: "OpenStellar",
+    title: "OpenStellarFirm",
     titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "default",
     webPreferences: {
       preload: join(__dirname, "../preload/index.cjs"),

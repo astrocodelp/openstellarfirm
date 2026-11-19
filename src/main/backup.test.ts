@@ -12,7 +12,7 @@ import { Store } from "./store";
 
 let dirs: string[] = [];
 function fresh(): Store {
-  const dir = mkdtempSync(join(tmpdir(), "openstellar-"));
+  const dir = mkdtempSync(join(tmpdir(), "openstellarfirm-"));
   dirs.push(dir);
   return new Store(dir);
 }
@@ -58,7 +58,7 @@ function populated(): Store {
 describe("backup file", () => {
   it("names the file with the date", () => {
     expect(backupName(new Date(2026, 10, 9))).toBe(
-      "openstellar-backup-2026-11-09.json",
+      "openstellarfirm-backup-2026-11-09.json",
     );
   });
 

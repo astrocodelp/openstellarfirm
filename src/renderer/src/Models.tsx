@@ -293,8 +293,8 @@ export function ModelsScreen({ state, onChanged, onBack }: ModelsScreenProps) {
       <div className="screen-body">
         <ScreenHead title="Your models" onBack={onBack}>
           Your assistants think only with what you set up here. Calls go from
-          this computer straight to the model. OpenStellar adds no fee and sees
-          nothing.
+          this computer straight to the model. OpenStellarFirm adds no fee and
+          sees nothing.
         </ScreenHead>
 
         <section className="stack" aria-labelledby="sources-title">

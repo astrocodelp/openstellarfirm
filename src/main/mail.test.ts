@@ -431,7 +431,9 @@ describe("one answer", () => {
   });
 
   it("asks again about mail itself after a file was read, even when allowed for good", async () => {
-    const base = realpathSync(mkdtempSync(join(tmpdir(), "openstellar-mf-")));
+    const base = realpathSync(
+      mkdtempSync(join(tmpdir(), "openstellarfirm-mf-")),
+    );
     try {
       mkdirSync(join(base, "Notes"));
       writeFileSync(join(base, "Notes", "plan.md"), "The plan.");
@@ -524,7 +526,7 @@ const box = (): SecretBox => ({
 });
 
 beforeEach(() => {
-  dir = mkdtempSync(join(tmpdir(), "openstellar-mail-"));
+  dir = mkdtempSync(join(tmpdir(), "openstellarfirm-mail-"));
   store = new Store(dir);
   secrets = new Secrets(join(dir, "keys.json"), box());
 });

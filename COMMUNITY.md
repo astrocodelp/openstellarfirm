@@ -1,6 +1,6 @@
 # Community
 
-OpenStellar is built in the open by the people who use it. The goal is
+OpenStellarFirm is built in the open by the people who use it. The goal is
 simple: personal assistants, each with its own persona (a coder, a legal
 helper, a writer, a planner), that run on your own model, on your own
 computer.

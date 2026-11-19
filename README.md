@@ -1,4 +1,4 @@
-# OpenStellar
+# OpenStellarFirm
 
 A desktop app for personal AI assistants that run on your own computer, on a
 model you choose. For macOS, Windows and Linux. The code is open: free to use,

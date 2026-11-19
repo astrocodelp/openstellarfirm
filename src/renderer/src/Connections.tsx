@@ -588,8 +588,8 @@ function CompanyLookup({
             </ul>
           )}
           <p className="faint">
-            This only shows what the company publishes. OpenStellar cannot sign
-            in to a company for you yet.
+            This only shows what the company publishes. OpenStellarFirm cannot
+            sign in to a company for you yet.
           </p>
         </div>
       ) : null}
