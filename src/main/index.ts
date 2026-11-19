@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import {
@@ -91,7 +91,7 @@ import {
   composioInput,
   connectionInput,
 } from "./connections";
-import { chatFileName, chatMarkdown } from "./export";
+import { chatFileName, chatMarkdown, withExtension } from "./export";
 import { ATTACH_LIMITS, AttachError, sniff } from "./file-kind";
 import { cannotRead, rememberCannotRead } from "./file-modes";
 import { folderLabels } from "./folders";
@@ -921,11 +921,15 @@ async function exportAssistant(
 ): Promise<boolean> {
   const file = store.exportFile(id);
   const picked = await dialog.showSaveDialog(window, {
+    title: "Export as a file",
     defaultPath: `${file.name.replace(/[^\w -]+/g, "").trim() || "assistant"}.assistant.json`,
     filters: [{ name: "Assistant file", extensions: ["json"] }],
   });
   if (picked.canceled || !picked.filePath) return false;
-  writeFileSync(picked.filePath, JSON.stringify(file, null, 2));
+  writeFileSync(
+    withExtension(picked.filePath, "json", existsSync),
+    JSON.stringify(file, null, 2),
+  );
   return true;
 }
 
@@ -933,6 +937,7 @@ async function importAssistant(
   window: BrowserWindow,
 ): Promise<Assistant | null> {
   const picked = await dialog.showOpenDialog(window, {
+    title: "Import an assistant file",
     properties: ["openFile"],
     filters: [{ name: "Assistant file", extensions: ["json"] }],
   });
@@ -951,12 +956,13 @@ async function exportBackup(
   if (typeof includeChats !== "boolean")
     throw new Error("That is not allowed.");
   const picked = await dialog.showSaveDialog(window, {
+    title: "Export everything",
     defaultPath: backupName(),
     filters: [{ name: "Backup file", extensions: ["json"] }],
   });
   if (picked.canceled || !picked.filePath) return false;
   writeFileSync(
-    picked.filePath,
+    withExtension(picked.filePath, "json", existsSync),
     JSON.stringify(
       buildBackup(store, includeChats, new Date(), memory),
       null,
@@ -971,6 +977,7 @@ async function importBackup(
   window: BrowserWindow,
 ): Promise<BackupResult | null> {
   const picked = await dialog.showOpenDialog(window, {
+    title: "Import a backup",
     properties: ["openFile"],
     filters: [{ name: "Backup file", extensions: ["json"] }],
   });
@@ -998,7 +1005,7 @@ async function exportChat(window: BrowserWindow, id: string): Promise<boolean> {
   });
   if (picked.canceled || !picked.filePath) return false;
   writeFileSync(
-    picked.filePath,
+    withExtension(picked.filePath, "md", existsSync),
     chatMarkdown(assistant.name, messages, { now, hide: await savedKeys() }),
     { mode: 0o600 },
   );
