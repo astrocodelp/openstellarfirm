@@ -279,3 +279,52 @@ export function useModalDialog(
     setOpener(null);
   }, [open, opener]);
 }
+
+// ---------------------------------------------------------------------------
+// A count told once the typing rests
+
+/**
+ * The text once it has stopped changing for `ms`. Empty at first, so a count
+ * is not read out just because a screen opened; after that, each settled
+ * change is told once, never on every key.
+ */
+export function useSettledText(text: string, ms = 500): string {
+  const [settled, setSettled] = useState("");
+  const [first] = useState(text);
+  const [moved, setMoved] = useState(false);
+  useEffect(() => {
+    if (!moved && text === first) return;
+    setMoved(true);
+    const timer = setTimeout(() => setSettled(text), ms);
+    return () => clearTimeout(timer);
+  }, [text, ms, first, moved]);
+  return settled;
+}
+
+// ---------------------------------------------------------------------------
+// Focus that would be lost
+
+/** After the next paint, when the new state is on the page. */
+export function afterPaint(run: () => void): void {
+  requestAnimationFrame(() => requestAnimationFrame(run));
+}
+
+/** True when nothing has the focus: the control that had it has gone. */
+export function focusLost(): boolean {
+  const active = document.activeElement;
+  return !active || active === document.body;
+}
+
+/**
+ * A button that removes itself (Delete, Undo, Keep summary) takes the focus
+ * with it, and the keyboard is sent back to the top of the page. After the
+ * change is on the page, the focus goes to `target`, but only when it really
+ * was lost: a person who has moved on keeps their place.
+ */
+export function refocusIfLost(
+  target: () => HTMLElement | null | undefined,
+): void {
+  afterPaint(() => {
+    if (focusLost()) target()?.focus({ preventScroll: true });
+  });
+}

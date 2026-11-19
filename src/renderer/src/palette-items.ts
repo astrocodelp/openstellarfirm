@@ -6,6 +6,7 @@ import type {
   PetColor,
   PetId,
 } from "../../shared/types";
+import { SETTINGS_SECTIONS } from "./settings-sections";
 
 /**
  * What the palette (Ctrl or Cmd+K) can find, and how it filters it. Pure, so
@@ -28,6 +29,7 @@ export type PaletteTarget =
   | { kind: "section"; title: string }
   | { kind: "new" }
   | { kind: "import" }
+  | { kind: "shortcuts" }
   | { kind: "save-chat"; assistantId: string };
 
 export type PaletteGroup =
@@ -86,20 +88,7 @@ const SCREENS: { screen: PaletteScreen; label: string; keywords: string }[] = [
   { screen: "mail", label: "Mail", keywords: "inbox email mailbox imap" },
 ];
 
-/** The sections of the Settings screen, by their headings there. */
-export const SETTINGS_SECTIONS: { title: string; keywords: string }[] = [
-  { title: "Appearance", keywords: "theme dark light text size bigger" },
-  { title: "Chat", keywords: "send enter key new line message box" },
-  { title: "StellarFirm cloud", keywords: "card sidebar" },
-  {
-    title: "Main assistant",
-    keywords: "check on its own schedule notify update look for",
-  },
-  { title: "Approvals", keywords: "always allow sites reads forget ask" },
-  { title: "Your data", keywords: "data folder delete chats" },
-  { title: "Updates", keywords: "version check new release" },
-  { title: "About", keywords: "version licence license" },
-];
+export { SETTINGS_SECTIONS } from "./settings-sections";
 
 export interface PaletteSources {
   assistants: readonly Assistant[];
@@ -150,6 +139,13 @@ export function paletteItems(sources: PaletteSources): PaletteItem[] {
       label: "Import an assistant file",
       keywords: "open add file",
       target: { kind: "import" },
+    },
+    {
+      id: "action:shortcuts",
+      group: "actions",
+      label: "Keyboard shortcuts",
+      keywords: "keys keyboard shortcut help list",
+      target: { kind: "shortcuts" },
     },
   );
   if (sources.savable) {

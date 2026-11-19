@@ -2,6 +2,7 @@ import { useId, useState } from "react";
 import { serviceLabel } from "../../shared/connection-catalog";
 import { filterConnections } from "../../shared/connection-gallery";
 import type { Connection } from "../../shared/types";
+import { SearchInput } from "./SearchInput";
 
 /** With more than this many connections, the picker gets a search box. */
 export const PICKER_SEARCH_FROM = 6;
@@ -36,28 +37,19 @@ export function ConnectionPicker({
   return (
     <div className="stack-tight">
       {many ? (
-        <label className="field">
+        <label className="field" htmlFor={`${ids}-search`}>
           <span className="field-label" id={`${ids}-label`}>
             Find a connection
           </span>
-          <input
+          {/* Enter here never saves the whole form; Esc clears. */}
+          <SearchInput
+            id={`${ids}-search`}
             aria-labelledby={`${ids}-label`}
             aria-controls={`${ids}-list`}
             className="input"
-            type="search"
             value={query}
             placeholder="Name or service"
-            autoComplete="off"
-            spellCheck={false}
-            onChange={(event) => setQuery(event.target.value)}
-            onKeyDown={(event) => {
-              // Enter here must not save the whole form.
-              if (event.key === "Enter") event.preventDefault();
-              if (event.key === "Escape" && query) {
-                event.preventDefault();
-                setQuery("");
-              }
-            }}
+            onValueChange={setQuery}
           />
         </label>
       ) : null}

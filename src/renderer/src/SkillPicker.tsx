@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { SKILLS } from "../../shared/catalog";
 import { findSkills, skillsOf } from "../../shared/gallery";
 import { type OwnSkill, ownAsSkill } from "../../shared/own-skills";
 import { MAX_SKILLS, SKILL_GROUPS } from "../../shared/skill-library";
 import { OwnSkillRow } from "./OwnSkills";
+import { SearchInput } from "./SearchInput";
 import { Icon } from "./ui";
 
 interface SkillPickerProps {
@@ -26,6 +27,11 @@ export function SkillPicker({
   onOwnChanged,
 }: SkillPickerProps) {
   const [query, setQuery] = useState("");
+  const searchId = useId();
+  const chipsRef = useRef<HTMLUListElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+  /** Where a removed chip stood, so the focus goes to its neighbour, not the page. */
+  const refocus = useRef<number | null>(null);
   const ownSkills = own.map(ownAsSkill);
   const ticked = [
     ...ownSkills.filter((s) => selected.includes(s.id)),
@@ -40,6 +46,16 @@ export function SkillPicker({
     skills: found.filter((s) => s.group === group.id),
   })).filter((group) => group.skills.length > 0);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: after a chip goes
+  useEffect(() => {
+    const at = refocus.current;
+    if (at === null) return;
+    refocus.current = null;
+    const chips = chipsRef.current?.querySelectorAll("button") ?? [];
+    const next = chips[Math.min(at, chips.length - 1)];
+    (next ?? searchRef.current)?.focus({ preventScroll: true });
+  }, [selected]);
+
   return (
     <fieldset className="stack-tight plain">
       <legend className="field-label">Skills</legend>
@@ -49,14 +65,21 @@ export function SkillPicker({
       </p>
 
       {ticked.length > 0 ? (
-        <ul className="gallery-skills" aria-label="Ticked skills">
-          {ticked.map((skill) => (
+        <ul
+          ref={chipsRef}
+          className="gallery-skills"
+          aria-label="Ticked skills"
+        >
+          {ticked.map((skill, index) => (
             <li key={skill.id}>
               <button
                 type="button"
                 className="choice skill-chip"
                 aria-label={`Remove ${skill.name}`}
-                onClick={() => onToggle(skill.id)}
+                onClick={() => {
+                  refocus.current = index;
+                  onToggle(skill.id);
+                }}
               >
                 {skill.name}
                 <Icon name="close" size={14} />
@@ -66,16 +89,15 @@ export function SkillPicker({
         </ul>
       ) : null}
 
-      <label className="field skill-search">
+      <label className="field skill-search" htmlFor={searchId}>
         <span className="visually-hidden">Search skills</span>
-        <input
+        <SearchInput
+          ref={searchRef}
+          id={searchId}
           className="input"
-          type="search"
           placeholder="Search skills"
           value={query}
-          spellCheck={false}
-          autoComplete="off"
-          onChange={(event) => setQuery(event.target.value)}
+          onValueChange={setQuery}
         />
       </label>
 
@@ -141,12 +163,15 @@ export function SkillPicker({
         )}
       </div>
 
-      <p className="faint" role="status">
-        {selected.length} of {MAX_SKILLS} ticked
-        {full ? ". Untick one to add another." : ""}
-        {query.trim() && groups.length + mine.length > 0
-          ? ` · ${found.length + mine.length} of ${SKILLS.length + own.length} shown`
-          : ""}
+      <p className="faint">
+        {/* Only the ticks are told; the search count would be read on every key. */}
+        <span role="status">
+          {selected.length} of {MAX_SKILLS} ticked
+          {full ? ". Untick one to add another." : ""}
+        </span>
+        {query.trim() && groups.length + mine.length > 0 ? (
+          <span>{` · ${found.length + mine.length} of ${SKILLS.length + own.length} shown`}</span>
+        ) : null}
       </p>
     </fieldset>
   );

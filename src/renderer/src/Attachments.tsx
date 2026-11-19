@@ -2,6 +2,7 @@ import {
   type ClipboardEvent,
   type DragEvent,
   useEffect,
+  useRef,
   useState,
 } from "react";
 import type {
@@ -9,7 +10,9 @@ import type {
   AttachmentRef,
   PendingAttachment,
 } from "../../shared/types";
+import { announce, refocusIfLost } from "./a11y";
 import { api } from "./bridge";
+import { pasteIsFiles } from "./paste";
 import { message as errorText, Icon } from "./ui";
 
 /**
@@ -67,13 +70,11 @@ function KindMark({ kind }: { kind: AttachmentKind }) {
 export function useAttachments(assistantId: string) {
   const [files, setFiles] = useState<PendingAttachment[]>([]);
   const [problem, setProblem] = useState("");
-  const [note, setNote] = useState("");
   const [adding, setAdding] = useState(0);
 
   useEffect(() => {
     let live = true;
     setProblem("");
-    setNote("");
     api
       .pendingAttachments(assistantId)
       .then((list) => {
@@ -87,11 +88,15 @@ export function useAttachments(assistantId: string) {
     };
   }, [assistantId]);
 
-  function announce(added: number, problems: string[]) {
+  /**
+   * Told through the app's one announcer, so the same sentence twice is read
+   * twice. A problem is told by its error line instead, which would otherwise
+   * cut this short.
+   */
+  function report(added: number, problems: string[]) {
     setProblem(problems.join(" "));
-    setNote(
-      added > 0 ? `Attached ${added} ${added === 1 ? "file" : "files"}.` : "",
-    );
+    if (added > 0 && problems.length === 0)
+      announce(`Attached ${added} ${added === 1 ? "file" : "files"}.`);
   }
 
   async function pick() {
@@ -99,9 +104,9 @@ export function useAttachments(assistantId: string) {
     try {
       const picked = await api.pickAttachments(assistantId);
       setFiles((list) => [...list, ...picked.added]);
-      announce(picked.added.length, picked.problems);
+      report(picked.added.length, picked.problems);
     } catch (e) {
-      announce(0, [errorText(e)]);
+      report(0, [errorText(e)]);
     } finally {
       setAdding((n) => n - 1);
     }
@@ -140,26 +145,24 @@ export function useAttachments(assistantId: string) {
         );
     } finally {
       setAdding((n) => n - 1);
-      announce(added, problems);
+      report(added, problems);
     }
   }
 
   async function remove(file: PendingAttachment) {
     setFiles((list) => list.filter((f) => f.id !== file.id));
-    setNote(`Removed ${file.name}.`);
+    announce(`Removed ${file.name}.`);
     await api.removeAttachment(assistantId, file.id).catch(() => undefined);
   }
 
   /** After a send, the box holds what the app still keeps (nothing, normally). */
   async function reload() {
     setFiles(await api.pendingAttachments(assistantId).catch(() => []));
-    setNote("");
   }
 
   return {
     files,
     problem,
-    note,
     adding: adding > 0,
     pick,
     addFiles,
@@ -179,14 +182,19 @@ export function AttachButton({
   box: AttachmentBox;
   disabled?: boolean;
 }) {
+  // Not disabled while a file is checked: the system's file picker opens from
+  // here, and a disabled button would send the focus to the page.
   return (
     <button
       type="button"
       className="icon-btn attach-btn"
       aria-label="Attach files"
       title="Attach files"
-      disabled={disabled || box.adding}
-      onClick={() => void box.pick()}
+      disabled={disabled}
+      aria-disabled={box.adding || undefined}
+      onClick={() => {
+        if (!box.adding) void box.pick();
+      }}
     >
       <PaperClip />
     </button>
@@ -195,10 +203,11 @@ export function AttachButton({
 
 /** The files waiting in the box, each with a way to take it out. */
 export function PendingFiles({ box }: { box: AttachmentBox }) {
+  const list = useRef<HTMLUListElement>(null);
   if (box.files.length === 0 && !box.adding) return null;
   return (
-    <ul className="attach-chips" aria-label="Files to send">
-      {box.files.map((file) => (
+    <ul ref={list} className="attach-chips" aria-label="Files to send">
+      {box.files.map((file, index) => (
         <li key={file.id} className="attach-chip">
           {file.preview ? (
             <img className="attach-thumb" src={file.preview} alt="" />
@@ -216,7 +225,20 @@ export function PendingFiles({ box }: { box: AttachmentBox }) {
             className="attach-remove"
             aria-label={`Remove ${file.name}`}
             title="Remove"
-            onClick={() => void box.remove(file)}
+            onClick={() => {
+              void box.remove(file);
+              // The chip went with its button: the next chip's, else the box.
+              refocusIfLost(() => {
+                const left =
+                  list.current?.querySelectorAll<HTMLButtonElement>(
+                    ".attach-remove",
+                  ) ?? [];
+                return (
+                  left[Math.min(index, left.length - 1)] ??
+                  document.getElementById("message-box")
+                );
+              });
+            }}
           >
             <Icon name="close" size={14} />
           </button>
@@ -286,12 +308,16 @@ function hasFiles(event: DragEvent): boolean {
  */
 export function useDropFiles(box: AttachmentBox, enabled: boolean) {
   const [over, setOver] = useState(false);
+  // Counted, not flagged: moving from one drop area into the next fires the
+  // new area's enter before the old one's leave, and children fire their own.
+  const depth = useRef(0);
   return {
     over,
     handlers: {
       onDragEnter: (event: DragEvent) => {
         if (!enabled || !hasFiles(event)) return;
         event.preventDefault();
+        depth.current += 1;
         setOver(true);
       },
       onDragOver: (event: DragEvent) => {
@@ -300,11 +326,12 @@ export function useDropFiles(box: AttachmentBox, enabled: boolean) {
         event.dataTransfer.dropEffect = "copy";
       },
       onDragLeave: (event: DragEvent) => {
-        if (event.currentTarget.contains(event.relatedTarget as Node | null))
-          return;
-        setOver(false);
+        if (!enabled || !hasFiles(event)) return;
+        depth.current = Math.max(0, depth.current - 1);
+        if (depth.current === 0) setOver(false);
       },
       onDrop: (event: DragEvent) => {
+        depth.current = 0;
         setOver(false);
         if (!enabled || !hasFiles(event)) return;
         event.preventDefault();
@@ -316,8 +343,11 @@ export function useDropFiles(box: AttachmentBox, enabled: boolean) {
 
 /**
  * Pasting a picture, or a file copied elsewhere, attaches it; pasting text
- * stays text. The app checks what each file really is.
+ * stays text, even when the app it came from added a picture of it. The app
+ * checks what each file really is.
  */
 export function pastedFiles(event: ClipboardEvent): File[] {
-  return Array.from(event.clipboardData?.files ?? []);
+  const clipboard = event.clipboardData;
+  if (!pasteIsFiles(clipboard)) return [];
+  return Array.from(clipboard.files);
 }

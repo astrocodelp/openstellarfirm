@@ -87,7 +87,7 @@ export function AccessibilitySection({
     void save({ accessibility: { ...prefs, ...patch } });
 
   return (
-    <Section title="Accessibility">
+    <Section section="accessibility">
       <p className="faint">
         Contrast and motion follow your computer's own settings until you change
         them here. Everything here is saved on this computer only.
@@ -201,11 +201,24 @@ export function ShortcutsDialog({
   const titleId = useId();
   useModalDialog(ref, open);
   return (
+    // biome-ignore lint/a11y/useKeyWithClickEvents: Escape closes the dialog; the click is only the backdrop
     <dialog
       ref={ref}
       className="dialog"
       aria-labelledby={titleId}
       onClose={onClose}
+      onClick={(event) => {
+        // Only a click on the dimmed page around it, not on its own padding.
+        const box = ref.current;
+        if (event.target !== box || !box) return;
+        const r = box.getBoundingClientRect();
+        const inside =
+          event.clientX >= r.left &&
+          event.clientX <= r.right &&
+          event.clientY >= r.top &&
+          event.clientY <= r.bottom;
+        if (!inside) onClose();
+      }}
     >
       <div className="dialog-head">
         <h2 className="section-title" id={titleId}>
@@ -240,18 +253,25 @@ export function ShortcutsDialog({
   );
 }
 
-/** Opens the shortcuts list on Ctrl or Cmd with "/", from anywhere in the app. */
-export function useShortcutsKey(open: () => void): void {
+/**
+ * Opens the shortcuts list on Ctrl or Cmd with "/", from anywhere in the app
+ * once it is set up. Like Find anything, it waits while another dialog is
+ * open, so the two never stack.
+ */
+export function useShortcutsKey(enabled: boolean, open: () => void): void {
   useEffect(() => {
+    if (!enabled) return;
     const onKey = (event: KeyboardEvent) => {
-      if (event.isComposing || !(event.ctrlKey || event.metaKey)) return;
+      if (event.isComposing || event.repeat || event.altKey) return;
+      if (!(event.ctrlKey || event.metaKey)) return;
       if (event.key !== "/" && event.code !== "Slash") return;
+      if (document.querySelector("dialog[open]")) return;
       event.preventDefault();
       open();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open]);
+  }, [enabled, open]);
 }
 
 /**
@@ -305,14 +325,9 @@ export function ReadAloud({
     },
     [id],
   );
-  if (speech.available === "no") {
-    return (
-      <button type="button" className="read-aloud" aria-disabled="true">
-        <Icon name="speaker" size={14} />
-        Read aloud is not available on this computer
-      </button>
-    );
-  }
+  // Nothing while voices are looked for, and nothing without a local voice:
+  // Settings, Accessibility says why. So no answer changes size later.
+  if (speech.available !== "yes") return null;
   return (
     <button
       type="button"

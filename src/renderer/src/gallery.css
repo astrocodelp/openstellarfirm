@@ -9,17 +9,6 @@
   gap: 0.75rem;
 }
 
-.gallery-filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-/* A filter has no box to tick, so it is padded evenly. */
-.gallery-filter {
-  padding: 0 1rem;
-}
-
 .gallery-num {
   font-variant-numeric: tabular-nums;
 }
@@ -38,7 +27,11 @@ p.gallery-num {
   list-style: none;
 }
 
-.gallery-card {
+/*
+ * The connection cards. Named apart from the ready-made assistants'
+ * .gallery-card in styles.css, which this sheet used to restyle.
+ */
+.service-card {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
@@ -49,17 +42,18 @@ p.gallery-num {
   background: var(--raised);
 }
 
-.gallery-card:hover {
-  border-color: var(--line-strong);
+@media (hover: hover) {
+  .service-card:hover {
+    border-color: var(--line-strong);
+  }
 }
 
-/* An open card takes the whole row, so its form has room. */
-.gallery-card[data-open="true"] {
-  grid-column: 1 / -1;
-  border-color: var(--line-strong);
+/* An open card stays where it is; its form takes the whole row below it. */
+.service-card[data-open="true"] {
+  border-color: var(--control-line-on);
 }
 
-.gallery-card-head {
+.service-card-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -72,20 +66,24 @@ p.gallery-num {
   text-wrap: pretty;
 }
 
-.gallery-card-foot {
+.service-card-foot {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem;
 }
 
-.gallery-card-foot .grow {
+.service-card-foot .grow {
   flex-basis: 8rem;
 }
 
-.gallery-form {
-  padding-top: 0.75rem;
-  border-top: 1px solid var(--line);
+.service-form {
+  grid-column: 1 / -1;
+  min-width: 0;
+  padding: 1rem 1.125rem;
+  border: 1px solid var(--control-line-on);
+  border-radius: var(--radius-card);
+  background: var(--raised);
 }
 
 .gallery-empty p {
@@ -93,7 +91,7 @@ p.gallery-num {
 }
 
 :where(:root[data-motion="full"]) {
-  .gallery-card {
+  .service-card {
     transition: border-color var(--dur-press) var(--ease-out);
   }
 }

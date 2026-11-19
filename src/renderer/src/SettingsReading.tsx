@@ -1,6 +1,7 @@
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { OcrLanguage } from "../../shared/types";
 import { fileSize } from "./Attachments";
+import { refocusIfLost } from "./a11y";
 import { api } from "./bridge";
 import { ErrorLine, Section, useAction } from "./SettingsParts";
 import { OkLine } from "./ui";
@@ -16,6 +17,7 @@ export function ReadingSection() {
   const [done, setDone] = useState("");
   const { busy, error, run } = useAction();
   const selectId = useId();
+  const selectRef = useRef<HTMLSelectElement>(null);
 
   useEffect(() => {
     api
@@ -29,7 +31,7 @@ export function ReadingSection() {
   const pick = available.find((l) => l.code === chosen) ?? available[0];
 
   return (
-    <Section title="Reading other languages">
+    <Section section="reading">
       <p className="faint">
         When a model cannot read a picture or a scanned PDF, the app reads its
         text on this computer and sends that instead. It reads English. To read
@@ -48,14 +50,17 @@ export function ReadingSection() {
                 <button
                   type="button"
                   className="btn"
-                  disabled={busy}
-                  onClick={() =>
+                  aria-disabled={busy || undefined}
+                  onClick={() => {
+                    if (busy) return;
                     void run(async () => {
                       setDone("");
                       setLanguages(await api.removeOcrLanguage(l.code));
                       setDone(`Removed ${l.name}.`);
-                    })
-                  }
+                      // The row went with its button; the list to add from is next.
+                      refocusIfLost(() => selectRef.current);
+                    });
+                  }}
                 >
                   Remove {l.name}
                 </button>
@@ -69,6 +74,7 @@ export function ReadingSection() {
             Language to download
           </label>
           <select
+            ref={selectRef}
             id={selectId}
             className="input"
             style={{ width: "auto" }}
@@ -82,20 +88,24 @@ export function ReadingSection() {
               </option>
             ))}
           </select>
+          {/* Not disabled while it downloads, so the focus stays on it. */}
           <button
             type="button"
             className="btn"
-            disabled={busy}
-            onClick={() =>
+            aria-disabled={busy || undefined}
+            onClick={() => {
+              if (busy) return;
               void run(async () => {
                 setDone("");
                 setLanguages(await api.downloadOcrLanguage(pick.code));
                 setChosen("");
                 setDone(`Downloaded and checked ${pick.name}.`);
-              })
-            }
+              });
+            }}
           >
-            {busy ? "Downloading…" : `Download ${fileSize(pick.size)}`}
+            {busy
+              ? `Downloading ${pick.name}…`
+              : `Download ${pick.name} (${fileSize(pick.size)})`}
           </button>
         </div>
       ) : null}

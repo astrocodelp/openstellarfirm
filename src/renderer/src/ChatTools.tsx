@@ -93,9 +93,13 @@ export function SaveChatButton({
 }) {
   const [state, setState] = useState<"idle" | "saving" | "saved">("idle");
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  /** A second press while the save dialog is open does nothing. */
+  const saving = useRef(false);
   useEffect(() => () => clearTimeout(timer.current), []);
 
   async function save() {
+    if (saving.current) return;
+    saving.current = true;
     setState("saving");
     try {
       const saved = await onSave();
@@ -109,15 +113,19 @@ export function SaveChatButton({
     } catch (e) {
       setState("idle");
       onError(errorText(e));
+    } finally {
+      saving.current = false;
     }
   }
 
   return (
     <>
+      {/* Not disabled while saving: a disabled button drops the focus to the page. */}
       <button
         type="button"
         className="btn"
-        disabled={disabled || state === "saving"}
+        disabled={disabled}
+        aria-disabled={state === "saving" || undefined}
         title={
           disabled ? "There is nothing in this chat to save yet" : undefined
         }
@@ -151,6 +159,11 @@ export function useFoundMessage(
   onAway: () => void,
 ) {
   const handled = useRef(0);
+  /** The message lit now and the timer that puts its light out. */
+  const lit = useRef<{
+    el: HTMLElement;
+    timer: ReturnType<typeof setTimeout>;
+  } | null>(null);
   useEffect(() => {
     if (!found || handled.current === found.nonce) return;
     if (!messages.some((m) => m.id === found.messageId)) return;
@@ -161,7 +174,12 @@ export function useFoundMessage(
     if (!el) return;
     handled.current = found.nonce;
     onAway();
-    const bubble = el.matches(".bubble")
+    // A message kept under a summary sits in a closed "Show the earlier
+    // messages": it is opened, or the message could not be shown or focused.
+    const fold = el.closest("details");
+    if (fold && !fold.open) fold.open = true;
+    // A summary lights as a whole; its earlier messages' bubbles are not it.
+    const bubble = el.matches(".bubble, .summary")
       ? el
       : (el.querySelector<HTMLElement>(".bubble") ?? el);
     bubble.scrollIntoView({ block: "center", behavior: "instant" });
@@ -176,10 +194,17 @@ export function useFoundMessage(
       );
     }
     bubble.focus({ preventScroll: true });
+    // A second find puts out the first light, so its timer cannot end the new one.
+    if (lit.current) {
+      clearTimeout(lit.current.timer);
+      delete lit.current.el.dataset.found;
+    }
     bubble.dataset.found = "true";
     // Not cleared with the effect: the light must go even if the chat changes.
-    setTimeout(() => {
+    const timer = setTimeout(() => {
       delete bubble.dataset.found;
+      if (lit.current?.el === bubble) lit.current = null;
     }, FOUND_FOR);
+    lit.current = { el: bubble, timer };
   });
 }

@@ -37,7 +37,7 @@ export function UpdatesSection({
   const last = when(settings.lastUpdateCheck);
 
   return (
-    <Section title="Updates">
+    <Section section="updates">
       <p className="faint">
         The app never downloads or installs anything by itself. It can only tell
         you that a newer version exists.
@@ -103,7 +103,7 @@ const ABOUT_LINKS: { name: LinkName; label: string }[] = [
 export function AboutSection({ version }: { version: string }) {
   const { error, run } = useAction();
   return (
-    <Section title="About">
+    <Section section="about">
       <p>OpenStellarFirm, version {version}</p>
       <p className="dim">Free to use, change and share. Not to sell.</p>
       <p className="faint">Apache License 2.0 with the Commons Clause.</p>

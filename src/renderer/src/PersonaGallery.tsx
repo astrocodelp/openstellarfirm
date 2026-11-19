@@ -1,7 +1,10 @@
 import { type KeyboardEvent, useEffect, useId, useRef, useState } from "react";
 import { categoryName, findPersonas, skillsOf } from "../../shared/gallery";
 import { CATEGORIES, type CategoryId } from "../../shared/skill-library";
+import { useSettledText } from "./a11y";
 import { PERSONAS, type Persona } from "./personas";
+import { SearchInput } from "./SearchInput";
+import { Choices } from "./SettingsParts";
 import { Icon, Pet } from "./ui";
 
 interface PersonaGalleryProps {
@@ -24,7 +27,9 @@ export function PersonaGallery({ used, onUse }: PersonaGalleryProps) {
   const [pickedId, setPickedId] = useState<string>("");
   const listRef = useRef<HTMLUListElement>(null);
   const doneRef = useRef<HTMLParagraphElement>(null);
-  const [justUsed, setJustUsed] = useState(false);
+  const browseRef = useRef<HTMLButtonElement>(null);
+  /** Where the focus goes once the gallery folds away, so it never lands on the page. */
+  const [returnTo, setReturnTo] = useState<"done" | "browse" | null>(null);
   const id = useId();
 
   const shown = findPersonas(
@@ -42,8 +47,16 @@ export function PersonaGallery({ used, onUse }: PersonaGalleryProps) {
   const focusId = picked?.id;
 
   useEffect(() => {
-    if (justUsed && !open) doneRef.current?.focus();
-  }, [justUsed, open]);
+    if (open || !returnTo) return;
+    if (returnTo === "done") doneRef.current?.focus();
+    else browseRef.current?.focus();
+  }, [returnTo, open]);
+
+  const count =
+    shown.length === 1
+      ? "1 ready-made assistant"
+      : `${shown.length} ready-made assistants`;
+  const heard = useSettledText(count);
 
   if (PERSONAS.length === 0) return null;
 
@@ -81,7 +94,7 @@ export function PersonaGallery({ used, onUse }: PersonaGalleryProps) {
 
   function use(persona: Persona) {
     onUse(persona);
-    setJustUsed(true);
+    setReturnTo("done");
     setOpen(false);
   }
 
@@ -95,10 +108,11 @@ export function PersonaGallery({ used, onUse }: PersonaGalleryProps) {
         </p>
         <div>
           <button
+            ref={browseRef}
             type="button"
             className="link-btn"
             onClick={() => {
-              setJustUsed(false);
+              setReturnTo(null);
               setOpen(true);
             }}
           >
@@ -121,39 +135,29 @@ export function PersonaGallery({ used, onUse }: PersonaGalleryProps) {
         </p>
       </div>
 
-      <label className="field">
+      <label className="field" htmlFor={`${id}-search`}>
         <span className="field-label">Search by name, role or skill</span>
-        <input
+        <SearchInput
+          id={`${id}-search`}
           className="input"
-          type="search"
           value={query}
-          spellCheck={false}
-          autoComplete="off"
-          onChange={(event) => setQuery(event.target.value)}
+          onValueChange={setQuery}
         />
       </label>
 
-      <fieldset className="plain">
-        <legend className="visually-hidden">Category</legend>
-        <div className="wrap">
-          {[{ id: "all" as const, name: "All" }, ...CATEGORIES].map((c) => (
-            <button
-              key={c.id}
-              type="button"
-              className="choice persona"
-              aria-pressed={category === c.id}
-              onClick={() => setCategory(c.id)}
-            >
-              {c.name}
-            </button>
-          ))}
-        </div>
-      </fieldset>
+      <Choices<CategoryId | "all">
+        legend="Category"
+        legendHidden
+        value={category}
+        options={[{ id: "all" as const, name: "All" }, ...CATEGORIES]}
+        onPick={setCategory}
+      />
 
-      <p className="faint" role="status">
-        {shown.length === 1
-          ? "1 ready-made assistant"
-          : `${shown.length} ready-made assistants`}
+      <p className="faint" aria-hidden="true">
+        {count}
+      </p>
+      <p className="visually-hidden" role="status">
+        {heard}
       </p>
 
       {!picked ? (
@@ -222,7 +226,10 @@ export function PersonaGallery({ used, onUse }: PersonaGalleryProps) {
         <button
           type="button"
           className="link-btn"
-          onClick={() => setOpen(false)}
+          onClick={() => {
+            setReturnTo("browse");
+            setOpen(false);
+          }}
         >
           Fill in the form myself
         </button>

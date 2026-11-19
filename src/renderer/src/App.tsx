@@ -10,7 +10,12 @@ import type {
 import { availableUpdate } from "../../shared/update";
 import { ShortcutsDialog, SkipLinks, useShortcutsKey } from "./Accessibility";
 import { AssistantForm } from "./AssistantForm";
-import { announce, applyAccessibility } from "./a11y";
+import {
+  afterPaint,
+  announce,
+  applyAccessibility,
+  refocusIfLost,
+} from "./a11y";
 import { BackupScreen } from "./Backup";
 import { api } from "./bridge";
 import type { FoundMessage } from "./ChatTools";
@@ -20,7 +25,6 @@ import { ConnectionsScreen } from "./Connections";
 import { MailScreen } from "./Mail";
 import { ModelsScreen } from "./Models";
 import {
-  afterPaint,
   findKeys,
   focusScreen,
   Palette,
@@ -83,7 +87,10 @@ export function App() {
   const [showShortcuts, setShowShortcuts] = useState(false);
   /** The assistants' names, for what is told to a screen reader. */
   const names = useRef(new Map<string, string>());
-  useShortcutsKey(useCallback(() => setShowShortcuts(true), []));
+  useShortcutsKey(
+    state?.settings.onboarded === true,
+    useCallback(() => setShowShortcuts(true), []),
+  );
 
   const refresh = useCallback(async () => {
     try {
@@ -300,6 +307,9 @@ export function App() {
           messageId: target.messageId,
           nonce: (last?.nonce ?? 0) + 1,
         }));
+        // The chat puts the focus on the message. If it cannot be shown, the
+        // focus is not left on the page: it goes to the message box.
+        refocusIfLost(() => document.getElementById("message-box"));
         return;
       case "screen":
         setView({ name: target.screen } as View);
@@ -315,6 +325,9 @@ export function App() {
         return;
       case "import":
         void importFile();
+        return;
+      case "shortcuts":
+        setShowShortcuts(true);
         return;
       case "save-chat":
         void act(() => api.exportChat(target.assistantId));
@@ -472,6 +485,9 @@ export function App() {
           <div className="chat-row">
             <div className="chat-pane">
               <ChatView
+                // One chat's open question or dismissed offer never shows up
+                // in the next: each assistant gets a fresh chat view.
+                key={assistant.id}
                 headExtra={
                   assistant.computer ? (
                     <button
