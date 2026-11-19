@@ -1,5 +1,7 @@
 import type { ChatStep, Decision } from "../shared/types";
+import { carriesFiles, refusedForTools } from "./attach-send";
 import type { McpGate } from "./connections";
+import type { FileMode } from "./file-modes";
 import { FolderError } from "./folders";
 import type { MailGate } from "./mail";
 import { type MemoryGate, REMEMBER_TOOL_NAME, readOutside } from "./memory";
@@ -112,6 +114,15 @@ export interface AgentDeps {
    * them in place, so an asker can carry them in and take them back.
    */
   seen?: Seen;
+  /**
+   * The files on the person's message. When a service refuses a request that
+   * carries them, they are read on this computer and sent as text instead,
+   * and once that works the model is remembered as unable to take them.
+   */
+  files?: {
+    toText(messages: WireMessage[]): Promise<FileMode | undefined>;
+    remember(mode: FileMode): void;
+  };
 }
 
 export interface AgentResult {
@@ -173,6 +184,8 @@ async function run(
   let toolsOff = false;
   /** One retry without the picture, for a model that cannot read pictures. */
   let pictureRetried = false;
+  /** Files turned into text after a refusal, remembered once the retry works. */
+  let filesDropped: FileMode[] = [];
   if (textMode)
     messages.splice(0, messages.length, ...withTextTools(messages, textSpecs));
 
@@ -206,8 +219,35 @@ async function run(
           calls = event.calls;
         }
       }
+      // The retry without the files worked, so the model cannot take them.
+      for (const mode of filesDropped) deps.files?.remember(mode);
+      filesDropped = [];
     } catch (error) {
       const refused = error instanceof ModelError && error.status === 400;
+      // Files the service refused are read on this computer and sent as text.
+      if (
+        refused &&
+        !text &&
+        deps.files &&
+        carriesFiles(messages) &&
+        !refusedForTools(error.message)
+      ) {
+        deps.onActivity("Reading the files on this computer");
+        const mode = await deps.files.toText(messages);
+        if (mode) {
+          filesDropped.push(mode);
+          steps.push({
+            label:
+              mode === "pdf"
+                ? "The model did not take the PDF, so its text was read on this computer"
+                : "The model did not take the pictures, so their text was read on this computer",
+            ok: false,
+          });
+          turn -= 1;
+          continue;
+        }
+      }
+      filesDropped = [];
       // A model that cannot read pictures is told so once, without the picture.
       if (refused && !pictureRetried && withoutPicture(messages)) {
         pictureRetried = true;

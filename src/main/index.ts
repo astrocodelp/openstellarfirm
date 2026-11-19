@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { readFileSync, statSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import {
   app,
@@ -39,11 +39,25 @@ import {
   type LocalModels,
   type ModelSource,
   type ModelSourceInput,
+  type PendingAttachment,
+  type PickedAttachments,
   type PresetId,
   type Settings,
 } from "../shared/types";
 import { availableUpdate } from "../shared/update";
-import { type AgentResult, runAgent } from "./agent";
+import { type AgentDeps, type AgentResult, runAgent } from "./agent";
+import {
+  type FileReaders,
+  filesToText,
+  historyText,
+  messageWithFiles,
+} from "./attach-send";
+import {
+  Attachments,
+  attachmentIds,
+  pageBytes,
+  sweepFiles,
+} from "./attachments";
 import {
   backupName,
   buildBackup,
@@ -74,15 +88,20 @@ import {
   connectionInput,
 } from "./connections";
 import { chatFileName, chatMarkdown } from "./export";
+import { ATTACH_LIMITS, AttachError } from "./file-kind";
+import { cannotRead, rememberCannotRead } from "./file-modes";
 import { folderLabels } from "./folders";
 import { MailService, mailInput } from "./mail";
 import { MemoryStore, rememberGate } from "./memory";
 import { listModels, ModelError, streamTurn, type WireMessage } from "./models";
+import { OcrLanguages } from "./ocr-languages";
+import { modelPicture, previewOf } from "./picture";
 import { lookupCompany } from "./poppy";
+import { Reader, ReaderError, registerReaderScheme } from "./reader";
 import { electronScreen } from "./screen-capture";
 import { searchQuery, searchStore } from "./search";
 import { Secrets } from "./secrets";
-import type { Seen } from "./seen";
+import { newSeen, type Seen } from "./seen";
 import { Store } from "./store";
 import {
   askedMessage,
@@ -120,6 +139,9 @@ let memory: MemoryStore;
 const forgotten = new Map<string, { message: ChatMessage; index: number }>();
 let updates: UpdateChecker;
 let checker: CheckScheduler;
+let attachments: Attachments;
+let reader: Reader;
+let languages: OcrLanguages;
 const running = new Map<string, AbortController>();
 /** The step that waits for the person, by assistant. One at a time each. */
 const waiting = new Map<
@@ -210,15 +232,116 @@ function send(
   window: BrowserWindow,
   assistantId: string,
   text: string,
+  ids: string[],
 ): ChatMessage {
   const body = typeof text === "string" ? text.trim().slice(0, 20_000) : "";
-  if (!body) throw new Error("Type a message first.");
+  if (!body && ids.length === 0) throw new Error("Type a message first.");
   if (running.has(assistantId))
     throw new Error("It is still answering. Stop it first, or wait.");
   const assistant = store.assistant(assistantId);
-  const message = store.appendMessage(assistantId, "user", body);
+  const refs = attachments.commit(assistantId, ids);
+  const message = store.appendMessage(
+    assistantId,
+    "user",
+    body,
+    false,
+    [],
+    undefined,
+    new Date(),
+    refs,
+  );
   void answer(window, assistant);
   return message;
+}
+
+/** Every language the reader knows, for one job. */
+function readerLangs(): string[] {
+  return languages.installed();
+}
+
+/** How the files of a message are read and encoded, all on this computer. */
+const fileReaders: FileReaders = {
+  pdfText: (bytes) =>
+    reader.pdfText(bytes, ATTACH_LIMITS.ocrPages, readerLangs()),
+  ocr: (bytes, mediaType) => reader.ocr(bytes, mediaType, readerLangs()),
+  picture: (file) =>
+    modelPicture(file, (bytes, mediaType) => reader.toPng(bytes, mediaType)),
+};
+
+/** Checks a file and puts it in the assistant's message box. */
+function addAttachment(
+  assistantId: string,
+  name: unknown,
+  bytes: unknown,
+): Promise<PendingAttachment> {
+  const checked = pageBytes(bytes);
+  store.assistant(assistantId);
+  return attachments.add(assistantId, str(name, 1024), checked);
+}
+
+/** Only the system's own file picker, opened here, names a file on disk. */
+async function pickAttachments(
+  window: BrowserWindow,
+  assistantId: string,
+): Promise<PickedAttachments> {
+  store.assistant(assistantId);
+  const picked = await dialog.showOpenDialog(window, {
+    title: "Attach files",
+    properties: ["openFile", "multiSelections"],
+    filters: [
+      {
+        name: "Pictures, PDFs and text",
+        extensions: [
+          "png",
+          "jpg",
+          "jpeg",
+          "webp",
+          "gif",
+          "pdf",
+          "txt",
+          "md",
+          "csv",
+          "json",
+        ],
+      },
+    ],
+  });
+  const result: PickedAttachments = { added: [], problems: [] };
+  if (picked.canceled) return result;
+  for (const path of picked.filePaths.slice(0, ATTACH_LIMITS.files)) {
+    const name = basename(path);
+    try {
+      const info = statSync(path);
+      if (!info.isFile()) throw new AttachError("That is not a file.");
+      if (info.size > ATTACH_LIMITS.fileBytes)
+        throw new AttachError(
+          "That file is too large. Attach one of at most 20 MB.",
+        );
+      const bytes = new Uint8Array(readFileSync(path));
+      result.added.push(await attachments.add(assistantId, name, bytes));
+    } catch (error) {
+      result.problems.push(`${name}: ${attachLine(error)}`);
+    }
+  }
+  if (picked.filePaths.length > ATTACH_LIMITS.files)
+    result.problems.push(
+      `A message can carry up to ${ATTACH_LIMITS.files} files, so the rest were left out.`,
+    );
+  return result;
+}
+
+function attachLine(error: unknown): string {
+  return error instanceof AttachError || error instanceof ReaderError
+    ? error.message
+    : "That file could not be added.";
+}
+
+/** Opens a sent file with the system's own app, by id, on the person's click. */
+async function openAttachment(assistantId: string, id: string): Promise<void> {
+  const file = attachments.fileOf(assistantId, id);
+  if (!file) throw new Error("That file is no longer here.");
+  const problem = await shell.openPath(file);
+  if (problem) throw new Error("The file could not be opened.");
 }
 
 /**
@@ -280,6 +403,10 @@ interface RunSpec {
   askedBy?: string;
   /** The flags an asked run starts from and updates. */
   seen?: Seen;
+  /** The files on the person's message, for the fallback to text. */
+  files?: AgentDeps["files"];
+  /** True when the person's message carries files. */
+  attachments?: boolean;
 }
 
 /** Runs one assistant on its own model and tools. Saves nothing. */
@@ -321,6 +448,7 @@ async function runAssistant(spec: RunSpec): Promise<AgentResult> {
     ...(spec.askedBy ? { askedBy: spec.askedBy } : {}),
     ...(notes?.on ? { notes: notes.notes.map((n) => n.text) } : {}),
     ...(remember ? { canRemember: true } : {}),
+    ...(spec.attachments ? { attachments: true } : {}),
   });
   return runAgent(
     assistant,
@@ -343,6 +471,7 @@ async function runAssistant(spec: RunSpec): Promise<AgentResult> {
       ...(spec.team ? { team: spec.team } : {}),
       ...(remember ? { memory: rememberGate(memory, assistant.id) } : {}),
       ...(spec.seen ? { seen: spec.seen } : {}),
+      ...(spec.files ? { files: spec.files } : {}),
       ...(kind === "check"
         ? { readOnly: true, maxTurns: MAX_CHECK_TURNS }
         : kind === "asked"
@@ -402,7 +531,12 @@ function teamFor(asker: Assistant): TeamGate | undefined {
  * summary in place of the older messages it stands in for.
  */
 function chatHistory(assistantId: string): WireMessage[] {
-  return sentMessages(store.messages(assistantId));
+  // A message's files are named, never resent, in what came before.
+  return sentMessages(
+    store
+      .messages(assistantId)
+      .map((m) => (m.attachments?.length ? { ...m, text: historyText(m) } : m)),
+  );
 }
 
 /** An assistant's memory, or none when its file cannot be read. */
@@ -479,6 +613,54 @@ function changeChat(
   return next;
 }
 
+/** The model source and model an assistant answers with, as the agent names them. */
+function modeKeyOf(assistant: Assistant): string | undefined {
+  const sourceId = assistant.sourceId ?? store.settings().defaultSourceId;
+  const source = sourceId
+    ? store.sources().find((s) => s.id === sourceId)
+    : undefined;
+  return source
+    ? `${source.id}\n${assistant.model ?? source.model}`
+    : undefined;
+}
+
+/**
+ * The history for an answer. The person's newest message carries its files,
+ * native where the model takes them; every earlier message only names its own.
+ */
+async function answerHistory(
+  assistant: Assistant,
+  activity: (label: string) => void,
+): Promise<{ history: WireMessage[]; files: boolean }> {
+  const history = chatHistory(assistant.id);
+  const last = store
+    .messages(assistant.id)
+    .filter((m) => !m.failed)
+    .at(-1);
+  const refs = last?.role === "user" ? (last.attachments ?? []) : [];
+  if (!last || refs.length === 0) return { history, files: false };
+  activity("Reading the files");
+  const loaded = refs.flatMap((ref) => {
+    const file = attachments.load(assistant.id, ref);
+    return file ? [file] : [];
+  });
+  const sourceId = assistant.sourceId ?? store.settings().defaultSourceId;
+  const source = store.sources().find((s) => s.id === sourceId);
+  const key = modeKeyOf(assistant);
+  const message = await messageWithFiles(
+    last.text,
+    loaded,
+    {
+      wire: source?.wire ?? "openai",
+      pictures: !cannotRead(key, "picture"),
+      pdfs: !cannotRead(key, "pdf"),
+    },
+    fileReaders,
+  );
+  history[history.length - 1] = message;
+  return { history, files: true };
+}
+
 async function answer(
   window: BrowserWindow,
   assistant: Assistant,
@@ -489,19 +671,35 @@ async function answer(
   let failed = false;
   let steps: ChatStep[] = [];
   try {
+    const onActivity = (label: string) =>
+      tell(window, IPC.activity, { assistantId: assistant.id, label });
+    const { history, files } = await answerHistory(assistant, onActivity);
+    const key = modeKeyOf(assistant);
+    // A file the person attached is private text, like a file in a folder:
+    // a later call that reaches outside asks again.
+    const seen = files ? { ...newSeen(), files: true } : undefined;
     const result = await runAssistant({
       assistant,
       kind: "answer",
       signal: controller.signal,
-      history: chatHistory(assistant.id),
+      history,
+      ...(seen ? { seen } : {}),
+      ...(files
+        ? {
+            attachments: true,
+            files: {
+              toText: (messages) => filesToText(messages, fileReaders),
+              remember: (mode) => rememberCannotRead(key, mode),
+            },
+          }
+        : {}),
       team: teamFor(assistant),
       ask: (ask) => askPerson(window, assistant.id, ask, controller.signal),
       onText: (text) => {
         full += text;
         tell(window, IPC.delta, { assistantId: assistant.id, text });
       },
-      onActivity: (label) =>
-        tell(window, IPC.activity, { assistantId: assistant.id, label }),
+      onActivity,
     });
     steps = result.steps;
     if (!full) throw new ModelError("The model sent an empty answer.");
@@ -809,6 +1007,7 @@ function deleteAllChats(): number {
   if (running.size > 0)
     throw new Error("An assistant is still answering. Stop it first, or wait.");
   forgotten.clear();
+  attachments.clearWaiting();
   return store.deleteAllChats();
 }
 
@@ -822,6 +1021,7 @@ function register(window: BrowserWindow): void {
     store.removeAssistant(str(id));
     memory.forget(str(id));
     forgotten.delete(str(id));
+    attachments.clearWaiting(str(id));
   });
   handle(IPC.exportAssistant, (_e, id: unknown) =>
     exportAssistant(window, str(id)),
@@ -839,9 +1039,36 @@ function register(window: BrowserWindow): void {
     store.removeSite(str(id), str(site)),
   );
   handle(IPC.messages, (_e, id: unknown) => store.messages(str(id)));
-  handle(IPC.send, (_e, id: unknown, text: unknown) =>
-    send(window, str(id), str(text, 100_000)),
+  handle(IPC.send, (_e, id: unknown, text: unknown, ids: unknown) =>
+    send(window, str(id), str(text, 100_000), attachmentIds(ids)),
   );
+  handle(IPC.pickAttachments, (_e, id: unknown) =>
+    pickAttachments(window, str(id)),
+  );
+  handle(
+    IPC.addAttachment,
+    async (_e, id: unknown, name: unknown, bytes: unknown) => {
+      try {
+        return await addAttachment(str(id), name, bytes);
+      } catch (error) {
+        throw new Error(attachLine(error));
+      }
+    },
+  );
+  handle(IPC.removeAttachment, (_e, id: unknown, attachmentId: unknown) => {
+    attachments.remove(str(id), str(attachmentId));
+  });
+  handle(IPC.pendingAttachments, (_e, id: unknown) =>
+    attachments.pending(str(id)),
+  );
+  handle(IPC.openAttachment, (_e, id: unknown, attachmentId: unknown) =>
+    openAttachment(str(id), str(attachmentId)),
+  );
+  handle(IPC.ocrLanguages, () => languages.list());
+  handle(IPC.downloadOcrLanguage, (_e, code: unknown) =>
+    languages.download(code),
+  );
+  handle(IPC.removeOcrLanguage, (_e, code: unknown) => languages.remove(code));
   handle(IPC.stop, (_e, id: unknown) => {
     running.get(str(id))?.abort();
   });
@@ -1082,6 +1309,9 @@ function createWindow(): BrowserWindow {
   return window;
 }
 
+// The reader's scheme has to be known before the app is ready.
+registerReaderScheme();
+
 // An installed app is never driven from outside: a debugging port would let
 // another program on this computer press Approve for the person.
 if (app.isPackaged && app.commandLine.hasSwitch("remote-debugging-port")) {
@@ -1106,6 +1336,28 @@ app.whenReady().then(() => {
     appVersion: app.getVersion(),
   });
   mail = new MailService({ store, secrets });
+  const readerDir = join(__dirname, "../reader");
+  languages = new OcrLanguages({
+    dataDir: dir,
+    builtInDir: join(readerDir, "lang"),
+    fetch,
+  });
+  reader = new Reader({
+    dir: readerDir,
+    language: (code) => languages.bytesOf(code),
+  });
+  attachments = new Attachments(dir, {
+    pdfPages: (bytes) => reader.pdfPages(bytes),
+    preview: (file, bytes) =>
+      previewOf(file, bytes, (b, type) => reader.toPng(b, type)),
+  });
+  // Files no chat refers to any more, left by a crash or a removed assistant.
+  try {
+    const ids = new Set(store.assistants().map((a) => a.id));
+    sweepFiles(dir, (id) => (ids.has(id) ? store.messages(id) : undefined));
+  } catch {
+    // A sweep that fails leaves files for the next start.
+  }
   updates = new UpdateChecker({
     fetch,
     now: () => new Date(),
@@ -1124,6 +1376,8 @@ app.whenReady().then(() => {
     (_contents, _permission, done) => done(false),
   );
   const window = createWindow();
+  // The hidden reader is a window too; it must not keep the app open.
+  window.on("closed", () => reader.dispose());
   register(window);
   checker = new CheckScheduler({
     now: () => new Date(),

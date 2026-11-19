@@ -81,6 +81,10 @@ export function BackupScreen({ onChanged, onBack, onCloud }: BackupProps) {
             Chats can hold private text, and the file is not encrypted. Keep it
             somewhere you trust.
           </p>
+          <p className="faint">
+            Files you attached to messages are not in it. They stay on this
+            computer; a chat in the backup names them but does not hold them.
+          </p>
           <div>
             <button
               type="button"

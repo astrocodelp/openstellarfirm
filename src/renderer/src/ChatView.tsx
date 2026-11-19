@@ -14,6 +14,14 @@ import type {
   Decision,
 } from "../../shared/types";
 import { ReadAloud } from "./Accessibility";
+import {
+  AttachButton,
+  PendingFiles,
+  pastedFiles,
+  SentFiles,
+  useAttachments,
+  useDropFiles,
+} from "./Attachments";
 import { api } from "./bridge";
 import {
   CopyButton,
@@ -71,7 +79,7 @@ interface ChatViewProps {
   activity: string | undefined;
   /** The step that waits for the person, if any. */
   approval: ApprovalCard | undefined;
-  onSend(text: string): Promise<void>;
+  onSend(text: string, attachmentIds: string[]): Promise<void>;
   onStop(): void;
   onDecide(card: ApprovalCard, decision: Decision): Promise<void>;
   onCustomize(): void;
@@ -233,6 +241,8 @@ export function ChatView(props: ChatViewProps) {
   const column = useRef<HTMLDivElement>(null);
   const box = useRef<HTMLTextAreaElement>(null);
   const busy = streaming !== undefined;
+  const files = useAttachments(assistant.id);
+  const drop = useDropFiles(files, true);
   const canAct =
     assistant.folders.length > 0 || assistant.web || assistant.screen === true;
   const [memory, setMemory] = useMemory(assistant.id, messages.length);
@@ -268,6 +278,19 @@ export function ChatView(props: ChatViewProps) {
           <Icon name="alert" />
           <span>{m.text}</span>
         </p>
+      </div>
+    ) : m.role === "user" && m.attachments?.length ? (
+      <div key={m.id} className="user-turn" data-message-id={m.id}>
+        <SentFiles assistantId={assistant.id} files={m.attachments} />
+        {m.text ? (
+          <p
+            className={
+              fresh(m) ? "bubble bubble-user enter" : "bubble bubble-user"
+            }
+          >
+            {m.text}
+          </p>
+        ) : null}
       </div>
     ) : m.role === "user" ? (
       <p
@@ -380,14 +403,17 @@ export function ChatView(props: ChatViewProps) {
 
   async function send() {
     const text = draft.trim();
-    if (!text || busy) return;
+    const ids = files.files.map((f) => f.id);
+    if ((!text && ids.length === 0) || busy || files.adding) return;
     setError("");
     setDraft("");
     // Sending is a wish to see the answer, so the chat follows it again.
     pinned.current = true;
     setAway(false);
+    files.clearProblem();
     try {
-      await props.onSend(text);
+      await props.onSend(text, ids);
+      await files.reload();
     } catch (e) {
       setDraft(text);
       setError(errorText(e));
@@ -429,7 +455,17 @@ export function ChatView(props: ChatViewProps) {
         busy={busy}
       />
 
-      <div className="chat-scroll" ref={scroller} onScroll={onScroll}>
+      <div
+        className="chat-scroll"
+        ref={scroller}
+        onScroll={onScroll}
+        {...drop.handlers}
+      >
+        {drop.over ? (
+          <div className="drop-note" aria-hidden="true">
+            Drop files to attach them
+          </div>
+        ) : null}
         {messages.length === 0 && !busy ? (
           <div className="empty" key={assistant.id}>
             <Pet pet={assistant.pet} color={assistant.color} size={96} />
@@ -536,7 +572,7 @@ export function ChatView(props: ChatViewProps) {
         )}
       </div>
 
-      <div className="composer-wrap">
+      <div className="composer-wrap" {...drop.handlers}>
         <button
           type="button"
           className="jump-latest"
@@ -549,8 +585,13 @@ export function ChatView(props: ChatViewProps) {
         <ForgotLine tools={tools} />
         <SummaryOffer tools={tools} share={use.share} busy={busy} />
         <ErrorLine>{tools.error}</ErrorLine>
-        <ErrorLine id="send-error">{error}</ErrorLine>
+        <ErrorLine id="send-error">{error || files.problem}</ErrorLine>
+        <p className="visually-hidden" aria-live="polite">
+          {files.note}
+        </p>
+        <PendingFiles box={files} />
         <div className="composer">
+          <AttachButton box={files} />
           <label className="visually-hidden" htmlFor="message-box">
             Message {assistant.name}
           </label>
@@ -562,6 +603,12 @@ export function ChatView(props: ChatViewProps) {
             placeholder={`Message ${assistant.name}`}
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={onKeyDown}
+            onPaste={(event) => {
+              const pasted = pastedFiles(event);
+              if (pasted.length === 0) return;
+              event.preventDefault();
+              void files.addFiles(pasted);
+            }}
             aria-describedby={error ? "send-error send-hint" : "send-hint"}
           />
           {busy ? (
@@ -580,7 +627,9 @@ export function ChatView(props: ChatViewProps) {
               className="icon-btn send"
               aria-label="Send"
               title="Send"
-              disabled={!draft.trim()}
+              disabled={
+                (!draft.trim() && files.files.length === 0) || files.adding
+              }
               onClick={() => void send()}
             >
               <Icon name="send" size={18} />

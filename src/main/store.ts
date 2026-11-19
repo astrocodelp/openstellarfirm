@@ -37,6 +37,7 @@ import { cleanTheme, DEFAULT_THEME, isTheme } from "../shared/theme";
 import {
   type Assistant,
   type AssistantInput,
+  type AttachmentRef,
   type ChatMessage,
   type ChatStep,
   type Connection,
@@ -50,6 +51,12 @@ import {
   type Wire,
 } from "../shared/types";
 import { cleanVersion } from "../shared/update";
+import {
+  referencedIds,
+  removeAllFiles,
+  removeAssistantFiles,
+  removeFiles,
+} from "./attachments";
 
 /** Everything the app keeps, in plain JSON files in its own data folder. */
 
@@ -317,6 +324,7 @@ export class Store {
     if (state.settings.mainAssistantId === id) noMain(state.settings);
     this.write(state);
     rmSync(this.chatFile(id), { force: true });
+    removeAssistantFiles(this.dir, id);
   }
 
   /** The id comes from the page, so it is checked before it names a file. */
@@ -340,6 +348,7 @@ export class Store {
     steps: ChatStep[] = [],
     check?: ChatMessage["check"],
     at: Date = new Date(),
+    attachments: AttachmentRef[] = [],
   ): ChatMessage {
     const message: ChatMessage = {
       id: randomUUID(),
@@ -349,13 +358,20 @@ export class Store {
       ...(failed ? { failed: true } : {}),
       ...(steps.length > 0 ? { steps } : {}),
       ...(check ? { check } : {}),
+      ...(attachments.length > 0 ? { attachments } : {}),
     };
-    const all = [...this.messages(assistantId), message].slice(-MAX_MESSAGES);
+    const before = [...this.messages(assistantId), message];
+    const all = before.slice(-MAX_MESSAGES);
     this.writeFile(this.chatFile(assistantId), all);
+    // A message that falls off the end of the chat takes its files with it.
+    const dropped = referencedIds(before.slice(0, before.length - all.length));
+    if (dropped.size > 0) removeFiles(this.dir, assistantId, [...dropped]);
+    const line =
+      body.trim() || attachments.map((a) => a.name).join(", ") || body;
     const state = this.read();
     state.assistants = state.assistants.map((a) =>
       a.id === assistantId
-        ? { ...a, lastLine: body.replace(/\s+/g, " ").slice(0, 90) }
+        ? { ...a, lastLine: line.replace(/\s+/g, " ").slice(0, 90) }
         : a,
     );
     this.write(state);
@@ -827,6 +843,8 @@ export class Store {
       rmSync(join(folder, name), { force: true });
       count += 1;
     }
+    // The files sent in those chats go with them.
+    removeAllFiles(this.dir);
     const state = this.read();
     state.assistants = state.assistants.map((a) => {
       const { lastLine: _gone, ...rest } = a;

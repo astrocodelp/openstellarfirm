@@ -7,7 +7,9 @@
 import type { KeyHeader } from "../../shared/catalog";
 import {
   cleanIds,
+  type FilePart,
   failure,
+  fileLabel,
   getList,
   type ListInput,
   type ModelCall,
@@ -19,6 +21,32 @@ import {
   unreachable,
   type WireMessage,
 } from "./common";
+
+/**
+ * A user message with files becomes a list of parts. A picture travels as an
+ * `image_url` with a data address. This wire never carries a PDF: its text is
+ * read on this computer before the message is built, so a PDF part here is
+ * only named.
+ */
+function userContent(content: string, files: FilePart[]): unknown[] {
+  const parts: unknown[] = [];
+  if (content.trim()) parts.push({ type: "text", text: content });
+  for (const file of files) {
+    if (file.type === "image") {
+      parts.push({ type: "text", text: fileLabel(file) });
+      parts.push({
+        type: "image_url",
+        image_url: { url: `data:${file.mediaType};base64,${file.data}` },
+      });
+    } else {
+      parts.push({
+        type: "text",
+        text: `The person attached the PDF "${file.name}", but it could not be sent to this model.`,
+      });
+    }
+  }
+  return parts;
+}
 
 /** The key goes in one header only: Authorization, or api-key (Azure). */
 export function headers(
@@ -87,7 +115,14 @@ function outgoing(messages: WireMessage[]): unknown[] {
       continue;
     }
     flush();
-    if (message.role === "assistant" && message.tool_calls) {
+    if (message.role === "user" && message.files && message.files.length > 0) {
+      out.push({
+        role: "user",
+        content: userContent(message.content, message.files),
+      });
+    } else if (message.role === "user") {
+      out.push({ role: "user", content: message.content });
+    } else if (message.role === "assistant" && message.tool_calls) {
       out.push({
         ...message,
         tool_calls: message.tool_calls.map(

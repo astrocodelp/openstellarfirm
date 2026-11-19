@@ -276,6 +276,33 @@ function preview(): OpenApi {
       }, 400);
       return message;
     },
+    pickAttachments: async () => ({ added: [], problems: [] }),
+    addAttachment: async () => {
+      throw new Error("Open the desktop app to attach files.");
+    },
+    removeAttachment: async () => {},
+    pendingAttachments: async () => [],
+    openAttachment: async () => {},
+    ocrLanguages: async () => [
+      {
+        code: "eng",
+        name: "English",
+        size: 4_113_088,
+        builtIn: true,
+        installed: true,
+      },
+      {
+        code: "deu",
+        name: "German",
+        size: 1_525_436,
+        builtIn: false,
+        installed: false,
+      },
+    ],
+    downloadOcrLanguage: async () => {
+      throw new Error("Open the desktop app to download a language.");
+    },
+    removeOcrLanguage: async () => [],
     stop: async () => {},
     pending: async () => null,
     decide: async () => {},

@@ -5,6 +5,7 @@ import { AccessibilitySection } from "./Accessibility";
 import { ApprovalsSection, DataSection } from "./SettingsData";
 import { MainAssistantSection } from "./SettingsMain";
 import { Choices, ErrorLine, Section, useSettingsSave } from "./SettingsParts";
+import { ReadingSection } from "./SettingsReading";
 import { AboutSection, UpdatesSection } from "./SettingsUpdates";
 import { crossFadeTheme, ScreenHead } from "./ui";
 
@@ -119,6 +120,8 @@ export function SettingsScreen({
             is sent anywhere unless you click it.
           </p>
         </Section>
+
+        <ReadingSection />
 
         <MainAssistantSection state={state} onChanged={onChanged} />
         <ApprovalsSection state={state} onChanged={onChanged} />
