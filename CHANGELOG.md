@@ -75,7 +75,7 @@ The app is at version 0.1.0. There is no tagged release yet.
 - The licence is now the Apache License 2.0 with the Commons Clause: free to
   use, change and share, not to sell. Selling needs a commercial licence
   ([COMMERCIAL.md](COMMERCIAL.md)). [NOTICE](NOTICE) says what the licence
-  covers. Versions published before this change stay under the MIT licence.
+  covers.
 - A redesigned interface: labelled navigation in the sidebar, pill buttons,
   one screen frame, and a compact persona picker.
 

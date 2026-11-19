@@ -39,6 +39,10 @@ team of AI Agent Assistants works for your company in the cloud.
   its web address. Every call asks first and shows what would be sent. A tool
   the server marks as read-only, with a name that does not read like a change,
   can be allowed for good; everything else asks every time.
+- **The services you already use.** Connect GitHub, Linear, Stripe, Neon,
+  Supabase, Apify, Firecrawl, Exa, Context7 or AgentMail with a key you make in
+  that service, straight from this computer to it. Add the same service more
+  than once, such as a work and a personal account.
 - **Your own Composio account.** One connection that reaches many apps
   (mail, calendars, GitHub, search and more) through Composio, on your own
   Composio key. Your usage and any cost are between you and Composio.

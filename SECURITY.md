@@ -50,9 +50,15 @@ app's version and operating system. Please do not include a real key.
   not followed.
 - **Connections.** Made only from a web address you typed (https, or http on
   this computer). The app never starts a program for one. A redirect is an
-  error; an answer is capped at 2 MB and a request at 30 seconds; at most 10
-  connections and 40 tools each. Which assistants may use a connection is set
+  error; an answer is capped at 2 MB and a request at 30 seconds; at most 20
+  connections, each with a name of its own, and 40 tools each. Which assistants may use a connection is set
   only by you.
+- **Direct connections.** A catalog of services that run their own remote
+  tool server and take a key you make there. Each entry has one fixed address
+  and one fixed way to send the key (an `Authorization: Bearer` or `x-api-key`
+  header), set in the main process and again on every call. The page, a file, a
+  backup, a persona or the server cannot change them. A key is sent only to the
+  address of the connection it was saved for.
 - **Composio.** An optional preset of a connection. It uses your own Composio
   key, sent only to Composio's one fixed address in Composio's own header. The
   address and the header are set in the main process, never by the page, a
