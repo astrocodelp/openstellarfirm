@@ -5,6 +5,8 @@
 #include <string>
 #include <vector>
 
+#include "core/server_pin.h"
+
 class WebServer;
 class DNSServer;
 
@@ -15,6 +17,11 @@ struct SetupSubmission {
   std::string ssid;
   std::string password;  // empty for an open network
   std::string code;      // the normalized setup code, ten characters
+  // The computer to pair with and the certificate to pin, which only the USB cable gives
+  // (pet-usb v2). The setup page has no way to carry them, so its submission has none and
+  // the pet never pairs from it.
+  bool hasServer = false;
+  ServerRecord server;
 };
 
 // Where the pet is in setup, as the page shows it.
@@ -73,10 +80,6 @@ class WifiLink {
 
   // Leaves the network and switches the radio off.
   static void drop();
-
-  // Asks the network time servers for the time (X-Pet-Recorded-At). Safe to call
-  // again; the clock keeps itself right after the first answer.
-  static void startClock();
 };
 
 // The pet's own Wi-Fi network and the setup page on it (access point, captive

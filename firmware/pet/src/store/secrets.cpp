@@ -29,6 +29,10 @@ constexpr const char* kPackVoice = "packvoice";
 constexpr const char* kNoteSeq = "noteseq";
 constexpr const char* kInboxAfter = "inboxafter";
 constexpr const char* kSetupPass = "setuppass";
+constexpr const char* kServerAddress = "srvaddr";
+constexpr const char* kServerPort = "srvport";
+constexpr const char* kServerPin = "srvpin";
+constexpr const char* kServerName = "srvname";
 
 // Long enough for the longest value we store (a 63 character Wi-Fi password).
 constexpr size_t kStringMax = 96;
@@ -193,6 +197,74 @@ std::string Secrets::deviceKey() {
     }
   }
   return std::string();
+}
+
+bool Secrets::hasServer() {
+  ServerRecord record;
+  return server(record);
+}
+
+bool Secrets::server(ServerRecord& out) {
+  out = ServerRecord();
+  lock();
+  ServerRecord found;
+  bool good = open_ && prefs_->isKey(kServerPin) && prefs_->isKey(kServerName) && prefs_->isKey(kServerPort);
+  if (good) {
+    found.address = readString(kServerAddress);  // absent when the computer gave none
+    found.name = readString(kServerName);
+    found.port = static_cast<uint16_t>(prefs_->getUShort(kServerPort, 0));
+    const std::string pin = readString(kServerPin);
+    good = parseFingerprint(pin.data(), pin.size(), found.fingerprint) && isUsableServer(found);
+  }
+  unlock();
+  if (good) {
+    out = found;
+  }
+  return good;
+}
+
+bool Secrets::setServer(const ServerRecord& record) {
+  if (!isUsableServer(record)) {
+    return false;
+  }
+  char pin[kPinHexChars + 1];
+  fingerprintToHex(record.fingerprint, pin);
+  lock();
+  bool saved = open_;
+  if (saved) {
+    // The pin goes last: a power cut in the middle leaves no record at all, never a record
+    // with the wrong pin.
+    prefs_->remove(kServerPin);
+    writeString(kServerAddress, record.address);
+    writeString(kServerName, record.name);
+    saved = prefs_->putUShort(kServerPort, record.port) == sizeof(uint16_t) && prefs_->putString(kServerPin, pin) == kPinHexChars;
+  }
+  unlock();
+  return saved;
+}
+
+bool Secrets::setServerAddress(const std::string& address) {
+  if (!isIpv4Address(address) && !isIpv6Address(address)) {
+    return false;
+  }
+  lock();
+  const bool stored = open_ && prefs_->isKey(kServerPin);
+  if (stored) {
+    writeString(kServerAddress, address);
+  }
+  unlock();
+  return stored;
+}
+
+void Secrets::clearServer() {
+  lock();
+  if (open_) {
+    prefs_->remove(kServerPin);  // first: with no pin there is no record
+    prefs_->remove(kServerAddress);
+    prefs_->remove(kServerPort);
+    prefs_->remove(kServerName);
+  }
+  unlock();
 }
 
 StoredSettings Secrets::settings() {

@@ -228,8 +228,9 @@ Check it: `sha256sum -c SHA256SUMS.txt --ignore-missing`.
   small desk figure over its USB cable, choose which assistant it talks to and
   its voice, and keep your own ElevenLabs key for it. Your Wi-Fi password goes
   over the cable to the pet and nowhere else, and a pet never approves
-  anything. The firmware side of this release is still being finished
-  ([docs/desk-pets-plan.md](docs/desk-pets-plan.md)).
+  anything. Setup and firewall steps are in
+  [docs/desk-pets.md](docs/desk-pets.md); the plan is
+  [docs/desk-pets-plan.md](docs/desk-pets-plan.md).
 - **Light and dark**, following your computer or your choice.
 - **Accessibility first.** More contrast, less motion, underlined links, a
   stronger focus ring, more space for reading, larger click targets, and read

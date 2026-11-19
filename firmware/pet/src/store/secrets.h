@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <string>
 
+#include "core/server_pin.h"
 #include "generated/protocol.h"
 
 class Preferences;
@@ -29,8 +30,9 @@ struct StoredSettings {
 //
 // Rule 1: the pet holds only its device token (the device secret lives only from a
 // pair request until its claim ends, either way). Rule 2: the token is only ever a
-// base64url string here and in the Authorization header of a request to the one
-// configured address; it is never logged. On production units NVS is encrypted
+// base64url string here and in the Authorization header of a request to the one computer
+// the pet was told about over the cable, whose certificate it holds the connection to
+// (the server record below); it is never logged. On production units NVS is encrypted
 // (flash encryption, phase 4); a development unit keeps it in the clear.
 class Secrets {
  public:
@@ -66,6 +68,20 @@ class Secrets {
   // with no use, and the pet must not keep a second credential next to its token
   // (rule 1); setPaired() does the same when the claim worked.
   void clearDeviceSecret();
+
+  // -- The computer the pet talks to (core/server_pin.h)
+  // The address, port, mDNS name and certificate fingerprint (the pin) of the OpenStellarFirm
+  // app the pet was set up with, kept after a claim that worked and gone with the token. A
+  // pet with a token and no record cannot be used (it holds no pin) and is forgotten at
+  // boot. The fingerprint is not a secret; it is in the app's page.
+  bool hasServer();
+  // False when there is none or it is damaged (a part is missing or fails its checks).
+  bool server(ServerRecord& out);
+  bool setServer(const ServerRecord& record);
+  // The address that last worked, found by the name when the old one failed. Only when a
+  // record is stored already; the rest of the record is never changed this way.
+  bool setServerAddress(const std::string& address);
+  void clearServer();
 
   // -- Settings and counters
   StoredSettings settings();

@@ -10,8 +10,9 @@ namespace pet {
 namespace {
 
 constexpr uint32_t kRateWindowMs = 1000;
-// The most tokens a line is cut into: join has four. A line with more is bad_line.
-constexpr size_t kMaxKnownTokens = 4;
+constexpr const char* kNoAddress = PET_USB2_NO_ADDRESS;
+// The most tokens a line is cut into: server has five. A line with more is bad_line.
+constexpr size_t kMaxKnownTokens = 5;
 
 struct Token {
   const char* at = nullptr;
@@ -191,6 +192,18 @@ bool usbRefuses(PetUsbOp op, UsbPolicy policy, PetUsbRefusal& why) {
   return false;
 }
 
+bool usbRefuses2(PetUsb2Op /*op*/, UsbPolicy policy, PetUsbRefusal& why) {
+  if (policy.paired) {
+    why = PET_USB_REFUSAL_PAIRED;
+    return true;
+  }
+  if (policy.busy) {
+    why = PET_USB_REFUSAL_BUSY;
+    return true;
+  }
+  return false;
+}
+
 // -- Lines in --------------------------------------------------------------------------
 
 bool usbHasPrefix(const char* line, size_t length) {
@@ -234,6 +247,58 @@ void UsbLineAssembler::reset() {
 
 void UsbLineAssembler::wipe() { std::memset(buffer_, 0, sizeof(buffer_)); }
 
+namespace {
+
+// The values of a version 2 op, whose state was already checked. `tokens` are the line's
+// words, the op first; `parse` is a Request with the op set, which becomes a refusal when
+// a value is not one the page would send.
+UsbParse parseUsb2Values(const Token* tokens, PetUsb2Op op, UsbPolicy policy, UsbParse parse) {
+  UsbRequest& request = parse.request;
+  if (op == PET_USB2_OP_SERVER) {
+    ServerRecord& server = request.server;
+    const std::string address(tokens[1].at, tokens[1].size);
+    if (address != kNoAddress) {
+      if (!isIpv4Address(address) && !isIpv6Address(address)) {
+        return refusedParse(PET_USB_REFUSAL_BAD_VALUE);
+      }
+      server.address = address;
+    }
+    if (!parseServerPort(std::string(tokens[2].at, tokens[2].size), server.port)) {
+      return refusedParse(PET_USB_REFUSAL_BAD_VALUE);
+    }
+    if (!parseFingerprint(tokens[3].at, tokens[3].size, server.fingerprint)) {
+      return refusedParse(PET_USB_REFUSAL_BAD_VALUE);
+    }
+    server.name.assign(tokens[4].at, tokens[4].size);
+    if (!isServerName(server.name)) {
+      return refusedParse(PET_USB_REFUSAL_BAD_VALUE);
+    }
+    return parse;
+  }
+  if (op == PET_USB2_OP_WIFI) {
+    UsbWifi& wifi = request.wifi;
+    if (!decodeHex(tokens[1], wifi.ssid) || !isPlausibleSsid(wifi.ssid)) {
+      return refusedParse(PET_USB_REFUSAL_BAD_VALUE);
+    }
+    if (!sameWord(tokens[2], PET_USB_OPEN_PASSWORD)) {
+      if (!decodeHex(tokens[2], wifi.password) || !isPlausiblePassword(wifi.password)) {
+        return refusedParse(PET_USB_REFUSAL_BAD_VALUE);
+      }
+    }
+    return parse;
+  }
+  // start
+  if (!normalizeSetupCode(std::string(tokens[1].at, tokens[1].size), request.setupCode)) {
+    return refusedParse(PET_USB_REFUSAL_BAD_VALUE);
+  }
+  if (!policy.hasServer || !policy.hasWifi) {
+    return refusedParse(kUsbRefusalNotReady);
+  }
+  return parse;
+}
+
+}  // namespace
+
 UsbParse parseUsbLine(const char* line, size_t length, UsbPolicy policy) {
   if (!usbHasPrefix(line, length)) {
     return UsbParse();  // Ignored
@@ -275,22 +340,49 @@ UsbParse parseUsbLine(const char* line, size_t length, UsbPolicy policy) {
       break;
     }
   }
+  int op2Index = -1;
   if (opIndex < 0) {
+    for (int i = 0; i < PET_USB2_OP_COUNT; ++i) {
+      if (sameWord(tokens[0], PET_USB2_OP_IDS[i])) {
+        op2Index = i;
+        break;
+      }
+    }
+  }
+  if (opIndex < 0 && op2Index < 0) {
     return refusedParse(PET_USB_REFUSAL_UNKNOWN_OP);
   }
-  const PetUsbOp op = static_cast<PetUsbOp>(opIndex);
-  if (count != (op == PET_USB_OP_JOIN ? 4u : 1u)) {
+  size_t wanted = 1;
+  if (opIndex == PET_USB_OP_JOIN) {
+    wanted = 4;
+  } else if (op2Index == PET_USB2_OP_SERVER) {
+    wanted = 5;
+  } else if (op2Index == PET_USB2_OP_WIFI) {
+    wanted = 3;
+  } else if (op2Index == PET_USB2_OP_START) {
+    wanted = 2;
+  }
+  if (count != wanted) {
     return refusedParse(PET_USB_REFUSAL_BAD_LINE);
   }
 
-  // The state, before any value is read: a paired pet never looks at a join's values.
+  // The state, before any value is read: a paired pet never looks at a line's values.
   PetUsbRefusal why = PET_USB_REFUSAL_PAIRED;
+  UsbParse parse;
+  parse.kind = UsbParseKind::Request;
+  if (op2Index >= 0) {
+    const PetUsb2Op op2 = static_cast<PetUsb2Op>(op2Index);
+    if (usbRefuses2(op2, policy, why)) {
+      return refusedParse(why);
+    }
+    parse.request.v2 = true;
+    parse.request.op2 = op2;
+    return parseUsb2Values(tokens, op2, policy, parse);
+  }
+  const PetUsbOp op = static_cast<PetUsbOp>(opIndex);
   if (usbRefuses(op, policy, why)) {
     return refusedParse(why);
   }
-
-  UsbParse parse;
-  parse.kind = UsbParseKind::Request;
   parse.request.op = op;
   if (op != PET_USB_OP_JOIN) {
     return parse;
@@ -377,15 +469,15 @@ bool UsbEndpoint::push(uint8_t byte, uint32_t nowMs, UsbPolicy policy, UsbInboun
 
 // -- Lines out -------------------------------------------------------------------------
 
-size_t usbHelloLine(char* out, size_t cap, PetKind kind, const char* firmware, bool paired, bool setupOpen) {
+size_t usbHelloLine(char* out, size_t cap, PetKind kind, const char* firmware, bool paired, bool setupOpen, int version) {
   const int figure = static_cast<int>(kind);
-  if (figure < 0 || figure >= PET_KIND_COUNT || !isVersionShaped(firmware)) {
+  if (figure < 0 || figure >= PET_KIND_COUNT || !isVersionShaped(firmware) || version < 1 || version > 999) {
     return 0;
   }
   LineWriter line(out, cap);
   line.text("hello");
   line.space();
-  line.number(PET_USB_VERSION);
+  line.number(version);
   line.space();
   line.text(PET_KIND_IDS[figure]);
   line.space();
@@ -394,6 +486,18 @@ size_t usbHelloLine(char* out, size_t cap, PetKind kind, const char* firmware, b
   line.text(paired ? PET_USB_WORD_PAIRED : PET_USB_WORD_UNPAIRED);
   line.space();
   line.text(setupOpen ? PET_USB_WORD_OPEN : PET_USB_WORD_CLOSED);
+  return line.finish();
+}
+
+size_t usbOkLine(char* out, size_t cap, PetUsb2Op op) {
+  const int index = static_cast<int>(op);
+  if (index < 0 || index >= PET_USB2_OP_COUNT) {
+    return 0;
+  }
+  LineWriter line(out, cap);
+  line.text("ok");
+  line.space();
+  line.text(PET_USB2_OP_IDS[index]);
   return line.finish();
 }
 
@@ -458,6 +562,18 @@ size_t usbRefusedLine(char* out, size_t cap, PetUsbRefusal reason) {
   line.text("refused");
   line.space();
   line.text(PET_USB_REFUSAL_IDS[index]);
+  return line.finish();
+}
+
+size_t usbRefusal2Line(char* out, size_t cap, PetUsb2Refusal reason) {
+  const int index = static_cast<int>(reason);
+  if (index < 0 || index >= PET_USB2_REFUSAL_COUNT) {
+    return 0;
+  }
+  LineWriter line(out, cap);
+  line.text("refused");
+  line.space();
+  line.text(PET_USB2_REFUSAL_IDS[index]);
   return line.finish();
 }
 

@@ -252,17 +252,11 @@ constexpr int kConfirmCodeRounds = 3;
 void sayLines(const Actions& actions) {
   const PlayTag tag = tagForSpeech();
   if (std::strcmp(actions.playLine, PET_LINE_SETUP_JOIN) == 0) {
-    // "Hi! To set me up, plug me into your computer and open OpenStellarFirm, or join my
-    // Wi-Fi network on your phone." and then the network's password, one clip a
-    // character. The setup network is not open: its password is told only here, by the
-    // pet's own voice, to whoever is in the room (core/setup_access.h). The cable
-    // needs no password (the person who holds it is in the room). A tap or a hold of
-    // the light says it again.
-    const char* ids[ClipPlayer::kMaxClips];
-    size_t n = 0;
-    ids[n++] = PET_LINE_SETUP_JOIN;
-    n += spellSetupPassphrase(secrets.setupPassphrase(), ids + n, ClipPlayer::kMaxClips - n);
-    player.play(tag, ids, n);
+    // "Hi! To set me up, plug me into your computer. Then open OpenStellarFirm, Settings,
+    // Desk pets." Said alone. Phone setup is off (the setup page answers 403 and says
+    // to use the cable), so the setup network's password is no longer spelled: the
+    // cable needs none, and a password nobody can use is not worth saying.
+    player.play(tag, PET_LINE_SETUP_JOIN);
     return;
   }
   if (std::strcmp(actions.playLine, PET_LINE_SETUP_CODE) == 0) {
@@ -641,6 +635,14 @@ void setup() {
   // A pairing attempt does not survive a restart (setup starts again from the page),
   // so a device secret left behind is of no use: rule 1, the pet holds only its token.
   secrets.clearDeviceSecret();
+  if (nvsOk && secrets.paired() && !secrets.hasServer()) {
+    // A token with no computer to use it against: the pet holds no pin, so it could never
+    // connect, and no connection to a computer it was not told about is ever made. It is
+    // forgotten and set up again over the cable (a pet paired by an older firmware that had
+    // a built-in address ends here after an update).
+    PET_LOG("a pairing with no computer to pin, forgetting it");
+    secrets.clearAll();
+  }
   noteStore.begin();
   if (nvsOk && flashOk && !secrets.paired()) {
     // Saved notes belong to a pairing. An unpaired pet that still has some was
@@ -677,6 +679,14 @@ void setup() {
   // tried with no server: it lands as a saved note. "forget" wipes it. Neither is ever
   // in the pet image.
   devboard::onCommand("offline-pet", []() {
+    // A paired pet needs a computer on record, or boot forgets it. This one is made up
+    // (a reserved address and a pin nothing matches), and the pet never reaches it: the
+    // Wi-Fi is not there either.
+    ServerRecord nowhere;
+    nowhere.address = "192.0.2.1";
+    nowhere.port = 1;
+    nowhere.name = "osf-00000000.local";
+    secrets.setServer(nowhere);
     secrets.setWifi("devboard-no-such-network", "devboard-offline");
     secrets.setPaired("devboard-offline-not-a-token-xxxxxxxxxxxxxx", "dev_offline");
     ESP.restart();
@@ -702,6 +712,8 @@ void setup() {
   mic.setIndicator(&onMicIndicator, nullptr);
   player.begin(speaker, packs);
 
+  // Reads the computer the pet was paired with, and with it the certificate every
+  // connection is held to. A pet that is not paired has none, and makes no call.
   const bool httpsOk = api.begin(secrets);
 
   shared.speakNotices.store(stored.speakNotices);

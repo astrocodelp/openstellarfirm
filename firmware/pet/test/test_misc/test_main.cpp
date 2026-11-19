@@ -15,6 +15,7 @@
 #include "core/base64url.h"
 #include "core/battery.h"
 #include "core/notice_clips.h"
+#include "core/server_pin.h"
 #include "core/skin_id.h"
 #include "core/uuid_format.h"
 #include "generated/protocol.h"
@@ -559,7 +560,11 @@ void test_pins_are_distinct_and_avoid_the_strapping_pins() {
 }
 
 void test_config_is_consistent_with_the_protocol() {
-  TEST_ASSERT_TRUE(isHttpsBase(PET_API_BASE));
+  // There is no server address in the build: the pet is told which computer to use over the
+  // cable, and it holds that computer's certificate pin. The address of a call is built
+  // from it and is always https.
+  TEST_ASSERT_TRUE(isHttpsBase(serverBaseUrl("192.168.1.20", 4801).c_str()));
+  TEST_ASSERT_TRUE(isHttpsBase(serverBaseUrl("fd12:3456:789a::1", 4801).c_str()));
   TEST_ASSERT_TRUE(std::strlen(PET_FIRMWARE_VERSION) <= 20);
   TEST_ASSERT_TRUE(std::strlen(PET_FIRMWARE_VERSION) >= 5);
   // The long poll's HTTP timeout outlasts the wait the server is asked for.
