@@ -10,6 +10,7 @@ import {
 } from "react";
 import { SEARCH_QUERY_MAX } from "../../shared/search";
 import type { AppState, SearchHit } from "../../shared/types";
+import { focusBack } from "./a11y";
 import { api } from "./bridge";
 import {
   filterPalette,
@@ -176,12 +177,18 @@ export function Palette({
     input.current?.focus();
     return () => {
       if (box?.open) box.close();
-      if (
-        !picked.current &&
+      if (picked.current) return;
+      // When the place it came from is gone, the message box or the screen's
+      // heading takes the focus instead of the top of the page.
+      const back =
         before instanceof HTMLElement &&
-        before.isConnected
-      )
-        before.focus({ preventScroll: true });
+        before.isConnected &&
+        focusBack(before);
+      if (!back) {
+        const messageBox = document.getElementById("message-box");
+        if (messageBox) messageBox.focus({ preventScroll: true });
+        else focusScreen();
+      }
     };
   }, []);
 

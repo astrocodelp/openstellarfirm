@@ -435,7 +435,10 @@ export function useChatTools(
     setOfferDismissed(false);
   }, [assistantId]);
 
-  async function run(change: () => Promise<ChatMessage[]>): Promise<boolean> {
+  async function run(
+    change: () => Promise<ChatMessage[]>,
+    refocus = true,
+  ): Promise<boolean> {
     setWorking(true);
     setError("");
     try {
@@ -447,7 +450,7 @@ export function useChatTools(
     } finally {
       setWorking(false);
       // Keep summary, Undo, Clear: their buttons go with the change.
-      refocusIfLost(focusBox);
+      if (refocus) refocusIfLost(focusBox);
     }
   }
 
@@ -479,12 +482,16 @@ export function useChatTools(
     async summarise() {
       setForgot(false);
       setSummarising(true);
+      let done = false;
       try {
-        return await run(() => api.summariseChat(assistantId));
+        done = await run(() => api.summariseChat(assistantId), false);
+        return done;
       } finally {
         setSummarising(false);
-        // The Stop link that had the focus has gone too.
-        refocusIfLost(focusBox);
+        // The Stop link that had the focus has gone too. A new summary waits
+        // for Keep or Undo, up in the chat: it is brought into view and its
+        // Keep button takes the focus, so the choice is not missed.
+        refocusIfLost(() => (done ? pendingSummaryKeep() : null) ?? focusBox());
       }
     },
     stop() {
@@ -500,6 +507,17 @@ export function useChatTools(
 }
 
 export type ChatTools = ReturnType<typeof useChatTools>;
+
+/** The Keep summary button of the summary that waits, scrolled into view. */
+function pendingSummaryKeep(): HTMLElement | null {
+  const button = document.querySelector<HTMLElement>(
+    '.summary[data-pending="true"] .btn',
+  );
+  button
+    ?.closest(".summary")
+    ?.scrollIntoView({ block: "nearest", behavior: "auto" });
+  return button;
+}
 
 /** True while the long-chat offer shows, so the bar does not offer it twice. */
 export function offerShown(
@@ -735,6 +753,7 @@ export function SummaryBlock({
       className="summary"
       aria-label="Summary of earlier messages"
       data-message-id={summary.id}
+      data-pending={pending ? "true" : undefined}
     >
       <p className="summary-kicker">
         <Icon name="check" size={14} />

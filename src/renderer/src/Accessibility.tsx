@@ -83,8 +83,16 @@ export function AccessibilitySection({
 }) {
   const prefs = cleanAccessibility(settings.accessibility);
   const speech = useSpeech();
-  const change = (patch: Partial<AccessibilityPrefs>) =>
-    void save({ accessibility: { ...prefs, ...patch } });
+  // Two choices made before the first is saved build on each other, so the
+  // second never puts back what the first changed.
+  const pending = useRef<AccessibilityPrefs | null>(null);
+  const change = (patch: Partial<AccessibilityPrefs>) => {
+    const next = { ...(pending.current ?? prefs), ...patch };
+    pending.current = next;
+    void save({ accessibility: next }).finally(() => {
+      if (pending.current === next) pending.current = null;
+    });
+  };
 
   return (
     <Section section="accessibility">
