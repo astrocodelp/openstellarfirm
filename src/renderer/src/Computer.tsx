@@ -263,6 +263,9 @@ export function ComputerPanel({
   const screen = useRef<HTMLDivElement>(null);
   const takeOverButton = useRef<HTMLButtonElement>(null);
   const removeButton = useRef<HTMLButtonElement>(null);
+  const startButton = useRef<HTMLButtonElement>(null);
+  /** Set by Remove: once the panel shows Start again, the focus goes there. */
+  const focusStart = useRef(false);
   /** Keep it or Escape: the focus goes back to Remove the computer. */
   const backToRemove = useRef(false);
   const id = assistant.id;
@@ -416,6 +419,14 @@ export function ComputerPanel({
       refocusIfLost(nextInPanel);
     }
   }
+
+  // After Remove, Start comes back disabled until the work ends; focus it then.
+  useEffect(() => {
+    const start = startButton.current;
+    if (!focusStart.current || !start || start.disabled) return;
+    focusStart.current = false;
+    start.focus({ preventScroll: true });
+  });
 
   async function setup() {
     setProgress([]);
@@ -592,6 +603,7 @@ export function ComputerPanel({
           </p>
           <div className="wrap">
             <button
+              ref={startButton}
               type="button"
               className="btn"
               disabled={working}
@@ -773,6 +785,11 @@ export function ComputerPanel({
                       setRemoving(false);
                       setShot(null);
                       return next;
+                    }).then(() => {
+                      // The ended answer may have sent focus to the message box;
+                      // the person pressed Remove here, so it lands on Start
+                      // once that button is back and pressable.
+                      focusStart.current = true;
                     })
                   }
                 >
