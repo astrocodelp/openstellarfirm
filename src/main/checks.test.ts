@@ -306,7 +306,7 @@ describe("the main assistant in the store", () => {
   let dir: string;
   let store: Store;
   beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "stellarfirm-open-checks-"));
+    dir = mkdtempSync(join(tmpdir(), "openstellarfirm-checks-"));
     store = new Store(dir);
   });
   afterEach(() => rmSync(dir, { recursive: true, force: true }));
@@ -393,7 +393,7 @@ describe("the main assistant in the store", () => {
     expect(store.settings().mainAssistantId).toBeUndefined();
     // A hand-edited file with junk is read with defaults.
     const edited = new Store(
-      mkdtempSync(join(tmpdir(), "stellarfirm-open-checks-")),
+      mkdtempSync(join(tmpdir(), "openstellarfirm-checks-")),
     );
     expect(edited.settings()).toBeDefined();
   });

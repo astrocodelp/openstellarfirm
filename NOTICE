@@ -22,8 +22,10 @@ What this licence does not cover
     for Course Creators.
   - Any other software or service of Astro Code L.P.
   - The names "StellarFirm" and "OpenStellarFirm", the logos and the pet
-    characters. The licence gives no right to use them as your own. If you
-    share a changed version, give it its own name and look.
+    characters. "StellarFirm" and the pet characters are marks of Astro Code
+    L.P. OpenStellarFirm includes that mark. The licence gives no right to
+    use them as your own. If you share a changed version, give it its own
+    name and look.
 
 The persona texts in the personas folder and the skill texts in
 src/shared/catalog.ts and src/shared/skill-library.ts are contributed by

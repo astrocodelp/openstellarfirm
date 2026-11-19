@@ -27,7 +27,7 @@ import type { WebDeps } from "./web";
 let base: string;
 let notes: string;
 beforeEach(() => {
-  base = realpathSync(mkdtempSync(join(tmpdir(), "stellarfirm-open-check-")));
+  base = realpathSync(mkdtempSync(join(tmpdir(), "openstellarfirm-check-")));
   notes = join(base, "Notes");
   mkdirSync(notes);
   writeFileSync(join(notes, "a.txt"), "hello");

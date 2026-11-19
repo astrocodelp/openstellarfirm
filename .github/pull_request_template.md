@@ -25,3 +25,6 @@ pnpm lint && pnpm typecheck && pnpm test && pnpm build
 - [ ] No new dependency, or the reason is written above.
 - [ ] The work is my own, or its source and licence are named above.
 - [ ] I agree to the contribution terms in CONTRIBUTING.md, and added myself to CONTRIBUTORS.md.
+
+The product name is OpenStellarFirm. The repository name stays
+`worker-bot-open-source`.

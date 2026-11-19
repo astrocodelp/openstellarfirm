@@ -38,4 +38,6 @@ say what you want to sell and where.
 
 A commercial licence, like the public one, does not include the names
 "StellarFirm" and "OpenStellarFirm", the logos or the pet characters, unless
-it says so in writing.
+it says so in writing. "StellarFirm" and the pet characters are marks of
+Astro Code L.P. OpenStellarFirm includes that mark, so a changed version you
+share has to use its own name and look.

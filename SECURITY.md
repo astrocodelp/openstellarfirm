@@ -1,5 +1,8 @@
 # Security
 
+OpenStellarFirm is the open-source sibling of StellarFirm, by Astro Code.
+This note is about that desktop app.
+
 ## Reporting a problem
 
 Please report a security problem privately, not in a public issue: use
