@@ -22,6 +22,7 @@ import {
   inspectArgs,
   LIST_RUNNING_ARGS,
   runArgs,
+  type UserIds,
 } from "./args";
 import type { Runner, RunResult } from "./runner";
 
@@ -67,6 +68,8 @@ export interface ComputerDeps {
   dataDir: string;
   /** The files the image is built from, as the app ships them. */
   imageFiles(): { name: string; content: string }[];
+  /** The ids the computer's user is made with; 1000 when not given. */
+  ids?: UserIds;
   sleep?(ms: number): Promise<void>;
 }
 
@@ -159,7 +162,7 @@ export class ComputerService {
   }
 
   private tag(): string {
-    return imageTag(this.deps.imageFiles());
+    return imageTag(this.deps.imageFiles(), this.deps.ids);
   }
 
   async status(): Promise<ComputerStatus> {
@@ -212,8 +215,8 @@ export class ComputerService {
           throw new ComputerError("The computer's files are not as shipped.");
         writeFileSync(join(dir, file.name), file.content, { mode: 0o644 });
       }
-      const tag = imageTag(files);
-      const result = await run(buildArgs(tag, dir), {
+      const tag = imageTag(files, this.deps.ids);
+      const result = await run(buildArgs(tag, dir, this.deps.ids), {
         timeoutMs: 30 * 60_000,
         maxBytes: 64 * 1024,
         onLine,
@@ -309,6 +312,7 @@ export class ComputerService {
           image,
           exchange: this.exchangeFolder(assistant.id),
           settings,
+          ids: this.deps.ids,
         }),
         { timeoutMs: 120_000 },
       );

@@ -18,10 +18,16 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/*
 
 # Everything runs as this ordinary user: the container has no root process
-# after it starts, and the app drops every capability as well.
-RUN useradd --create-home --uid 1000 --shell /bin/bash assistant \
+# after it starts, and the app drops every capability as well. On Linux the
+# app gives it the person's own ids, so it can use the exchange folder the
+# person owns; elsewhere they stay 1000. A group the image already has (such
+# as "users") is used as it is.
+ARG ASSISTANT_UID=1000
+ARG ASSISTANT_GID=1000
+RUN (getent group "$ASSISTANT_GID" >/dev/null || groupadd --gid "$ASSISTANT_GID" assistant) \
+ && useradd --create-home --no-log-init --uid "$ASSISTANT_UID" --gid "$ASSISTANT_GID" --shell /bin/bash assistant \
  && mkdir -p /home/assistant/exchange /tmp/.X11-unix \
- && chown assistant:assistant /home/assistant/exchange \
+ && chown "$ASSISTANT_UID:$ASSISTANT_GID" /home/assistant/exchange \
  && chmod 1777 /tmp/.X11-unix
 
 COPY start.sh /usr/local/bin/computer-start

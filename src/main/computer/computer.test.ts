@@ -20,9 +20,12 @@ import { type AgentDeps, runAgent } from "../agent";
 import type { ToolCall, TurnEvent, WireMessage } from "../models";
 import {
   buildArgs,
+  computerIds,
   containerName,
+  DEFAULT_IDS,
   EXCHANGE_INSIDE,
   execArgs,
+  imageTag,
   LABEL,
   runArgs,
 } from "./args";
@@ -192,10 +195,39 @@ describe("the arguments given to docker", () => {
       "build",
       "--label",
       `${LABEL}=image`,
+      "--build-arg",
+      "ASSISTANT_UID=1000",
+      "--build-arg",
+      "ASSISTANT_GID=1000",
       "--tag",
       "t:1",
       "/ctx",
     ]);
+  });
+
+  it("gives the computer's user the person's own ids on Linux, so the exchange folder opens", () => {
+    expect(computerIds("linux", 1001, 1001)).toEqual({ uid: 1001, gid: 1001 });
+    expect(computerIds("linux", 1234567, 100)).toEqual({
+      uid: 1234567,
+      gid: 100,
+    });
+    // Docker Desktop hands the folder over itself on macOS and Windows.
+    expect(computerIds("darwin", 501, 20)).toEqual(DEFAULT_IDS);
+    expect(computerIds("win32", undefined, undefined)).toEqual(DEFAULT_IDS);
+    // Never root's, never a system id, never a value Docker cannot take.
+    expect(computerIds("linux", 0, 0)).toEqual(DEFAULT_IDS);
+    expect(computerIds("linux", 999, 999)).toEqual(DEFAULT_IDS);
+    expect(computerIds("linux", 1001, 0)).toEqual(DEFAULT_IDS);
+    expect(computerIds("linux", 2 ** 32, 1001)).toEqual(DEFAULT_IDS);
+    expect(computerIds("linux", 1001.5, 1001)).toEqual(DEFAULT_IDS);
+
+    const ids = { uid: 1001, gid: 1002 };
+    const args = runArgs({ ...base, ids });
+    expect(args[args.indexOf("--user") + 1]).toBe("1001:1002");
+    expect(buildArgs("t:1", "/ctx", ids)).toContain("ASSISTANT_UID=1001");
+    expect(buildArgs("t:1", "/ctx", ids)).toContain("ASSISTANT_GID=1002");
+    expect(imageTag(files, ids)).not.toBe(imageTag(files));
+    expect(imageTag(files, DEFAULT_IDS)).toBe(imageTag(files));
   });
 });
 
