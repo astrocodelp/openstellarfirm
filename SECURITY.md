@@ -12,7 +12,8 @@ app's version and operating system. Please do not include a real key.
 
 - **Your model keys and connection keys.** Sealed with the operating system's
   keychain before they touch the disk, read only in the main process, sent
-  only in a request header (`Authorization`, `x-api-key` or `x-goog-api-key`)
+  only in a request header (`Authorization`, `x-api-key`, `x-goog-api-key` or
+  `api-key`)
   to the address they were saved with. Never in a web address, never sent to
   the page, never logged.
 - **Your chats and assistants.** Plain JSON in the app's data folder, readable
@@ -86,6 +87,9 @@ app's version and operating system. Please do not include a real key.
 - **Model wires.** A model's wire (OpenAI-compatible, Anthropic or Gemini) is
   decided in the main process from its preset; the page cannot choose it. The
   only queries the app adds to a model address are fixed, non-secret text.
+  A preset's address is pinned in code. For Azure OpenAI and Amazon Bedrock the
+  resource name or region you type is checked in the main process against
+  Azure's own domains and a fixed list of regions.
 - **Files you export.** Saved and opened only through the system's own
   dialogs, opened by the main process. The page never names a file path.
 - **Links.** The only links the app opens (stellarfirm.ai, composio.dev and

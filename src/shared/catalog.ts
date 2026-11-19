@@ -235,7 +235,8 @@ export const PRESETS: Preset[] = [
     "xAI (Grok)",
     "makers",
     "https://api.x.ai/v1",
-    "Your own key, from the xAI console. You name the model.",
+    "Your own key, from the xAI console.",
+    { lists: true },
   ),
   hosted(
     "deepseek",
@@ -253,19 +254,16 @@ export const PRESETS: Preset[] = [
     "Your own key, from the Groq console.",
     { lists: true },
   ),
-  hosted(
-    "cerebras",
-    "Cerebras",
-    "fast",
-    "https://api.cerebras.ai/v1",
-    `${KEY} Take the name from Cerebras's model list.`,
-  ),
+  hosted("cerebras", "Cerebras", "fast", "https://api.cerebras.ai/v1", KEY, {
+    lists: true,
+  }),
   hosted(
     "nvidia",
     "NVIDIA",
     "fast",
     "https://integrate.api.nvidia.com/v1",
-    "Your own key from build.nvidia.com. You name the model.",
+    "Your own key from build.nvidia.com.",
+    { lists: true },
   ),
   hosted("together", "Together AI", "fast", "https://api.together.ai/v1", KEY, {
     lists: true,
@@ -292,6 +290,7 @@ export const PRESETS: Preset[] = [
     "routers",
     "https://router.requesty.ai/v1",
     KEY,
+    { lists: true },
   ),
   hosted(
     "requesty-eu",
@@ -299,6 +298,7 @@ export const PRESETS: Preset[] = [
     "routers",
     "https://router.eu.requesty.ai/v1",
     `${KEY} Pick its EU models, whose names end in @eu, to keep calls in Europe.`,
+    { lists: true },
   ),
   hosted(
     "vercel",

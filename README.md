@@ -23,10 +23,13 @@ team of AI Agent Assistants works for your company in the cloud.
 - **Starter personas.** Coder, Legal, Writer, Researcher, Planner, Tutor,
   Accountant and Marketing, each a starting point you can change. They live in
   [`personas/`](personas), one file each, and anyone can add one.
-- **Your own model.** On this computer with Ollama or LM Studio; your own key
-  for OpenAI, Anthropic (Claude), Google (Gemini), OpenRouter, Mistral or
-  Together AI; or any OpenAI-compatible address, such as a LiteLLM gateway. An
-  assistant can have a model of its own.
+- **Your own model.** On this computer with Ollama or LM Studio, or your own
+  key for OpenAI, Anthropic (Claude), Google (Gemini), Mistral, xAI, DeepSeek,
+  Groq, Cerebras, NVIDIA, Together AI, Hugging Face, OpenRouter, Requesty,
+  Vercel AI Gateway, LLM API, Ironlane, OrcaRouter, Azure OpenAI, Amazon
+  Bedrock, a LiteLLM gateway, or any OpenAI-compatible address. An assistant
+  can have a model of its own. Google Vertex AI is not supported: it signs in
+  with a service account, not a key.
 - **Chat that streams**, with Stop. Each assistant keeps its own chat.
 - **Folders you pick.** An assistant can list, find and read files there, and
   save a new file. It can never change, replace, move or delete one.
