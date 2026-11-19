@@ -10,7 +10,7 @@ too. No account, no cloud saving, no telemetry.
 [![Platforms: macOS, Windows, Linux](https://img.shields.io/badge/platforms-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)](#install-a-release)
 [![Discussions](https://img.shields.io/github/discussions/astrocodelp/openstellarfirm?label=discussions)](https://github.com/astrocodelp/openstellarfirm/discussions)
 
-<!-- screenshot: docs/screenshot.png -->
+<img src="docs/screenshot.png" width="900" alt="OpenStellarFirm in dark mode: a Researcher assistant's chat with a two-day Lisbon plan ending in a table of rough costs, and the sidebar listing four assistants.">
 
 ## Download
 

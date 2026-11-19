@@ -18,7 +18,7 @@ is what anyone can read.
       allowed only because the README's
       [Install a release](../README.md#install-a-release) section and the
       release notes say how to open it and check its sums.
-- [ ] **A screenshot.** Add `docs/screenshot.png` (the app with an assistant
+- [x] **A screenshot.** Add `docs/screenshot.png` (the app with an assistant
       and a short chat, light or dark, no personal data in it) and replace the
       `<!-- screenshot: docs/screenshot.png -->` line near the top of the README
       with the image.
