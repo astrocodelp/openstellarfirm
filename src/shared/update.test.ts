@@ -84,6 +84,8 @@ describe("fixed links", () => {
     expect(linkUrl("community")).toBe(
       "https://github.com/astrocodelp/worker-bot-open-source/discussions",
     );
+    expect(linkUrl("ollama")).toBe("https://ollama.com/download");
+    expect(linkUrl("lmstudio")).toBe("https://lmstudio.ai");
   });
 
   it("refuses a name it does not know, and an address", () => {
