@@ -27,7 +27,8 @@ RUN useradd --create-home --uid 1000 --shell /bin/bash assistant \
 COPY start.sh /usr/local/bin/computer-start
 COPY screenshot.sh /usr/local/bin/computer-screenshot
 COPY open-app.sh /usr/local/bin/open-app
-RUN chmod 0755 /usr/local/bin/computer-start /usr/local/bin/computer-screenshot /usr/local/bin/open-app
+COPY background.py /usr/local/bin/computer-background
+RUN chmod 0755 /usr/local/bin/computer-start /usr/local/bin/computer-screenshot /usr/local/bin/open-app /usr/local/bin/computer-background
 
 ENV DISPLAY=:1 HOME=/home/assistant LANG=C.UTF-8
 USER assistant

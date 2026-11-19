@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { plainText } from "../../shared/markdown";
 import { type SendKey, sendHint, sendsMessage } from "../../shared/preferences";
 import type {
   ApprovalCard,
@@ -28,9 +29,11 @@ import { api } from "./bridge";
 import {
   CopyButton,
   type FoundMessage,
-  SaveChatButton,
+  SaveChatStatus,
   useFoundMessage,
+  useSaveChat,
 } from "./ChatTools";
+import { Markdown } from "./Markdown";
 import {
   ContextBar,
   contextUse,
@@ -42,6 +45,7 @@ import {
   useChatTools,
   useMemory,
 } from "./Memory";
+import { MoreMenu } from "./MoreMenu";
 import { ErrorLine, message as errorText, Icon, Pet } from "./ui";
 
 /** How close to the end of the chat still counts as "at the end". */
@@ -240,6 +244,11 @@ export function ChatView(props: ChatViewProps) {
   /** A copy or a save that failed: about that button, not about the message box. */
   const [actionError, setActionError] = useState("");
   const [resolved, setResolved] = useState<Resolved | null>(null);
+  /** True while Clear chat asks whether to clear. */
+  const [clearing, setClearing] = useState(false);
+  const moreButton = useRef<HTMLButtonElement | null>(null);
+  /** Keep it or Escape on Clear chat's question: the focus goes back to More. */
+  const backToMore = useRef(false);
   /** True when the person scrolled up, away from the newest text. */
   const [away, setAway] = useState(false);
   const pinned = useRef(true);
@@ -268,6 +277,56 @@ export function ChatView(props: ChatViewProps) {
     ...(props.preset ? { preset: props.preset } : {}),
   });
   const noteIds = memory ? new Set(memory.notes.map((n) => n.id)) : undefined;
+  const saveChat = useSaveChat(props.onSaveChat, setActionError);
+
+  useEffect(() => {
+    if (clearing || !backToMore.current) return;
+    backToMore.current = false;
+    moreButton.current?.focus({ preventScroll: true });
+  }, [clearing]);
+
+  const empty = messages.length === 0;
+  const waitWhy = "Wait until it has answered.";
+  const menu = [
+    ...(saveChat.can
+      ? [
+          {
+            id: "save",
+            label: "Save this chat",
+            disabledWhy: empty
+              ? "There is nothing in this chat to save yet."
+              : saveChat.state === "saving"
+                ? "Saving…"
+                : undefined,
+            onSelect: () => void saveChat.save(),
+          },
+        ]
+      : []),
+    {
+      id: "summarise",
+      label: "Summarise and continue",
+      disabledWhy: empty
+        ? "There is nothing to summarise yet."
+        : busy
+          ? waitWhy
+          : tools.working || tools.summarising
+            ? "The chat is being changed."
+            : undefined,
+      onSelect: () => void tools.summarise(),
+    },
+    {
+      id: "clear",
+      label: "Clear chat",
+      disabledWhy: empty
+        ? "The chat is already empty."
+        : busy
+          ? waitWhy
+          : tools.working
+            ? "The chat is being changed."
+            : undefined,
+      onSelect: () => setClearing(true),
+    },
+  ];
   async function undoNote(id: string) {
     setMemory(await api.removeNote(assistant.id, id));
     // Undo went with the note; the caret goes back to the message box.
@@ -331,7 +390,14 @@ export function ChatView(props: ChatViewProps) {
           />
         ) : null}
         {/* The streamed answer already entered, so the saved one does not. */}
-        <p className="bubble bubble-answer">{m.text}</p>
+        <div className="bubble bubble-answer md">
+          <Markdown
+            text={m.text}
+            onOpenLink={(href) => api.openAnswerLink(assistant.id, m.id, href)}
+            onCopyCode={(index) => api.copyCode(assistant.id, m.id, index)}
+            onError={setActionError}
+          />
+        </div>
         {/* Copy and Read aloud sit side by side, under the start of the answer. */}
         <div className="turn-actions">
           {props.onCopy ? (
@@ -340,7 +406,11 @@ export function ChatView(props: ChatViewProps) {
               onError={setActionError}
             />
           ) : null}
-          <ReadAloud id={m.id} text={m.text} rate={props.readRate ?? 1} />
+          <ReadAloud
+            id={m.id}
+            text={plainText(m.text, { links: "words" })}
+            rate={props.readRate ?? 1}
+          />
         </div>
       </div>
     );
@@ -461,24 +531,23 @@ export function ChatView(props: ChatViewProps) {
           <span className="faint">{modelLine ?? "No model is set up yet"}</span>
         </div>
         <div className="chat-head-actions">
-          {props.onSaveChat ? (
-            <SaveChatButton
-              disabled={messages.length === 0}
-              onSave={props.onSaveChat}
-              onError={setActionError}
-            />
-          ) : null}
+          <SaveChatStatus state={saveChat.state} />
           {props.headExtra}
           <button type="button" className="btn" onClick={props.onCustomize}>
             Customize
           </button>
+          <MoreMenu label="More" items={menu} buttonRef={moreButton} />
         </div>
       </header>
       <ContextBar
         tools={tools}
         use={use}
-        hasMessages={messages.length > 0}
-        busy={busy}
+        clearing={clearing}
+        onKeep={() => {
+          backToMore.current = true;
+          setClearing(false);
+        }}
+        onCleared={() => setClearing(false)}
       />
 
       <div
@@ -548,7 +617,11 @@ export function ChatView(props: ChatViewProps) {
             {busy && (streaming || !approval) ? (
               <div className="turn">
                 {streaming ? (
-                  <p className="bubble bubble-answer enter">{streaming}</p>
+                  // Links are words until the answer is saved: only a saved
+                  // answer's link can be opened.
+                  <div className="bubble bubble-answer md enter">
+                    <Markdown text={streaming} streaming />
+                  </div>
                 ) : null}
                 {resolved && !approval ? (
                   <p className="approval-outcome" role="status">

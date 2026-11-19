@@ -26,6 +26,7 @@ import { cleanLookFor, isCheckEvery, LOOK_FOR_MAX } from "../shared/checks";
 import { cleanComputer } from "../shared/computer";
 import { connectionPresetOf } from "../shared/connection-catalog";
 import { checkEndpoint } from "../shared/endpoint";
+import { plainLine } from "../shared/markdown";
 import {
   checkOwnSkillInput,
   MAX_OWN_SKILLS,
@@ -387,9 +388,7 @@ export class Store {
       body.trim() || attachments.map((a) => a.name).join(", ") || body;
     const state = this.read();
     state.assistants = state.assistants.map((a) =>
-      a.id === assistantId
-        ? { ...a, lastLine: line.replace(/\s+/g, " ").slice(0, 90) }
-        : a,
+      a.id === assistantId ? { ...a, lastLine: previewLine(line) } : a,
     );
     this.write(state);
     return message;
@@ -405,9 +404,7 @@ export class Store {
     const last = messages.at(-1);
     this.change(assistantId, (a) => {
       const { lastLine: _old, ...rest } = a;
-      return last
-        ? { ...rest, lastLine: last.text.replace(/\s+/g, " ").slice(0, 90) }
-        : rest;
+      return last ? { ...rest, lastLine: previewLine(last.text) } : rest;
     });
   }
 
@@ -1121,4 +1118,9 @@ function cleanCanAsk(
       ),
     ),
   ].slice(0, MAX_CAN_ASK);
+}
+
+/** The sidebar's line for a message: its words without Markdown marks, cut short. */
+function previewLine(text: string): string {
+  return (plainLine(text) || text.replace(/\s+/g, " ").trim()).slice(0, 90);
 }

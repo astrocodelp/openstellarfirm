@@ -172,6 +172,24 @@ The app is at version 0.1.0. There is no tagged release yet.
   under reduced motion.
 - A redesigned interface: labelled navigation in the sidebar, pill buttons,
   one screen frame, and a compact persona picker.
+- Answers show their Markdown: bold, italic, code, code blocks with Copy and
+  their own sideways scroll, lists, quotes and links, drawn as the app's own
+  elements (never HTML from the model). A link shows its address on hover and
+  focus, and opens in the browser only after you say yes to its host; the app
+  checks the link is in that answer and is http or https. The sidebar's last
+  line, Copy and Read aloud use the plain words; Save this chat keeps the
+  Markdown.
+- The chat head is one row: the name and model, Computer, Customize and a More
+  menu with Save this chat, Summarise and continue and Clear chat. The context
+  meter shows from the start when the model's window is known, and the line
+  takes no room when it is not.
+- The computer's empty screen is a night desktop with the app's mark, and the
+  panel says when nothing is open on it yet. The exchange folder's path is
+  behind "Where the folder is". Sent pictures show a small picture again.
+- The first run picks a model that can use tools and read pictures, the newest
+  of those, never an embedding model, and says which it picked and why.
+- A confirm puts the focus on Keep it or Cancel, and gives it back to the
+  button that opened it.
 
 ### Security
 

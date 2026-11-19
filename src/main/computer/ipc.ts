@@ -26,6 +26,7 @@ export const IMAGE_FILES = [
   "start.sh",
   "screenshot.sh",
   "open-app.sh",
+  "background.py",
 ] as const;
 
 /** The live view's picture, at most. */

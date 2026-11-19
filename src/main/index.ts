@@ -22,6 +22,7 @@ import { cloudCopyUrl, cloudHomeUrl, MAX_LINK_WINDOWS } from "../shared/cloud";
 import { sentMessages } from "../shared/context";
 import { checkEndpoint, isLocalEndpoint } from "../shared/endpoint";
 import { linkUrl } from "../shared/links";
+import { codeBlocksOf, linksOf, plainText, safeHref } from "../shared/markdown";
 import { systemPrompt } from "../shared/prompt";
 import { type Theme, windowBackground } from "../shared/theme";
 import {
@@ -91,11 +92,12 @@ import {
   connectionInput,
 } from "./connections";
 import { chatFileName, chatMarkdown } from "./export";
-import { ATTACH_LIMITS, AttachError } from "./file-kind";
+import { ATTACH_LIMITS, AttachError, sniff } from "./file-kind";
 import { cannotRead, rememberCannotRead } from "./file-modes";
 import { folderLabels } from "./folders";
 import { MailService, mailInput } from "./mail";
 import { MemoryStore, rememberGate } from "./memory";
+import { pickLocalModel } from "./model-pick";
 import { listModels, ModelError, streamTurn, type WireMessage } from "./models";
 import { OcrLanguages } from "./ocr-languages";
 import { modelPicture, previewOf } from "./picture";
@@ -226,7 +228,22 @@ async function detectLocal(): Promise<LocalModels> {
     look("ollama"),
     look("lmstudio"),
   ]);
-  return { ollama, lmstudio };
+  const pick = (preset: "ollama" | "lmstudio", names: string[] | null) =>
+    names?.length
+      ? pickLocalModel(preset, presetOf(preset).baseUrl, names)
+      : Promise.resolve(undefined);
+  const [ollamaPick, lmstudioPick] = await Promise.all([
+    pick("ollama", ollama),
+    pick("lmstudio", lmstudio),
+  ]);
+  return {
+    ollama,
+    lmstudio,
+    picks: {
+      ...(ollamaPick ? { ollama: ollamaPick } : {}),
+      ...(lmstudioPick ? { lmstudio: lmstudioPick } : {}),
+    },
+  };
 }
 
 function tell(window: BrowserWindow, channel: string, payload: unknown): void {
@@ -1007,11 +1024,74 @@ async function savedKeys(): Promise<string[]> {
   return keys;
 }
 
-/** One saved message to the clipboard. The page names it; the text comes from here. */
-function copyMessage(id: string, messageId: string): void {
+/** One saved message, by the ids the page sends. */
+function savedMessage(id: string, messageId: string): ChatMessage {
   const found = store.messages(id).find((m) => m.id === messageId);
   if (!found) throw new Error("That message is no longer here.");
-  clipboard.writeText(found.text);
+  return found;
+}
+
+/**
+ * One saved message to the clipboard, as plain words: its Markdown marks are
+ * left out. The page names it; the text comes from here.
+ */
+function copyMessage(id: string, messageId: string): void {
+  clipboard.writeText(plainText(savedMessage(id, messageId).text));
+}
+
+/** One code block of a saved answer to the clipboard, as it is written. */
+function copyCode(id: string, messageId: string, index: unknown): void {
+  if (typeof index !== "number" || !Number.isInteger(index) || index < 0)
+    throw new Error("That is not allowed.");
+  const code = codeBlocksOf(savedMessage(id, messageId).text)[index];
+  if (code === undefined) throw new Error("That code is no longer here.");
+  clipboard.writeText(code);
+}
+
+/**
+ * Opens a link from a saved answer in the browser. The page asked the person
+ * first; here the link must be one the answer holds, and http or https.
+ */
+async function openAnswerLink(
+  id: string,
+  messageId: string,
+  href: string,
+): Promise<void> {
+  const safe = safeHref(href);
+  if (!safe || !linksOf(savedMessage(id, messageId).text).includes(safe))
+    throw new Error("That link cannot be opened.");
+  await shell.openExternal(safe);
+}
+
+/** Small pictures of sent pictures, made once each while the app runs. */
+const sentPreviews = new Map<string, string | null>();
+
+/** A small picture of a sent picture, made again from its stored bytes. */
+async function attachmentPreview(
+  assistantId: string,
+  id: string,
+): Promise<string | null> {
+  const key = `${assistantId}/${id}`;
+  const known = sentPreviews.get(key);
+  if (known !== undefined) return known;
+  const file = attachments.fileOf(assistantId, id);
+  if (!file) return null;
+  let preview: string | null = null;
+  try {
+    const bytes = new Uint8Array(readFileSync(file));
+    const kind = sniff(basename(file), bytes);
+    preview =
+      (await previewOf(kind, bytes, (b, type) => reader.toPng(b, type))) ??
+      null;
+  } catch {
+    // A file that cannot be drawn keeps its plain mark.
+  }
+  if (sentPreviews.size >= 200) {
+    const oldest = sentPreviews.keys().next().value;
+    if (oldest !== undefined) sentPreviews.delete(oldest);
+  }
+  sentPreviews.set(key, preview);
+  return preview;
 }
 
 /** Only the system's own picker, opened here, can give an assistant a folder. */
@@ -1129,6 +1209,9 @@ function register(window: BrowserWindow): void {
   );
   handle(IPC.openAttachment, (_e, id: unknown, attachmentId: unknown) =>
     openAttachment(str(id), str(attachmentId)),
+  );
+  handle(IPC.attachmentPreview, (_e, id: unknown, attachmentId: unknown) =>
+    attachmentPreview(str(id, 64), str(attachmentId, 64)),
   );
   handle(IPC.ocrLanguages, () => languages.list());
   // The code is checked against the pinned list in both; progress goes back
@@ -1270,6 +1353,14 @@ function register(window: BrowserWindow): void {
   handle(IPC.exportChat, (_e, id: unknown) => exportChat(window, str(id, 64)));
   handle(IPC.copyMessage, (_e, id: unknown, messageId: unknown) =>
     copyMessage(str(id, 64), str(messageId, 64)),
+  );
+  handle(IPC.copyCode, (_e, id: unknown, messageId: unknown, index: unknown) =>
+    copyCode(str(id, 64), str(messageId, 64), index),
+  );
+  handle(
+    IPC.openAnswerLink,
+    (_e, id: unknown, messageId: unknown, href: unknown) =>
+      openAnswerLink(str(id, 64), str(messageId, 64), str(href, 2048)),
   );
   registerComputer({
     handle,

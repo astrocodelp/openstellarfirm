@@ -1,4 +1,5 @@
 import { type ReactNode, useLayoutEffect, useRef } from "react";
+import { plainLine } from "../../shared/markdown";
 import type { Assistant } from "../../shared/types";
 import { SearchGlyph } from "./Palette";
 import { Icon, Nova, OkLine, Pet } from "./ui";
@@ -89,7 +90,8 @@ export function Sidebar(props: SidebarProps) {
     if (waiting.has(a.id)) return "Waiting for your Approve";
     if (busy.has(a.id)) return "Working…";
     if (unread.has(a.id)) return "New update from a check";
-    return a.lastLine ?? "No messages yet";
+    // A line saved by an older version may still carry Markdown marks.
+    return a.lastLine ? plainLine(a.lastLine) : "No messages yet";
   };
   const nav = (
     name: "models" | "connections" | "mail" | "backup" | "settings",
@@ -209,11 +211,14 @@ export function Sidebar(props: SidebarProps) {
                 </button>
               </div>
               <p className="faint">
-                StellarFirm gives you a team of assistants with their own cloud
-                computers and your connected apps. They keep working when this
-                computer is off.
+                A team of assistants with cloud computers of their own, which
+                keep working when this computer is off.
               </p>
-              <button type="button" className="btn" onClick={props.onCloud}>
+              <button
+                type="button"
+                className="btn btn-small cloud-btn"
+                onClick={props.onCloud}
+              >
                 See StellarFirm
                 <Icon name="external" size={14} />
               </button>
