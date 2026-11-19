@@ -1003,6 +1003,114 @@ textarea.input {
   }
 }
 
+/* Its own computer: the panel beside the chat */
+
+.chat-row {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.chat-pane {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.computer-panel {
+  flex: 0 0 auto;
+  width: min(46%, 42rem);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 0.75rem 1.25rem 1.25rem;
+  border-left: 1px solid var(--line);
+  background: var(--sunken);
+  overflow-y: auto;
+}
+
+.computer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: var(--control);
+}
+
+.computer-screen {
+  position: relative;
+  aspect-ratio: 1280 / 800;
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-inset);
+  background: var(--raised);
+}
+
+.computer-screen img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  user-select: none;
+}
+
+/* While the person holds it, the frame says so: the clicks go in there. */
+.computer-screen.taken {
+  border-color: var(--lime-edge);
+  cursor: crosshair;
+}
+
+.computer-wait {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  text-align: center;
+}
+
+.computer-progress {
+  overflow-wrap: anywhere;
+}
+
+.computer-log {
+  max-height: 12rem;
+  margin: 0.5rem 0 0;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--faint);
+}
+
+.computer-foot {
+  margin-top: auto;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--line);
+}
+
+.computer-foot .mono {
+  overflow-wrap: anywhere;
+}
+
+.computer-options {
+  padding-left: 1.75rem;
+}
+
+/* A narrow window has no room beside the chat: the computer goes below it. */
+@media (max-width: 72rem) {
+  .chat-row {
+    flex-direction: column;
+  }
+
+  .computer-panel {
+    width: auto;
+    max-height: 55%;
+    border-left: 0;
+    border-top: 1px solid var(--line);
+  }
+}
+
 /* Tools: what it did, what it is doing, and the step that waits */
 
 .turn {

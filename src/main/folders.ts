@@ -36,6 +36,7 @@ const SKIPPED_FOLDERS = new Set(["node_modules", ".git"]);
 const MAX_READ_BYTES = 1024 * 1024;
 const MAX_READ_CHARS = 60_000;
 const MAX_WRITE_CHARS = 512 * 1024;
+const MAX_WRITE_BYTES = 25 * 1024 * 1024;
 
 export function isSecretName(name: string): boolean {
   // Windows drops trailing dots and spaces, so "id_rsa." is the same file.
@@ -251,10 +252,16 @@ export async function saveNewFile(
   modelPath: unknown,
   content: unknown,
 ): Promise<string> {
-  if (typeof content !== "string")
+  // Bytes come only from the main process (a file copied from an assistant's
+  // own computer, after the person approved it); a model sends text.
+  if (content instanceof Uint8Array) {
+    if (content.length > MAX_WRITE_BYTES)
+      throw new FolderError("That file is too large to save.");
+  } else if (typeof content !== "string") {
     throw new FolderError("Give the text to save.");
-  if (content.length > MAX_WRITE_CHARS)
+  } else if (content.length > MAX_WRITE_CHARS) {
     throw new FolderError("That is too much text for one file.");
+  }
   const at = locate(folders, modelPath);
   if (at.parts.length === 0) throw new FolderError("Give the new file a name.");
   // A name that starts with a dot is a settings file somewhere; none is made.

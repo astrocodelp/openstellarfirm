@@ -11,6 +11,7 @@ import { AssistantForm } from "./AssistantForm";
 import { BackupScreen } from "./Backup";
 import { api } from "./bridge";
 import { ChatView } from "./ChatView";
+import { ComputerPanel } from "./Computer";
 import { ConnectionsScreen } from "./Connections";
 import { MailScreen } from "./Mail";
 import { ModelsScreen } from "./Models";
@@ -45,6 +46,11 @@ export function App() {
   const [activity, setActivity] = useState<Record<string, string>>({});
   /** The step that waits for the person, by assistant. */
   const [approvals, setApprovals] = useState<Record<string, ApprovalCard>>({});
+  /**
+   * Whether each assistant's computer panel is open. Missing means the person
+   * has not chosen: then it opens by itself when the assistant uses its computer.
+   */
+  const [computerOpen, setComputerOpen] = useState<Record<string, boolean>>({});
   const [error, setError] = useState("");
 
   const refresh = useCallback(async () => {
@@ -73,6 +79,10 @@ export function App() {
     });
     const offActivity = api.onActivity(({ assistantId, label }) => {
       setActivity((a) => ({ ...a, [assistantId]: label }));
+      if (/its computer/.test(label))
+        setComputerOpen((open) =>
+          assistantId in open ? open : { ...open, [assistantId]: true },
+        );
     });
     const offApproval = api.onApproval(({ assistantId, card }) => {
       setApprovals((a) =>
@@ -336,21 +346,58 @@ export function App() {
             onCancel={() => setView({ name: "chat" })}
           />
         ) : assistant ? (
-          <ChatView
-            assistant={assistant}
-            modelLine={modelLine(assistant)}
-            messages={chats[assistant.id] ?? []}
-            streaming={streams[assistant.id]}
-            activity={activity[assistant.id]}
-            approval={approvals[assistant.id]}
-            onSend={(text) => send(assistant, text)}
-            onStop={() => void api.stop(assistant.id)}
-            onDecide={decide}
-            onCustomize={() => setView({ name: "assistant", id: assistant.id })}
-            onModels={() => setView({ name: "models" })}
-            sendWith={state.settings.sendWith}
-            mac={state.platform === "darwin"}
-          />
+          <div className="chat-row">
+            <div className="chat-pane">
+              <ChatView
+                headExtra={
+                  assistant.computer ? (
+                    <button
+                      type="button"
+                      className="btn"
+                      aria-expanded={computerOpen[assistant.id] === true}
+                      aria-controls="computer-panel"
+                      onClick={() =>
+                        setComputerOpen((open) => ({
+                          ...open,
+                          [assistant.id]: open[assistant.id] !== true,
+                        }))
+                      }
+                    >
+                      Computer
+                    </button>
+                  ) : null
+                }
+                assistant={assistant}
+                modelLine={modelLine(assistant)}
+                messages={chats[assistant.id] ?? []}
+                streaming={streams[assistant.id]}
+                activity={activity[assistant.id]}
+                approval={approvals[assistant.id]}
+                onSend={(text) => send(assistant, text)}
+                onStop={() => void api.stop(assistant.id)}
+                onDecide={decide}
+                onCustomize={() =>
+                  setView({ name: "assistant", id: assistant.id })
+                }
+                onModels={() => setView({ name: "models" })}
+                sendWith={state.settings.sendWith}
+                mac={state.platform === "darwin"}
+              />
+            </div>
+            {assistant.computer && computerOpen[assistant.id] === true ? (
+              <ComputerPanel
+                assistant={assistant}
+                busy={streams[assistant.id] !== undefined}
+                onStop={() => void api.stop(assistant.id)}
+                onClose={() =>
+                  setComputerOpen((open) => ({
+                    ...open,
+                    [assistant.id]: false,
+                  }))
+                }
+              />
+            ) : null}
+          </div>
         ) : (
           <div className="empty">
             <Nova size={96} />

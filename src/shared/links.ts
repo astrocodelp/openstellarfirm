@@ -18,6 +18,7 @@ export const LINK_NAMES = [
   "community",
   "release",
   "composio",
+  "docker",
 ] as const;
 export type LinkName = (typeof LINK_NAMES)[number];
 
@@ -48,6 +49,8 @@ export function linkUrl(name: unknown, newest: string | null = null): string {
       return `${REPO_URL}/discussions`;
     case "composio":
       return "https://composio.dev";
+    case "docker":
+      return "https://docs.docker.com/get-started/get-docker/";
     case "release":
       if (!newest) throw new Error("There is no newer version to show.");
       return releaseUrl(newest);

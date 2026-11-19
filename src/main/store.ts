@@ -19,6 +19,7 @@ import {
 } from "../shared/assistant-file";
 import { presetOf } from "../shared/catalog";
 import { cleanLookFor, isCheckEvery, LOOK_FOR_MAX } from "../shared/checks";
+import { cleanComputer } from "../shared/computer";
 import { connectionPresetOf } from "../shared/connection-catalog";
 import { checkEndpoint } from "../shared/endpoint";
 import {
@@ -246,6 +247,9 @@ export class Store {
         ...clean,
         web: input.web === undefined ? existing.web : clean.web,
         screen: input.screen === undefined ? existing.screen : clean.screen,
+        ...computerField(
+          input.computer === undefined ? existing.computer : input.computer,
+        ),
         folders: existing.folders,
         sites: existing.sites,
         canAsk:
@@ -277,6 +281,7 @@ export class Store {
     }
     const created: Assistant = {
       ...clean,
+      ...computerField(input.computer),
       folders: [],
       sites: [],
       connections: cleanConnectionIds(
@@ -954,6 +959,12 @@ function mailFields(
 }
 
 /** No main assistant: nothing checks, and nothing is unread. */
+/** Its own computer: on with checked settings, or no field at all for off. */
+function computerField(raw: unknown): Pick<Assistant, "computer"> {
+  const computer = cleanComputer(raw);
+  return computer ? { computer } : {};
+}
+
 function noMain(settings: Settings): void {
   delete settings.mainAssistantId;
   delete settings.checkOnItsOwn;

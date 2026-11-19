@@ -1,5 +1,6 @@
 import {
   type KeyboardEvent,
+  type ReactNode,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -60,6 +61,8 @@ interface ChatViewProps {
   /** What sends a message, and whether the keys are a Mac's. */
   sendWith: SendKey;
   mac: boolean;
+  /** More buttons in the head, before Customize. */
+  headExtra?: ReactNode;
 }
 
 /** The time a check started, as the person's computer writes it. */
@@ -180,7 +183,10 @@ export function ChatView(props: ChatViewProps) {
   const box = useRef<HTMLTextAreaElement>(null);
   const busy = streaming !== undefined;
   const canAct =
-    assistant.folders.length > 0 || assistant.web || assistant.screen === true;
+    assistant.folders.length > 0 ||
+    assistant.web ||
+    assistant.screen === true ||
+    assistant.computer !== undefined;
 
   function toEnd() {
     const el = scroller.current;
@@ -282,6 +288,7 @@ export function ChatView(props: ChatViewProps) {
           <h1 className="chat-title">{assistant.name}</h1>
           <span className="faint">{modelLine ?? "No model is set up yet"}</span>
         </div>
+        {props.headExtra}
         <button type="button" className="btn" onClick={props.onCustomize}>
           Customize
         </button>
