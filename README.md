@@ -74,6 +74,13 @@ team of AI Agent Assistants works for your company in the cloud.
   work in the cloud. StellarFirm is a separate paid service with its own
   account and plans.
 - **Light and dark**, following your computer or your choice.
+- **Accessibility first.** More contrast, less motion, underlined links, a
+  stronger focus ring, more space for reading, larger click targets, and read
+  aloud with a voice on this computer only. Skip links, named landmarks, a
+  keyboard shortcuts list (Ctrl or Cmd with /), and a screen reader is told
+  when an answer is done or a step waits. The target is WCAG 2.2 AA; see
+  [ACCESSIBILITY.md](ACCESSIBILITY.md) for what was tested and how to report a
+  barrier.
 - **First run** that finds a model already running on this computer.
 
 ## What is not built yet
