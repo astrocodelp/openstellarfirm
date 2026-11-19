@@ -369,7 +369,7 @@ describe("the asked run", () => {
     extra: Partial<AgentDeps> = {},
   ) {
     const model = script(turns);
-    const run = async (peer: Peer, question: string, link: AskLink) => {
+    const run = async (_peer: Peer, question: string, link: AskLink) => {
       const result = await runAgent(
         assistant,
         [{ role: "user", content: askedMessage("Notes", question) }],

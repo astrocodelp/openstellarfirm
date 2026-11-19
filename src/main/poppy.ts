@@ -83,7 +83,7 @@ export function parsePoppy(text: string, domain: string): CompanyOffer {
     throw new PoppyError("That site's file is not readable.");
   }
   const file = isObject(value) ? value : undefined;
-  if (!file || file.protocol_version !== "1.0")
+  if (file?.protocol_version !== "1.0")
     throw new PoppyError(
       "That file is not a version this app understands (it reads 1.0).",
     );
