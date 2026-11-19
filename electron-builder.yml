@@ -1,7 +1,7 @@
 appId: ai.stellarfirm.openstellarfirm
 productName: OpenStellarFirm
 artifactName: OpenStellarFirm-${version}-${os}-${arch}.${ext}
-copyright: Copyright © 2026 Vasileios Drosatos and Astro Code L.P. Apache-2.0 with the Commons Clause.
+copyright: Copyright © 2026 Astro Code L.P. Apache-2.0 with the Commons Clause.
 directories:
   output: release
 # Everything the app needs is bundled into dist/, so no node_modules ship.

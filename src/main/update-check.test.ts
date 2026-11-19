@@ -47,7 +47,7 @@ describe("the request", () => {
     ];
     expect(url).toBe(LATEST_RELEASE_API);
     expect(url).toBe(
-      "https://api.github.com/repos/astrocodelp/worker-bot-open-source/releases/latest",
+      "https://api.github.com/repos/astrocodelp/openstellarfirm/releases/latest",
     );
     expect(init.redirect).toBe("error");
     expect(init.credentials).toBe("omit");

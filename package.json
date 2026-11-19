@@ -5,14 +5,14 @@
   "private": true,
   "description": "OpenStellarFirm, a desktop app for personal AI assistants that run on your own computer, on your own model. Nothing is saved in a cloud.",
   "license": "SEE LICENSE IN LICENSE",
-  "author": "Vasileios Drosatos and Astro Code L.P.",
-  "homepage": "https://github.com/astrocodelp/worker-bot-open-source",
+  "author": "Astro Code L.P.",
+  "homepage": "https://github.com/astrocodelp/openstellarfirm",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/astrocodelp/worker-bot-open-source.git"
+    "url": "git+https://github.com/astrocodelp/openstellarfirm.git"
   },
   "bugs": {
-    "url": "https://github.com/astrocodelp/worker-bot-open-source/issues"
+    "url": "https://github.com/astrocodelp/openstellarfirm/issues"
   },
   "type": "module",
   "main": "dist/main/index.cjs",

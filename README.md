@@ -5,17 +5,17 @@ and Linux that thinks with your own model: a local AI model on this machine
 (Ollama, LM Studio), offline if you like, or your own key. It is an MCP client
 too. No account, no cloud saving, no telemetry.
 
-[![Latest release](https://img.shields.io/github/v/release/astrocodelp/worker-bot-open-source?include_prereleases&sort=semver&label=release)](https://github.com/astrocodelp/worker-bot-open-source/releases)
+[![Latest release](https://img.shields.io/github/v/release/astrocodelp/openstellarfirm?include_prereleases&sort=semver&label=release)](https://github.com/astrocodelp/openstellarfirm/releases)
 [![Licence: Apache-2.0 + Commons Clause](https://img.shields.io/badge/licence-Apache--2.0%20%2B%20Commons%20Clause-blue)](LICENSE)
 [![Platforms: macOS, Windows, Linux](https://img.shields.io/badge/platforms-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)](#install-a-release)
-[![Discussions](https://img.shields.io/github/discussions/astrocodelp/worker-bot-open-source?label=discussions)](https://github.com/astrocodelp/worker-bot-open-source/discussions)
+[![Discussions](https://img.shields.io/github/discussions/astrocodelp/openstellarfirm?label=discussions)](https://github.com/astrocodelp/openstellarfirm/discussions)
 
 <!-- screenshot: docs/screenshot.png -->
 
 ## Download
 
 Download the newest build for your system from the
-[Releases page](https://github.com/astrocodelp/worker-bot-open-source/releases).
+[Releases page](https://github.com/astrocodelp/openstellarfirm/releases).
 Until the first release is out, run it from source (see [Run it](#run-it)).
 The builds are not signed yet, so your system warns you the first time:
 [Install a release](#install-a-release) says how to open one. Check the file
@@ -277,8 +277,8 @@ The full list of what the code enforces, and what it does not, is in
 From source, on macOS, Windows or Linux:
 
 ```bash
-git clone https://github.com/astrocodelp/worker-bot-open-source.git
-cd worker-bot-open-source
+git clone https://github.com/astrocodelp/openstellarfirm.git
+cd openstellarfirm
 corepack enable        # or: npm install -g pnpm@10
 pnpm install
 pnpm dev
@@ -350,7 +350,7 @@ your system, fix a bug, or build a roadmap item.
 - [COMMUNITY.md](COMMUNITY.md): the promise the project keeps, where to talk,
   ways to help.
 - [CONTRIBUTING.md](CONTRIBUTING.md): the rules for a pull request.
-- [Discussions](https://github.com/astrocodelp/worker-bot-open-source/discussions):
+- [Discussions](https://github.com/astrocodelp/openstellarfirm/discussions):
   questions, ideas, personas.
 - [CONTRIBUTORS.md](CONTRIBUTORS.md): everyone who helped.
 

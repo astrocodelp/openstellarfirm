@@ -1,5 +1,5 @@
 OpenStellarFirm
-Copyright 2026 Vasileios Drosatos and Astro Code L.P.
+Copyright 2026 Astro Code L.P.
 
 This software is licensed under the Apache License, Version 2.0, with the
 "Commons Clause" License Condition v1.0. The full text is in LICENSE.
@@ -10,6 +10,13 @@ In short, and the LICENSE file is what counts:
   - You may not sell it, or sell a product or service whose value comes
     entirely or substantially from it, without a commercial licence from
     Astro Code L.P. See COMMERCIAL.md.
+
+Earlier commits
+
+  The first commits of this repository, before commit 218c253, were
+  published under the MIT licence. That code stays available under MIT to
+  anyone who received it then. Everything from commit 218c253 on, and every
+  later change to that early code, is under the licence in LICENSE.
 
 What this licence covers
 

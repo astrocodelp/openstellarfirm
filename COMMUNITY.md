@@ -30,11 +30,11 @@ you click.
 
 ## Where to talk
 
-| Place                                                                            | Use it for                                                                    |
-| -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| [Discussions](https://github.com/astrocodelp/worker-bot-open-source/discussions) | Questions, ideas, showing what you made, sharing a persona before you send it |
-| [Issues](https://github.com/astrocodelp/worker-bot-open-source/issues)           | A bug you can reproduce, or a piece of work that is agreed and ready to build |
-| [Security tab](https://github.com/astrocodelp/worker-bot-open-source/security)   | A security problem. Report it privately, never in public                      |
+| Place                                                                     | Use it for                                                                    |
+| ------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| [Discussions](https://github.com/astrocodelp/openstellarfirm/discussions) | Questions, ideas, showing what you made, sharing a persona before you send it |
+| [Issues](https://github.com/astrocodelp/openstellarfirm/issues)           | A bug you can reproduce, or a piece of work that is agreed and ready to build |
+| [Security tab](https://github.com/astrocodelp/openstellarfirm/security)   | A security problem. Report it privately, never in public                      |
 
 Discussion categories:
 

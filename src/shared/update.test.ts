@@ -81,10 +81,10 @@ describe("versions", () => {
 describe("fixed links", () => {
   it("maps a name to a fixed address", () => {
     expect(linkUrl("source")).toBe(
-      "https://github.com/astrocodelp/worker-bot-open-source",
+      "https://github.com/astrocodelp/openstellarfirm",
     );
     expect(linkUrl("community")).toBe(
-      "https://github.com/astrocodelp/worker-bot-open-source/discussions",
+      "https://github.com/astrocodelp/openstellarfirm/discussions",
     );
     expect(linkUrl("ollama")).toBe("https://ollama.com/download");
     expect(linkUrl("lmstudio")).toBe("https://lmstudio.ai");
@@ -117,7 +117,7 @@ describe("fixed links", () => {
   it("opens a release only for a version that is known, in one fixed shape", () => {
     expect(() => linkUrl("release")).toThrow();
     expect(linkUrl("release", "1.2.3")).toBe(
-      "https://github.com/astrocodelp/worker-bot-open-source/releases/tag/v1.2.3",
+      "https://github.com/astrocodelp/openstellarfirm/releases/tag/v1.2.3",
     );
     expect(() => releaseUrl("1.2.3/../../x")).toThrow();
     expect(() => releaseUrl("v1.2.3")).toThrow();

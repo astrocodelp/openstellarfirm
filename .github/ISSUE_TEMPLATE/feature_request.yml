@@ -6,7 +6,7 @@ body:
     attributes:
       value: |
         Thanks for the idea. Please say what is missing and what you want
-        instead. Check the [roadmap](https://github.com/astrocodelp/worker-bot-open-source#roadmap)
+        instead. Check the [roadmap](https://github.com/astrocodelp/openstellarfirm#roadmap)
         first, in case it is already planned.
   - type: textarea
     id: problem

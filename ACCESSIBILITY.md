@@ -57,7 +57,7 @@ And, always on:
 
 If something in the app is hard or impossible for you to use, please open an
 issue on GitHub:
-[github.com/astrocodelp/worker-bot-open-source/issues](https://github.com/astrocodelp/worker-bot-open-source/issues).
+[github.com/astrocodelp/openstellarfirm/issues](https://github.com/astrocodelp/openstellarfirm/issues).
 
 It helps to say what you were trying to do, what got in the way, your
 operating system, and any assistive technology you use (a screen reader, a

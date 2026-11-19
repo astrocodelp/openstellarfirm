@@ -7,11 +7,10 @@ import { cleanVersion } from "./update";
  * built here, in code, and an unknown name is refused.
  */
 
-// The repository's name is part of an address, not product copy. It is written
-// in parts so the copy test, which reads every source file for a certain
-// word a person must never read, keeps checking real copy. It must match
-// "repository" in package.json, where a rename starts (a test checks).
-export const REPO = `astrocodelp/${["worker-b", "ot-open-source"].join("")}`;
+// It must match "repository" in package.json, where a rename starts (a test
+// checks). The update check refuses redirects, so a rename after a release
+// would leave released copies unable to see updates.
+export const REPO = "astrocodelp/openstellarfirm";
 const REPO_URL = `https://github.com/${REPO}`;
 
 export const LINK_NAMES = [

@@ -2,7 +2,7 @@
 
 OpenStellarFirm is the source-available sibling of StellarFirm, by Astro Code:
 its code is open to read, change and share, not to sell. The GitHub repository
-name stays `worker-bot-open-source` for now. Its address lives in one place,
+is `astrocodelp/openstellarfirm`. Its address lives in one place,
 `repository` in `package.json`; the release scripts read it from there, and a
 test holds the app's links (`src/shared/links.ts`) to it.
 
@@ -35,8 +35,8 @@ is what anyone can read.
    the compare links at the end of the file:
 
    ```markdown
-   [Unreleased]: https://github.com/astrocodelp/worker-bot-open-source/compare/v0.1.0...HEAD
-   [0.1.0]: https://github.com/astrocodelp/worker-bot-open-source/releases/tag/v0.1.0
+   [Unreleased]: https://github.com/astrocodelp/openstellarfirm/compare/v0.1.0...HEAD
+   [0.1.0]: https://github.com/astrocodelp/openstellarfirm/releases/tag/v0.1.0
    ```
 
    For a later release, the new version's link compares with the one before

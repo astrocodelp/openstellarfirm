@@ -1,6 +1,6 @@
 # Security
 
-OpenStellarFirm is the open-source sibling of StellarFirm, by Astro Code.
+OpenStellarFirm is the source-available sibling of StellarFirm, by Astro Code.
 This note is about that desktop app.
 
 ## Reporting a problem
@@ -242,8 +242,9 @@ app's version and operating system. Please do not include a real key.
 - **Reading languages.** Off until you click Download: one pinned Hugging Face
   address, redirects only to Hugging Face's own hosts over https, and the file
   is kept only if its SHA-256 matches.
-- **Links.** The only links the app opens (stellarfirm.ai, composio.dev and
-  this project's source, community and release pages) are built in the main
+- **Links.** The only links the app opens (stellarfirm.ai, composio.dev,
+  Docker's, Ollama's and LM Studio's download pages, and this project's
+  source, community and release pages) are built in the main
   process from fixed parts, on your click. "Copy to StellarFirm cloud" carries
   an assistant's name, look and brief after the `#` of the address, which a
   browser does not send to a server.

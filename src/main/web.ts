@@ -16,7 +16,7 @@ export class WebError extends Error {}
 
 /** The one honest name the app gives itself when it reads a site. */
 export const USER_AGENT =
-  "OpenStellarFirm (+https://github.com/astrocodelp/worker-bot-open-source)";
+  "OpenStellarFirm (+https://github.com/astrocodelp/openstellarfirm)";
 
 const MAX_BYTES = 600 * 1024;
 const MAX_CHARS = 20_000;
