@@ -24,41 +24,57 @@ app's version and operating system. Please do not include a real key.
 - **Your chats and assistants.** Plain JSON in the app's data folder, readable
   only by your user account.
 - **The folders you pick** for an assistant, **the websites you allow**, **the
-  connections you add**, and, when you turn it on and approve each look,
-  **what is on your screen**.
+  connections you add**, when you turn it on and approve each look, **what is
+  on your screen**, and **the pictures of a recording** you start with "Record
+  how you work".
 - **Docker**, when you give an assistant a computer of its own: the app runs
   your `docker` command to build and run that computer.
-  **what is on your screen**, and **the pictures of a recording** you start
-  with "Record how you work".
 
 ## Where untrusted text comes from
 
-| Source                                            | How it is treated                                                                                                                                                                                                                                                              |
-| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| A model's output                                  | Shown as plain text, never as HTML. Its tool calls are checked by code before anything runs.                                                                                                                                                                                   |
-| A tool request a model writes as text             | Some models cannot call tools, so they ask in writing. Only the model's own output of the current turn is read for that, strictly, and every request goes through the same checks and approvals as a native tool call. Text in a file or page is never read as a tool request. |
-| A file or web page an assistant reads             | Given to the model marked as information, not instructions. It can still mislead a model, which is why the rules below are enforced in code and not in the prompt.                                                                                                             |
-| A connection (MCP server)                         | Everything it sends is checked: tool names, descriptions and schemas are validated and cut, answers are capped, and results reach the model marked as information.                                                                                                             |
-| A mail message                                    | Written by other people, so it is information, never instructions. Turned to plain text; nothing it links to is fetched.                                                                                                                                                       |
-| Another assistant's answer                        | Reaches the asker's model marked as information, not instructions.                                                                                                                                                                                                             |
-| A file you attach                                 | Its kind is decided from its bytes, never its name. PDFs and pictures are read only in a hidden reader window: sandboxed, isolated, in its own session where every request but its own files is cancelled. Reaches the model marked as information, not instructions.          |
-| A picture of the screen                           | Reaches the model as information. The prompt says text in it is never an instruction.                                                                                                                                                                                          |
-| An assistant's own computer (screen, commands)    | Outside text: it may come from a web page or a file made there. The answer is marked, so later web reads, connection calls and mail reads ask again. It reaches the model as information.                                                                                      |
-| A recording's pictures, and its draft             | Reach the model as information; the prompt says text in them is never an instruction. The draft is read strictly, cut to its limits, and only shown to you in an editor. Once you save it, it is guidance, never access.                                                       |
-| A company's published file (`poppy.json`)         | Read strictly, every text cut and cleaned, shown as plain text. Only a web address and a name are ever copied into a form you review.                                                                                                                                          |
-| An imported assistant file, a backup or a persona | Checked field by field. It never brings a key, a model, a folder, a site, a connection, web access or screen access with it. A backup only adds new assistants and never changes or removes one you have. Chats in it come in as plain text.                                   |
-| A model service's answers and errors              | A redirect is an error. An error is shown as a short plain line with the key taken out.                                                                                                                                                                                        |
-| The page                                          | Sandboxed, isolated, under a strict Content Security Policy. It reaches the main process only through one typed bridge, and every call is checked there.                                                                                                                       |
+| Source                                            | How it is treated                                                                                                                                                                                                                                                                              |
+| ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A model's output                                  | Shown as plain text, never as HTML. Its tool calls are checked by code before anything runs.                                                                                                                                                                                                   |
+| A tool request a model writes as text             | Some models cannot call tools, so they ask in writing. Only the model's own output of the current turn is read for that, strictly, and every request goes through the same checks and approvals as a native tool call. Text in a file or page is never read as a tool request.                 |
+| A file or web page an assistant reads             | Given to the model marked as information, not instructions. It can still mislead a model, which is why the rules below are enforced in code and not in the prompt.                                                                                                                             |
+| A connection (MCP server)                         | Everything it sends is checked: tool names, descriptions and schemas are validated and cut, characters that draw nothing or turn text around are taken out, answers are capped, and results reach the model marked as information. A result counts as private text for the rest of the answer. |
+| A mail message                                    | Written by other people, so it is information, never instructions. Turned to plain text; nothing it links to is fetched.                                                                                                                                                                       |
+| Another assistant's answer                        | Reaches the asker's model marked as information, not instructions, and counts as private text for the rest of the answer.                                                                                                                                                                      |
+| A file you attach                                 | Its kind is decided from its bytes, never its name. PDFs and pictures are read only in a hidden reader window: sandboxed, isolated, in its own session where every request but its own files is cancelled. Reaches the model marked as information, not instructions.                          |
+| A picture of the screen                           | Reaches the model as information. The prompt says text in it is never an instruction.                                                                                                                                                                                                          |
+| An assistant's own computer (screen, commands)    | Outside text: it may come from a web page or a file made there. The answer is marked, so later web reads, connection calls, mail reads and saves ask again. It reaches the model as information. Its own screen alone is not private text.                                                     |
+| A recording's pictures, and its draft             | Reach the model as information; the prompt says text in them is never an instruction. The draft is read strictly, cut to its limits, and only shown to you in an editor. Once you save it, it is guidance, never access.                                                                       |
+| A company's published file (`poppy.json`)         | Read strictly, every text cut and cleaned, shown as plain text. Only a web address and a name are ever copied into a form you review.                                                                                                                                                          |
+| An imported assistant file, a backup or a persona | Checked field by field. It never brings a key, a model, a folder, a site, a connection, web access or screen access with it. A backup only adds new assistants and never changes or removes one you have. Chats in it come in as plain text.                                                   |
+| A model service's answers and errors              | A redirect is an error. An error is shown as a short plain line with the key taken out.                                                                                                                                                                                                        |
+| The page                                          | Sandboxed, isolated, under a strict Content Security Policy. It reaches the main process only through one typed bridge, and every call is checked there.                                                                                                                                       |
 
 ## The rules the code enforces
 
 - **Folders.** Only the system's own folder picker, opened by the main process,
   can give an assistant a folder. Every path is checked after links are
-  followed. A file that can hold keys or passwords (`.env`, `.ssh`, `*.pem`,
-  ...) is never listed, read or written. There is no code that changes,
-  replaces, moves or deletes a file: the only write makes a new file and fails
-  if the name is taken.
-- **Web pages.** https only, the standard port, public addresses only. The
+  followed: it must stay inside the folder's real root, and every part of the
+  real path, from that root down, is checked again, so a link with a plain
+  name that points at a private file is refused like the file. No file or
+  folder whose name starts with a dot is listed, found, read or written
+  (`.config`, `.kube`, `.docker`, `.pgpass`, `.pypirc`, `.vault-token`, shell
+  history, `.git`, ...), except three plain settings files that may be read
+  because they hold no keys and a project often needs them: `.gitignore`,
+  `.gitattributes` and `.editorconfig`. A file that can hold keys or passwords
+  (`.env`, `.ssh`, `*.pem`, `*.ppk`, `kubeconfig`, `*_history`, ...) is never
+  listed, read or written. There is no code that changes, replaces, moves or
+  deletes a file: the only write makes a new file and fails if the name is
+  taken. Saving a new file runs without asking only when it is a plain file
+  and the answer has read nothing from outside: a file that runs or builds on
+  its own (a script such as `*.sh`, `*.bat`, `*.cmd`, `*.ps1`, `*.js` or
+  `*.py`, a `Makefile`, `package.json`, `conftest.py`, a
+  `docker-compose*.yml`, `Directory.Build.props`, a project file, a
+  `*.config.*` file, ...) asks every time, and so does every save once the
+  answer has read a file, a page, mail, a connection, the screen, another
+  assistant or its own computer. The card shows the whole file; one too long
+  to show whole is not saved.
+- **Web pages.** https only, the standard port, public addresses only, and at
+  most 8,000 characters, so the address always fits on its card whole. The
   name is resolved first, every address it resolves to must be public, and the
   connection is made to that checked address. A redirect to another site is
   not followed.
@@ -73,7 +89,13 @@ app's version and operating system. Please do not include a real key.
   allowed the network, `--cap-drop ALL`, `no-new-privileges`, an ordinary
   user, limits on processes, memory and processors, and one folder of yours
   mounted: its own exchange folder in the app's data folder. Never
-  `--privileged`, never the Docker socket. Inside it nothing asks; saving a
+  `--privileged`, never the Docker socket. Inside it nothing asks, with one
+  exception: when you let it reach the internet and the answer has read
+  something private (your folders or a file you sent, the screen, mail, a
+  connection's answer or another assistant's), each command, typed text and
+  key press asks first, with the whole command or text on the card, because
+  any of them could carry that text to a website. Clicks, scrolls and its own
+  screen never carry text and do not ask. Saving a
   file from it into one of your folders asks every time and never replaces a
   file. Checks and assistants that are asked a question never use it. The
   page can send it clicks and keys only while you have taken over. The full
@@ -153,14 +175,40 @@ app's version and operating system. Please do not include a real key.
 - **Approvals.** Reading a site for the first time waits for your Approve.
   "Always allow" remembers one site for one assistant, or one read-only tool
   of one connection for one assistant, or reading one mail account for one
-  assistant. A connection's tool that is not marked
-  as a read, or whose name reads like a change, asks every time. Even an
-  allowed site or read asks again when the web address carries text after a
-  `?`, and for the rest of an answer once the assistant has read from your
-  folders, read your mail or looked at your screen in it, because an address
-  or a tool's
-  arguments can carry text out. Nothing in the app answers an approval for
-  you.
+  assistant. A connection's tool that is not marked as a read, or whose name
+  reads like a change, asks every time. Even an allowed site or read asks
+  again:
+  - when the web address carries text after a `?`;
+  - for the rest of an answer once it holds private text: it has read from
+    your folders or a file you sent, read your mail, looked at your screen,
+    had an answer from one of its connections, or asked another assistant,
+    because an address or a tool's arguments can carry that text out (an
+    allowed mailbox asks again for all of these but mail itself, and after
+    its own computer, but not after a web page alone: a mail search goes only
+    to your own mail server);
+  - once the answer has read a web page or used its own computer, which may
+    be telling it what to do: an allowed site then reads without asking only
+    at its bare address (`https://example.com/`), any longer address asks,
+    and an allowed connection read asks. Its own computer makes even the bare
+    address ask.
+
+  A flag the app does not know yet counts as private. Nothing in the app
+  answers an approval for you.
+- **Approval cards.** A card shows the whole of what a step would send: the
+  full address, every argument of a connection's tool pretty-printed as JSON
+  with strings in quotes (nested lists too, so a later action in a
+  Composio multi-execute call is as visible as the first), the whole command
+  or text for its own computer, the whole file for a save. Long details
+  scroll inside the card instead of being cut. A step whose details are too
+  long to show whole (100,000 characters) is turned down with a plain line
+  and never sent. Characters that draw nothing or change how text is drawn
+  (bidirectional overrides, zero-width characters, tags, variation
+  selectors, control characters) are written out as their code, such as
+  `[U+202E]`, everywhere on a card, and taken out of connection names, tool
+  descriptions and the other names a server sends. The focus never moves
+  onto Approve by itself: it moves to the card, when you are not typing, and
+  Approve and "Always allow" take no press for half a second after a card
+  shows, so a held key or a stray click cannot approve.
 - **Memory.** Notes are kept in the app's data folder, one file per
   assistant, readable only by your user account. They go into the assistant's
   instructions with every message, marked as your saved notes, so a note that
@@ -201,7 +249,14 @@ app's version and operating system. Please do not include a real key.
   browser does not send to a server.
 - **The installed app.** It cannot be run as plain Node, started with an
   inspector, pointed at another page by an environment variable, or driven
-  through a debugging port.
+  through a debugging port or pipe: the fuses switch Node's options off, and
+  the app quits when it sees `--remote-debugging-port`,
+  `--remote-debugging-pipe`, `--inspect` in any of its spellings or
+  `--js-flags`. No window has the developer tools (`devTools` is off in a
+  packaged app), and the app sets a menu of its own with the edit, zoom and
+  window items and no "Toggle Developer Tools"; on Linux and Windows it still
+  hides until Alt. No window spell-checks, so Chromium never downloads its
+  dictionaries.
 
 ## Known limits
 
@@ -211,7 +266,8 @@ Said plainly, so nobody relies on more than is there:
   or a scan can be wrong. Attached files are not encrypted on disk.
 - **PDF.js and Tesseract read untrusted files** in the sandboxed reader, not in
   the main process. PNG and JPEG pictures are decoded by Electron in the main
-  process to scale them.
+  process to scale them, within a size cap; a bug in that decoder would run
+  in the main process. Moving that into the reader is a follow-up.
 
 - **What an assistant reads goes to the model you chose.** With a hosted key,
   that provider receives your messages and anything the assistant read from
@@ -238,10 +294,15 @@ Said plainly, so nobody relies on more than is there:
   before you approve. Many models on this computer cannot read pictures.
 - **An assistant's own computer is a container, not a virtual machine.** On
   Linux it shares your kernel. With its network on, a page there can try to
-  steer it and it could send what is on that computer to a website. A file
-  copied out of it can be harmful like any download. Stopping an answer does
-  not end a command already running inside it, which runs to its time limit.
-  See [docs/COMPUTER.md](docs/COMPUTER.md).
+  steer it and it could send what is on that computer to a website: what it
+  made or read there, and what is in its exchange folder, including anything
+  typed there in an earlier answer while its network was off (turning the
+  network on makes a fresh computer, but the exchange folder stays). Its
+  network is Docker's default one, so it can also reach your local network
+  and other computers on it; a network that only reaches the internet is
+  not built yet. A file copied out of it can be harmful like any download.
+  Stopping an answer does not end a command already running inside it, which
+  runs to its time limit. See [docs/COMPUTER.md](docs/COMPUTER.md).
 - **A recording can hold private things.** It cannot spot a password, a key or
   a private message in a picture, and it cannot tell which window is in front
   when you record the whole screen (other than the app's own). Close what is
@@ -249,7 +310,12 @@ Said plainly, so nobody relies on more than is there:
   draft. A model that cannot read pictures may ignore them without saying so;
   read the draft before you save it.
 - **Earlier answers stay in the chat.** If an assistant quoted a file in an
-  earlier answer, a later web read on an allowed site does not ask again.
+  earlier answer, a later web read on an allowed site does not ask again
+  before the new answer reads anything from outside.
+- **Which step it takes says a little.** After a web page, the bare address of
+  an allowed site still reads without asking, and a model can choose to read
+  it or not; that choice carries a bit at a time, nothing like a whole
+  message.
 - **A backup file is not encrypted.** If you include chats it holds your
   private text, so keep it somewhere you trust.
 - **A saved chat is plain Markdown.** It is written only where you pick, and
@@ -263,17 +329,17 @@ Said plainly, so nobody relies on more than is there:
   the address, and Windows cannot open an address longer than 2,081
   characters, so a long brief is refused there with a plain message.
 - **No signed installers yet.** Build from source, or check a release's
-  `SHA256SUMS` files. Unsigned apps show a warning on first run.
-- **The file protocol keeps its extra privileges** in the packaged app, because
-  the page is loaded from a file. Serving it from a protocol of the app's own
-  would let that go off.
+  `SHA256SUMS` files. Unsigned apps show a warning on first run. Signing for
+  macOS and Windows is a gate for the first release meant for everyone.
+- **The file protocol keeps its extra privileges** in the packaged app
+  (`grantFileProtocolExtraPrivileges`), because the page is loaded from a
+  file. Serving it from a protocol of the app's own would let that go off; it
+  is a follow-up.
 - **Not run against real services.** The Anthropic and Gemini wires, the
-  connections client, the screen capture and the Docker calls are covered by
-  offline tests with stand-ins. The computer was also checked by hand with
-  Docker Desktop on macOS. Report what breaks against the real thing.
-  connections client, the screen capture and the recording's capture are
-  covered by offline tests with stand-ins. Report what breaks against the real
-  thing.
+  connections client, the screen capture, the recording's capture and the
+  Docker calls are covered by offline tests with stand-ins. The computer was
+  also checked by hand with Docker Desktop on macOS. Report what breaks
+  against the real thing.
 
 ## Dependencies
 
