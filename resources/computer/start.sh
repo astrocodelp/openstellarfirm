@@ -21,8 +21,15 @@ until xdotool getdisplaygeometry >/dev/null 2>&1; do
 done
 
 openbox >/dev/null 2>&1 &
-# The background is set once the window manager runs, which would paint over it.
+# The background is set once the window manager runs, which would paint over it:
+# night, with the app's mark quiet in the middle, so an empty screen reads as
+# a desktop that is ready rather than as a grey box.
 sleep 0.5
-xsetroot -solid "#1d1d23" || true
+if computer-background >/tmp/background.xbm 2>/dev/null; then
+  xsetroot -bitmap /tmp/background.xbm -fg "#1f1f27" -bg "#070709" ||
+    xsetroot -solid "#070709" || true
+else
+  xsetroot -solid "#070709" || true
+fi
 
 wait "$screen_pid"

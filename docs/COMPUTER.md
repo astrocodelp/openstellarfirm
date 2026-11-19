@@ -41,6 +41,7 @@ The app builds the image itself from the files it ships in
 | `start.sh`      | Starts a 1280 × 800 virtual screen and the window manager, then waits on the screen.                                                             |
 | `screenshot.sh` | Writes one picture of the screen to standard output, as PNG or JPEG.                                                                             |
 | `open-app.sh`   | Opens a program on the screen and returns, so the program stays open.                                                                            |
+| `background.py` | Draws the desktop's background, the app's mark on night, as an X bitmap; `start.sh` lays it on the screen with `xsetroot`.                       |
 
 The base image is pinned by its digest, so the build always starts from the
 same bytes. The Debian packages are not pinned: they come from Debian's mirror

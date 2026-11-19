@@ -188,6 +188,42 @@ function ago(at: string, now: number): string {
   return "over a minute ago";
 }
 
+/** The desktop's own colour, night, which the background script paints. */
+const DESKTOP = [7, 7, 9] as const;
+
+/**
+ * True when a picture of the screen shows the empty desktop: everything
+ * outside the middle, where the app's mark sits, is the desktop's night. A
+ * window, a menu or a terminal anywhere else makes it false.
+ */
+async function emptyDesktop(src: string): Promise<boolean> {
+  const image = new Image();
+  image.src = src;
+  await image.decode();
+  const w = 64;
+  const h = 40;
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const paint = canvas.getContext("2d", { willReadFrequently: true });
+  if (!paint) return false;
+  paint.drawImage(image, 0, 0, w, h);
+  const { data } = paint.getImageData(0, 0, w, h);
+  for (let y = 0; y < h; y += 1) {
+    for (let x = 0; x < w; x += 1) {
+      // The mark: the middle quarter or so, left out.
+      if (x >= 24 && x < 40 && y >= 10 && y < 30) continue;
+      const at = (y * w + x) * 4;
+      const off =
+        Math.abs((data[at] ?? 0) - DESKTOP[0]) +
+        Math.abs((data[at + 1] ?? 0) - DESKTOP[1]) +
+        Math.abs((data[at + 2] ?? 0) - DESKTOP[2]);
+      if (off > 36) return false;
+    }
+  }
+  return true;
+}
+
 const HOLD_LINE: Record<ComputerHold, (name: string) => string> = {
   none: (name) => `${name} can use it.`,
   paused: (name) => `Paused. ${name} waits until you resume.`,
@@ -221,9 +257,14 @@ export function ComputerPanel({
     "idle" | "running" | "done" | "failed"
   >("idle");
   const [removing, setRemoving] = useState(false);
+  /** True while the newest picture shows the empty desktop. */
+  const [empty, setEmpty] = useState(false);
   const [visible, setVisible] = useState(!document.hidden);
   const screen = useRef<HTMLDivElement>(null);
   const takeOverButton = useRef<HTMLButtonElement>(null);
+  const removeButton = useRef<HTMLButtonElement>(null);
+  /** Keep it or Escape: the focus goes back to Remove the computer. */
+  const backToRemove = useRef(false);
   const id = assistant.id;
   const ready = status?.docker === "ready" && status.image;
   const on = view?.container === "on";
@@ -265,6 +306,36 @@ export function ComputerPanel({
       }),
     [],
   );
+
+  // Only the newest picture counts; one that comes late is not looked at.
+  useEffect(() => {
+    if (!shot) {
+      setEmpty(false);
+      return;
+    }
+    let live = true;
+    emptyDesktop(shot.src)
+      .then((yes) => {
+        if (live) setEmpty(yes);
+      })
+      .catch(() => {
+        if (live) setEmpty(false);
+      });
+    return () => {
+      live = false;
+    };
+  }, [shot]);
+
+  useEffect(() => {
+    if (removing || !backToRemove.current) return;
+    backToRemove.current = false;
+    removeButton.current?.focus({ preventScroll: true });
+  }, [removing]);
+
+  function keepComputer() {
+    backToRemove.current = true;
+    setRemoving(false);
+  }
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: reset for each assistant
   useEffect(() => {
@@ -543,14 +614,19 @@ export function ComputerPanel({
               {picture(alt)}
             </div>
           )}
-          <p className="faint" id="computer-hint" role="status">
-            {HOLD_LINE[view.hold](name)}
-            {taken
-              ? " Tab moves out of the view; Cmd stands for Ctrl."
-              : busy
-                ? ` ${name} is working.`
-                : ""}
-          </p>
+          <div className="stack-tight">
+            {empty ? (
+              <p className="faint">Nothing open on its screen yet.</p>
+            ) : null}
+            <p className="faint" id="computer-hint" role="status">
+              {HOLD_LINE[view.hold](name)}
+              {taken
+                ? " Tab moves out of the view; Cmd stands for Ctrl."
+                : busy
+                  ? ` ${name} is working.`
+                  : ""}
+            </p>
+          </div>
           <div className="wrap">
             {view.hold === "none" ? (
               <button
@@ -613,13 +689,19 @@ export function ComputerPanel({
       {ready && view ? (
         <div className="stack-tight computer-foot">
           <p className="faint">
-            Files go in and out through its exchange folder:{" "}
-            <span className="mono">{view.exchange}</span>
+            Files go in and out through its exchange folder.
           </p>
+          <details className="computer-path">
+            <summary className="faint">Where the folder is</summary>
+            <p className="mono" id="exchange-path">
+              {view.exchange}
+            </p>
+          </details>
           <div className="wrap">
             <button
               type="button"
               className="btn"
+              aria-describedby="exchange-path"
               onClick={() =>
                 void act(async () => {
                   await api.computerOpenExchange(id);
@@ -642,6 +724,7 @@ export function ComputerPanel({
             ) : null}
             {view.container !== "none" && !removing ? (
               <button
+                ref={removeButton}
                 type="button"
                 className="btn"
                 onClick={() => setRemoving(true)}
@@ -654,7 +737,7 @@ export function ComputerPanel({
             <InlineConfirm
               className="confirm stack"
               label="Remove the computer"
-              onClose={() => setRemoving(false)}
+              onClose={keepComputer}
             >
               <p>
                 Remove {name}'s computer and everything on it? Files in its
@@ -677,9 +760,10 @@ export function ComputerPanel({
                   Remove
                 </button>
                 <button
+                  data-autofocus
                   type="button"
                   className="btn"
-                  onClick={() => setRemoving(false)}
+                  onClick={keepComputer}
                 >
                   Keep it
                 </button>
