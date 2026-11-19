@@ -27,7 +27,12 @@
   --control-line: rgb(243 239 230 / 0.42);
   --control-line-on: rgb(243 239 230 / 0.7);
   --focus: #f3efe6;
+  /* The focus ring's size. "A stronger focus ring" makes both larger. */
+  --focus-width: 2px;
+  --focus-offset: 2px;
   --selection: rgb(217 255 63 / 0.3);
+  /* What a modal lays over the page behind it. */
+  --scrim: rgb(0 0 0 / 0.6);
   /* Lime as a mark or a word on the page, where the fill would not read. */
   --signal: #d9ff3f;
   --lime-edge: #d9ff3f;
@@ -76,6 +81,8 @@
   --dur-quick: 160ms;
   --dur-enter: 220ms;
   --dur-page: 260ms;
+  /* The one layer above the page: the skip links, while they have the focus. */
+  --layer-skip: 2;
   --font: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
   --mono: "Geist Mono Variable", ui-monospace, monospace;
   color-scheme: dark;
@@ -103,6 +110,7 @@
     --control-line-on: rgb(7 7 9 / 0.85);
     --focus: #070709;
     --selection: rgb(217 255 63 / 0.6);
+    --scrim: rgb(7 7 9 / 0.35);
     --signal: #4a6300;
     --lime-edge: #5a7500;
     --ok: oklch(0.43 0.09 180);
@@ -124,6 +132,51 @@
     --nova-glint: #4a6300;
 
     color-scheme: light;
+  }
+}
+
+/*
+ * More contrast, in each theme. The same surfaces, with text, edges, lines and
+ * status words pushed further from them. Every token one of these blocks sets,
+ * the other sets too, so nothing from one theme leaks into the other.
+ */
+@media (prefers-color-scheme: dark) {
+  :root[data-contrast="more"] {
+    --hover: #1d1d23;
+    --active: #26262d;
+    --text: #f3efe6;
+    --dim: #ece8de;
+    --faint: #dfdacd;
+    --line: rgb(243 239 230 / 0.34);
+    --line-strong: rgb(243 239 230 / 0.52);
+    --control-line: rgb(243 239 230 / 0.74);
+    --control-line-on: #f3efe6;
+    --focus: #f3efe6;
+    --signal: #d9ff3f;
+    --lime-edge: #f3efe6;
+    --ok: oklch(0.9 0.1 180);
+    --ok-line: oklch(0.9 0.1 180 / 0.7);
+    --danger: oklch(0.86 0.1 34);
+  }
+}
+
+@media (prefers-color-scheme: light) {
+  :root[data-contrast="more"] {
+    --hover: #e2dccd;
+    --active: #d9d3c2;
+    --text: #070709;
+    --dim: #1b1a16;
+    --faint: #2a2823;
+    --line: rgb(7 7 9 / 0.36);
+    --line-strong: rgb(7 7 9 / 0.56);
+    --control-line: rgb(7 7 9 / 0.8);
+    --control-line-on: #070709;
+    --focus: #070709;
+    --signal: #2c3c00;
+    --lime-edge: #070709;
+    --ok: oklch(0.34 0.08 180);
+    --ok-line: oklch(0.34 0.08 180 / 0.7);
+    --danger: oklch(0.38 0.16 30);
   }
 }
 
@@ -191,8 +244,13 @@ legend {
 }
 
 :focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: var(--focus-offset);
+}
+
+/* Where a skip link sends the focus: a region, not a control, so no ring. */
+main[tabindex="-1"]:focus {
+  outline: none;
 }
 
 ::selection {
@@ -877,8 +935,9 @@ textarea.input {
   background: var(--raised);
 }
 
+/* The box's own edge is its focus ring, in the full colour of the ring. */
 .composer:focus-within {
-  border-color: var(--control-line-on);
+  border-color: var(--focus);
 }
 
 .composer textarea {
@@ -1219,8 +1278,8 @@ textarea.input {
 
 /* The choice that holds the focused radio shows the ring, since the radio is small. */
 .choice:has(input:focus-visible) {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: var(--focus-offset);
 }
 
 ::placeholder {
@@ -1253,6 +1312,11 @@ textarea.input {
   border: 1px solid var(--line-strong);
   border-radius: var(--radius-card);
   background: var(--raised);
+}
+
+/* A question asked in a list's row takes the row's whole width, under its buttons. */
+.list-confirm {
+  flex-basis: 100%;
 }
 
 /*
@@ -1313,11 +1377,158 @@ html[data-text-size="large"] {
   border-top: 0;
 }
 
+/* Accessibility: skip links, the shortcuts list, read aloud */
+
+/*
+ * The first things Tab reaches. Out of sight until one has the focus, then at
+ * the top of the window, clear of a Mac's window buttons.
+ */
+.skip-links {
+  position: fixed;
+  top: 0.75rem;
+  left: 50%;
+  translate: -50% 0;
+  z-index: var(--layer-skip);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  -webkit-app-region: no-drag;
+}
+
+.skip-link {
+  display: inline-flex;
+  cursor: pointer;
+  align-items: center;
+  min-height: var(--control);
+  padding: 0 1.125rem;
+  border: 1px solid var(--control-line-on);
+  border-radius: var(--radius-pill);
+  background: var(--raised);
+  box-shadow: var(--float-shadow);
+  color: var(--text);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.skip-link:not(:focus) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.dialog {
+  width: min(32rem, calc(100% - 2.5rem));
+  max-height: calc(100% - 4rem);
+  padding: 1.5rem;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-panel);
+  background: var(--raised);
+  color: var(--text);
+  box-shadow: var(--float-shadow);
+  overflow-y: auto;
+}
+
+.dialog[open] {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.dialog::backdrop {
+  background: var(--scrim);
+}
+
+.dialog-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.dialog h3 {
+  margin: 0;
+  font-size: var(--text-ui);
+}
+
+.keys {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.keys-row {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  padding: 0.5rem 0;
+  border-top: 1px solid var(--line);
+}
+
+.keys-row dt {
+  flex: 0 0 10rem;
+}
+
+.keys-row dd {
+  margin: 0;
+  color: var(--dim);
+}
+
+kbd {
+  display: inline-block;
+  min-width: 1.5rem;
+  padding: 0 0.375rem;
+  border: 1px solid var(--control-line);
+  border-radius: var(--radius-inset);
+  background: var(--sunken);
+  font-family: var(--mono);
+  font-size: var(--text-caption);
+  line-height: 1.5;
+  text-align: center;
+}
+
+/* Quiet under each answer: the word says what it does, so no box until hovered. */
+.read-aloud {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-height: 2rem;
+  padding: 0 0.75rem;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--dim);
+  font-size: var(--text-caption);
+  cursor: pointer;
+}
+
+.read-aloud:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.read-aloud[aria-disabled="true"] {
+  color: var(--faint);
+  cursor: default;
+}
+
+.read-aloud[aria-disabled="true"]:hover {
+  background: transparent;
+  color: var(--faint);
+}
+
 /*
  * Motion. It answers a click, shows where something came from, or carries the
  * eye to what changed. Only transform, opacity and colour move, never the
  * layout. Every rule that moves lives in one of the two blocks below: with
- * reduced motion, only opacity fades remain.
+ * reduced motion, only opacity fades remain. Which block applies is the
+ * page's data-motion attribute, worked out from the person's choice in
+ * Settings, or from the computer's own setting when they follow it.
  */
 
 @keyframes fade-in {
@@ -1361,7 +1572,8 @@ html[data-text-size="large"] {
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
+/* Less motion: by the person's choice, or the computer's. */
+:where(:root[data-motion="reduce"]) {
   .main > .screen,
   .main > .form-layout,
   .main > .empty,
@@ -1389,18 +1601,21 @@ html[data-text-size="large"] {
   }
 }
 
-@media (prefers-reduced-motion: no-preference) {
+:where(:root[data-motion="full"]) {
   /* Hover and press: colour, and a small press, at once. */
-  .btn,
-  .icon-btn,
-  .choice,
-  .row,
-  .nav-item,
-  .close-btn,
-  .link,
-  .link-btn,
-  .input,
-  .composer {
+  :is(
+      .btn,
+      .icon-btn,
+      .choice,
+      .row,
+      .nav-item,
+      .close-btn,
+      .link,
+      .link-btn,
+      .read-aloud,
+      .input,
+      .composer
+    ) {
     transition:
       background-color var(--dur-press) var(--ease-out),
       border-color var(--dur-press) var(--ease-out),
@@ -1509,11 +1724,81 @@ html[data-text-size="large"] {
   }
 
   /* A theme change is one quiet cross-fade of the whole page. */
-  ::view-transition-old(root),
-  ::view-transition-new(root) {
+  &::view-transition-old(root),
+  &::view-transition-new(root) {
     animation-duration: var(--dur-page);
     animation-timing-function: var(--ease-out);
   }
+}
+
+/* The person's choices in Settings, Accessibility, set as attributes on <html>. */
+
+:root[data-links="underline"] :is(.link, .link-btn, .back-btn, .skip-link),
+:root[data-links="underline"] .btn:has(> [data-icon="external"]) {
+  text-decoration: underline;
+  text-decoration-thickness: 0.08em;
+  text-underline-offset: 0.2em;
+}
+
+:root[data-focus="strong"] {
+  --focus-width: 3px;
+  --focus-offset: 3px;
+}
+
+/* The message box draws no ring of its own; with the stronger ring it gets one. */
+:root[data-focus="strong"] .composer:focus-within {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: var(--focus-offset);
+}
+
+:root[data-reading="spaced"] body {
+  line-height: 1.8;
+  letter-spacing: 0.03em;
+  word-spacing: 0.08em;
+}
+
+:root[data-reading="spaced"]
+  :is(.chat-column, textarea.input, .composer textarea, .persona-note) {
+  line-height: 1.9;
+}
+
+:root[data-reading="spaced"] :is(.stack, .screen-body) p + p {
+  margin-top: 0.5em;
+}
+
+:root[data-targets="large"] {
+  --control: 3rem;
+}
+
+:root[data-targets="large"] .row {
+  min-height: 3.75rem;
+}
+
+:root[data-targets="large"] .close-btn {
+  width: 2.5rem;
+  height: 2.5rem;
+}
+
+:root[data-targets="large"] .jump-latest {
+  height: 2.5rem;
+}
+
+:root[data-targets="large"] .read-aloud {
+  min-height: 2.75rem;
+}
+
+:root[data-targets="large"] .choice input {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+:root[data-targets="large"] .pet-choice {
+  width: 5.5rem;
+  height: 6rem;
+}
+
+:root[data-targets="large"] :is(.link, .link-btn) {
+  padding-block: 0.375rem;
 }
 
 /*

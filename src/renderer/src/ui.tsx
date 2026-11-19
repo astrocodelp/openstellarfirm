@@ -1,6 +1,7 @@
 import { type ReactNode, useEffect, useRef } from "react";
 import { COLORS, PETS } from "../../shared/catalog";
 import type { PetColor, PetId } from "../../shared/types";
+import { announce, motionReduced } from "./a11y";
 
 /** Small shared pieces: the pets, the icons, and the two status lines. */
 
@@ -85,6 +86,9 @@ const ICONS = {
   alert: <path d="M12 4 3 20h18zM12 10v5M12 17.5h.01" />,
   close: <path d="M6 6l12 12M18 6 6 18" />,
   external: <path d="M14 5h5v5M19 5l-8 8M11 7H6v11h11v-5" />,
+  speaker: (
+    <path d="M4 9.5v5h3.5L12 18V6L7.5 9.5zM15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11" />
+  ),
   cloud: (
     <path d="M7 18a4 4 0 0 1-.6-7.96A6 6 0 0 1 18 9.5a4.25 4.25 0 0 1 0 8.5z" />
   ),
@@ -133,6 +137,7 @@ export function Icon({
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
+      data-icon={name}
     >
       {ICONS[name]}
     </svg>
@@ -165,11 +170,24 @@ export function ScreenHead({
   );
 }
 
-/** An error, always as an icon and a sentence, announced to a screen reader. */
-export function ErrorLine({ children }: { children: ReactNode }) {
+/**
+ * An error, always as an icon and a sentence, told to a screen reader through
+ * the app's one live region. Pass `id` to tie it to the field it is about.
+ */
+export function ErrorLine({
+  children,
+  id,
+}: {
+  children: ReactNode;
+  id?: string;
+}) {
+  useEffect(() => {
+    if (typeof children === "string" && children)
+      announce(`Error: ${children}`);
+  }, [children]);
   if (!children) return null;
   return (
-    <p className="error" role="alert">
+    <p className="error" id={id}>
       <Icon name="alert" />
       <span>{children}</span>
     </p>
@@ -190,9 +208,9 @@ export function message(error: unknown): string {
   return error instanceof Error ? error.message : "Something went wrong.";
 }
 
-/** True when the person asked the system for less motion. */
+/** True when the page shows less motion, by the person's choice or the computer's. */
 export function reducedMotion(): boolean {
-  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  return motionReduced();
 }
 
 /**

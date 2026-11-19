@@ -1,12 +1,20 @@
 /** Types shared by the main process, the preload and the page. No Node or DOM imports. */
 
+import type { AccessibilityPrefs } from "./accessibility";
 import type { CheckEvery } from "./checks";
 import type { LinkName } from "./links";
 import type { SendKey, TextSize } from "./preferences";
 import type { Theme } from "./theme";
 import type { UpdateCheck } from "./update";
 
-export type { CheckEvery, LinkName, SendKey, TextSize, UpdateCheck };
+export type {
+  AccessibilityPrefs,
+  CheckEvery,
+  LinkName,
+  SendKey,
+  TextSize,
+  UpdateCheck,
+};
 
 export const PET_IDS = [
   "blip",
@@ -295,6 +303,8 @@ export interface Settings {
   textSize: TextSize;
   /** What sends a message in the chat box. */
   sendWith: SendKey;
+  /** Contrast, motion, focus, reading space, target size and read aloud. Missing means the defaults. */
+  accessibility?: AccessibilityPrefs;
   /** Off until the person turns it on: a once-a-day look at the newest version. */
   checkUpdates: boolean;
   /** When the update check last ran, and the newest version it found. */

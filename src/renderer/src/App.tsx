@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { cleanAccessibility } from "../../shared/accessibility";
 import type {
   ApprovalCard,
   AppState,
@@ -7,7 +8,9 @@ import type {
   Decision,
 } from "../../shared/types";
 import { availableUpdate } from "../../shared/update";
+import { ShortcutsDialog, SkipLinks, useShortcutsKey } from "./Accessibility";
 import { AssistantForm } from "./AssistantForm";
+import { announce, applyAccessibility } from "./a11y";
 import { BackupScreen } from "./Backup";
 import { api } from "./bridge";
 import { ChatView } from "./ChatView";
@@ -46,12 +49,18 @@ export function App() {
   /** The step that waits for the person, by assistant. */
   const [approvals, setApprovals] = useState<Record<string, ApprovalCard>>({});
   const [error, setError] = useState("");
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  /** The assistants' names, for what is told to a screen reader. */
+  const names = useRef(new Map<string, string>());
+  useShortcutsKey(useCallback(() => setShowShortcuts(true), []));
 
   const refresh = useCallback(async () => {
     try {
       const next = await api.getState();
       document.documentElement.dataset.platform = next.platform;
       document.documentElement.dataset.textSize = next.settings.textSize;
+      applyAccessibility(next.settings.accessibility);
+      names.current = new Map(next.assistants.map((a) => [a.id, a.name]));
       setState(next);
       setSelected((current) =>
         current && next.assistants.some((a) => a.id === current)
@@ -65,6 +74,7 @@ export function App() {
 
   useEffect(() => {
     void refresh();
+    const nameOf = (id: string) => names.current.get(id) ?? "Your assistant";
     const offDelta = api.onDelta(({ assistantId, text }) => {
       setStreams((s) => ({
         ...s,
@@ -75,11 +85,23 @@ export function App() {
       setActivity((a) => ({ ...a, [assistantId]: label }));
     });
     const offApproval = api.onApproval(({ assistantId, card }) => {
+      if (card)
+        announce(
+          `${nameOf(assistantId)} waits for your Approve: ${card.title}`,
+        );
       setApprovals((a) =>
         card ? { ...a, [assistantId]: card } : without(a, assistantId),
       );
     });
     const offDone = api.onDone(({ assistantId, message, request }) => {
+      const name = nameOf(assistantId);
+      announce(
+        message.failed
+          ? `${name} could not answer. ${message.text}`
+          : message.check === "update"
+            ? `${name} has an update from a check.`
+            : `${name} finished its answer.`,
+      );
       setStreams((s) => without(s, assistantId));
       setActivity((a) => without(a, assistantId));
       setApprovals((a) => without(a, assistantId));
@@ -179,6 +201,7 @@ export function App() {
   if (!state.settings.onboarded) {
     return (
       <>
+        <SkipLinks messageBox={false} />
         <Welcome
           keychain={state.keychain}
           onDone={() => void finishWelcome()}
@@ -225,8 +248,30 @@ export function App() {
     });
   }
 
+  const mac = state.platform === "darwin";
+  const where =
+    view.name === "chat"
+      ? assistant
+        ? `Chat with ${assistant.name}`
+        : "Your assistants"
+      : {
+          assistant: editing ? `Change ${editing.name}` : "New assistant",
+          models: "Your models",
+          connections: "Your connections",
+          mail: "Your mail",
+          backup: "Move or back up",
+          settings: "Settings",
+        }[view.name];
+
   return (
     <div className="app">
+      <SkipLinks messageBox={view.name === "chat" && Boolean(assistant)} />
+      <ShortcutsDialog
+        open={showShortcuts}
+        mac={mac}
+        sendWith={state.settings.sendWith}
+        onClose={() => setShowShortcuts(false)}
+      />
       <Sidebar
         assistants={state.assistants}
         selected={view.name === "chat" ? selected : null}
@@ -276,7 +321,7 @@ export function App() {
           })
         }
       />
-      <main className="main">
+      <main className="main" id="main" tabIndex={-1} aria-label={where}>
         {error ? (
           <div style={{ padding: "0.75rem 1.25rem 0" }}>
             <ErrorLine>{error}</ErrorLine>
@@ -289,6 +334,7 @@ export function App() {
             onBack={() => setView({ name: "chat" })}
             onBackup={() => setView({ name: "backup" })}
             onChatsDeleted={() => setChats({})}
+            onShortcuts={() => setShowShortcuts(true)}
           />
         ) : view.name === "backup" ? (
           <BackupScreen
@@ -349,7 +395,8 @@ export function App() {
             onCustomize={() => setView({ name: "assistant", id: assistant.id })}
             onModels={() => setView({ name: "models" })}
             sendWith={state.settings.sendWith}
-            mac={state.platform === "darwin"}
+            mac={mac}
+            readRate={cleanAccessibility(state.settings.accessibility).readRate}
           />
         ) : (
           <div className="empty">

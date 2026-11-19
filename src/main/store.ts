@@ -9,6 +9,10 @@ import {
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
+import {
+  accessibilityPatch,
+  cleanAccessibility,
+} from "../shared/accessibility";
 import { resolveAddress } from "../shared/address";
 import {
   type AssistantFile,
@@ -122,6 +126,10 @@ function cleanSettings(raw: Partial<Settings> | undefined): Settings {
     sendWith: cleanSendKey(base.sendWith),
     checkUpdates: base.checkUpdates === true,
   };
+  // Kept only once the person changed one: a missing value reads as the defaults.
+  delete settings.accessibility;
+  if (base.accessibility !== undefined)
+    settings.accessibility = cleanAccessibility(base.accessibility);
   // The main assistant's checks: a value that is not valid is dropped, and a
   // missing one reads as its default (see `checkSettings`).
   delete settings.mainAssistantId;
@@ -657,6 +665,10 @@ export class Store {
       throw new Error("That text size is not known.");
     if (patch.sendWith !== undefined && !isSendKey(patch.sendWith))
       throw new Error("That way of sending is not known.");
+    const access =
+      patch.accessibility === undefined
+        ? undefined
+        : accessibilityPatch(patch.accessibility);
     if (
       patch.checkUpdates !== undefined &&
       typeof patch.checkUpdates !== "boolean"
@@ -721,6 +733,11 @@ export class Store {
     if (patch.theme !== undefined) state.settings.theme = patch.theme;
     if (patch.textSize !== undefined) state.settings.textSize = patch.textSize;
     if (patch.sendWith !== undefined) state.settings.sendWith = patch.sendWith;
+    if (access)
+      state.settings.accessibility = cleanAccessibility({
+        ...state.settings.accessibility,
+        ...access,
+      });
     if (patch.checkUpdates !== undefined)
       state.settings.checkUpdates = patch.checkUpdates;
     if (typeof patch.onboarded === "boolean")

@@ -1,6 +1,7 @@
 import { SEND_KEYS, TEXT_SIZES } from "../../shared/preferences";
 import { THEMES, type Theme } from "../../shared/theme";
 import type { AppState, SendKey, TextSize } from "../../shared/types";
+import { AccessibilitySection } from "./Accessibility";
 import { ApprovalsSection, DataSection } from "./SettingsData";
 import { MainAssistantSection } from "./SettingsMain";
 import { Choices, ErrorLine, Section, useSettingsSave } from "./SettingsParts";
@@ -15,6 +16,8 @@ interface SettingsScreenProps {
   onBackup(): void;
   /** Every chat was deleted, so the page forgets the ones it loaded. */
   onChatsDeleted(): void;
+  /** Opens the list of keyboard shortcuts. */
+  onShortcuts(): void;
 }
 
 const THEME_CHOICES: Record<Theme, { name: string; note: string }> = {
@@ -41,6 +44,7 @@ export function SettingsScreen({
   onBack,
   onBackup,
   onChatsDeleted,
+  onShortcuts,
 }: SettingsScreenProps) {
   const { settings } = state;
   const { error, save } = useSettingsSave(onChanged);
@@ -72,6 +76,12 @@ export function SettingsScreen({
             onPick={(textSize) => void save({ textSize })}
           />
         </Section>
+
+        <AccessibilitySection
+          settings={settings}
+          save={save}
+          onShortcuts={onShortcuts}
+        />
 
         <Section title="Chat">
           <Choices

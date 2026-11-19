@@ -112,6 +112,66 @@ describe("text size, sending and updates", () => {
   });
 });
 
+describe("accessibility choices", () => {
+  it("are absent until changed, and then kept whole", () => {
+    expect(store.settings().accessibility).toBeUndefined();
+    const saved = store.setSettings({
+      accessibility: { contrast: "more", largeTargets: true } as never,
+    });
+    expect(saved.accessibility).toEqual({
+      contrast: "more",
+      motion: "system",
+      underlineLinks: false,
+      strongFocus: false,
+      readingSpace: false,
+      largeTargets: true,
+      readRate: 1,
+    });
+    // A later change keeps what was set before.
+    store.setSettings({ accessibility: { readRate: 1.25 } as never });
+    expect(store.settings().accessibility).toMatchObject({
+      contrast: "more",
+      largeTargets: true,
+      readRate: 1.25,
+    });
+  });
+
+  it("refuse an unknown key or value, and change nothing", () => {
+    store.setSettings({ accessibility: { motion: "reduce" } as never });
+    for (const bad of [
+      { motion: "slow" },
+      { readRate: 4 },
+      { strongFocus: "yes" },
+      { zoom: 2 },
+      "more",
+    ])
+      expect(() =>
+        store.setSettings({ accessibility: bad as never }),
+      ).toThrow();
+    expect(store.settings().accessibility?.motion).toBe("reduce");
+  });
+
+  it("read a hand-edited file value by value", () => {
+    writeFileSync(
+      join(dir, "state.json"),
+      JSON.stringify({
+        v: 1,
+        assistants: [],
+        sources: [],
+        settings: {
+          onboarded: true,
+          accessibility: { contrast: "max", strongFocus: true, readRate: 7 },
+        },
+      }),
+    );
+    expect(store.settings().accessibility).toMatchObject({
+      contrast: "system",
+      strongFocus: true,
+      readRate: 1,
+    });
+  });
+});
+
 describe("clearing approvals", () => {
   it("forgets every remembered site for every assistant and counts them", () => {
     const a = store.saveAssistant(assistant("A"));
