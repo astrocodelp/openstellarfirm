@@ -57,8 +57,10 @@ app's version and operating system. Please do not include a real key.
   only by you.
 - **Direct connections.** A catalog of services that run their own remote
   tool server and take a key you make there. Each entry has one fixed address
-  and one fixed way to send the key (an `Authorization: Bearer` or `x-api-key`
-  header), set in the main process and again on every call. The page, a file, a
+  and one fixed way to send the key, from a small table in code (an
+  `Authorization: Bearer` header, an `x-api-key` header, Ref's `x-ref-api-key`
+  header, or PagerDuty's `Authorization: Token token=` form), set in the main
+  process and again on every call. No entry puts a key in its address. The page, a file, a
   backup, a persona or the server cannot change them. A key is sent only to the
   address of the connection it was saved for.
 - **Composio.** An optional preset of a connection. It uses your own Composio

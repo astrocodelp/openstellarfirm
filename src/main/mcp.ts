@@ -1,3 +1,4 @@
+import { KEY_HEADERS, type KeyStyle } from "../shared/connection-catalog";
 import { SseParser, withoutKey } from "./wires/common";
 
 /**
@@ -45,7 +46,7 @@ export interface McpOptions {
    * How the key travels. Decided in the main process from a connection's
    * preset, never by a page, an import or a server.
    */
-  keyStyle?: "bearer" | "composio" | "x-api-key";
+  keyStyle?: KeyStyle | "composio";
   /** The app's version, sent as the client's own. */
   appVersion?: string;
   signal?: AbortSignal;
@@ -301,6 +302,14 @@ export class McpClient {
     }
   }
 
+  /** The one header the key travels in, from a fixed table. Bearer by default. */
+  private keyHeader(apiKey: string): Record<string, string> {
+    const style = this.options.keyStyle ?? "bearer";
+    if (style === "composio") return { [COMPOSIO_KEY_HEADER]: apiKey };
+    const header = KEY_HEADERS[style] ?? KEY_HEADERS.bearer;
+    return { [header.name]: `${header.prefix}${apiKey}` };
+  }
+
   private headers(): Record<string, string> {
     return {
       "Content-Type": "application/json",
@@ -308,13 +317,7 @@ export class McpClient {
       ...(this.version ? { "MCP-Protocol-Version": this.version } : {}),
       ...(this.sessionId ? { "Mcp-Session-Id": this.sessionId } : {}),
       // The key goes in this header only, and only to the saved address.
-      ...(this.options.apiKey
-        ? this.options.keyStyle === "composio"
-          ? { [COMPOSIO_KEY_HEADER]: this.options.apiKey }
-          : this.options.keyStyle === "x-api-key"
-            ? { "x-api-key": this.options.apiKey }
-            : { Authorization: `Bearer ${this.options.apiKey}` }
-        : {}),
+      ...(this.options.apiKey ? this.keyHeader(this.options.apiKey) : {}),
     };
   }
 
