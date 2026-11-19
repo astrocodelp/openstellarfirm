@@ -48,6 +48,7 @@ import {
 } from "./backup";
 import {
   ConnectionService,
+  catalogInput,
   composioInput,
   connectionInput,
 } from "./connections";
@@ -500,6 +501,12 @@ function register(window: BrowserWindow): void {
     connections.saveComposio(composioInput(input)),
   );
   handle(IPC.lookupCompany, (_e, domain: unknown) => lookupCompany(domain));
+  handle(IPC.checkCatalog, (_e, input: unknown) =>
+    connections.checkCatalog(catalogInput(input)),
+  );
+  handle(IPC.saveCatalog, (_e, input: unknown) =>
+    connections.saveCatalog(catalogInput(input)),
+  );
   handle(IPC.removeConnection, (_e, id: unknown) => {
     connections.remove(str(id));
   });

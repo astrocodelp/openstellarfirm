@@ -492,12 +492,15 @@ describe("saving, sharing and removing", () => {
     skills: [],
   } as const;
   const tools = [tool("search_notes", true), tool("create_note", false)];
-  const saved = () =>
-    store.saveConnection({
-      name: "Team notes",
+  let made = 0;
+  const saved = () => {
+    made += 1;
+    return store.saveConnection({
+      name: `Team notes ${made}`,
       baseUrl: "https://n.example.com/mcp",
       tools,
     });
+  };
 
   it("keeps only ids of saved connections from the page, and never the allowed reads", () => {
     const conn = saved();
@@ -657,9 +660,9 @@ describe("saving, sharing and removing", () => {
     });
   });
 
-  it("holds at most ten connections", () => {
-    for (let i = 0; i < 10; i += 1) saved();
-    expect(() => saved()).toThrow(/up to 10 connections/);
+  it("holds at most twenty connections", () => {
+    for (let i = 0; i < 20; i += 1) saved();
+    expect(() => saved()).toThrow(/up to 20 connections/);
   });
 });
 

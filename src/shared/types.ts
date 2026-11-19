@@ -161,7 +161,22 @@ export interface ModelSourceInput {
   apiKey?: string;
 }
 
-export type ConnectionPreset = "custom" | "composio";
+/**
+ * How a connection was made. "custom" is an address the person typed,
+ * "composio" is the Composio preset, and "catalog:<id>" is one service from the
+ * built-in list. Only the main process decides it.
+ */
+export type ConnectionPreset = "custom" | "composio" | `catalog:${string}`;
+
+/** What the page may send for a catalog service: which one, a name and a key. */
+export interface CatalogInput {
+  /** An id from the built-in list. The address and header come from it. */
+  catalogId: string;
+  id?: string;
+  name: string;
+  /** Sent once, on check or save. Never returned. Empty keeps the saved key. */
+  apiKey?: string;
+}
 
 /** What the page may send for a Composio connection: no address, no header. */
 export interface ComposioInput {
@@ -316,6 +331,9 @@ export interface OpenApi {
   /** Like checkConnection, for the Composio preset: the address is fixed. */
   checkComposio(input: ComposioInput): Promise<ConnectionTool[]>;
   saveComposio(input: ComposioInput): Promise<Connection>;
+  /** Like checkConnection, for a service from the built-in list. */
+  checkCatalog(input: CatalogInput): Promise<ConnectionTool[]>;
+  saveCatalog(input: CatalogInput): Promise<Connection>;
   /** Reads what a company publishes for personal agents. Saves nothing. */
   lookupCompany(domain: string): Promise<CompanyOffer>;
   /** Takes back an "Always allow" for one read of one connection. */
@@ -347,7 +365,7 @@ export interface OpenApi {
    * Opens one of the app's fixed links in the browser, by name. The address
    * is built in the main process; the page never supplies one.
    */
-  openLink(name: LinkName): Promise<void>;
+  openLink(name: LinkName | `catalog:${string}`): Promise<void>;
   /** Opens the app's own data folder. The page names no path. */
   openDataFolder(): Promise<void>;
   /**
@@ -388,6 +406,8 @@ export const IPC = {
   removeConnection: "connection:remove",
   checkComposio: "connection:composio:check",
   saveComposio: "connection:composio:save",
+  checkCatalog: "connection:catalog:check",
+  saveCatalog: "connection:catalog:save",
   lookupCompany: "company:lookup",
   removeConnectionTool: "assistant:connection-tool:remove",
   saveSource: "source:save",

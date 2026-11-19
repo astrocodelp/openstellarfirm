@@ -45,7 +45,7 @@ export interface McpOptions {
    * How the key travels. Decided in the main process from a connection's
    * preset, never by a page, an import or a server.
    */
-  keyStyle?: "bearer" | "composio";
+  keyStyle?: "bearer" | "composio" | "x-api-key";
   /** The app's version, sent as the client's own. */
   appVersion?: string;
   signal?: AbortSignal;
@@ -311,7 +311,9 @@ export class McpClient {
       ...(this.options.apiKey
         ? this.options.keyStyle === "composio"
           ? { [COMPOSIO_KEY_HEADER]: this.options.apiKey }
-          : { Authorization: `Bearer ${this.options.apiKey}` }
+          : this.options.keyStyle === "x-api-key"
+            ? { "x-api-key": this.options.apiKey }
+            : { Authorization: `Bearer ${this.options.apiKey}` }
         : {}),
     };
   }

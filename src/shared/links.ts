@@ -1,3 +1,4 @@
+import { catalogEntry } from "./connection-catalog";
 import { cleanVersion } from "./update";
 
 /**
@@ -34,6 +35,12 @@ export function releaseUrl(version: string): string {
  * link exists only while there is one.
  */
 export function linkUrl(name: unknown, newest: string | null = null): string {
+  // A catalog service's own page, looked up in the fixed list by its id.
+  if (typeof name === "string" && name.startsWith("catalog:")) {
+    const entry = catalogEntry(name.slice("catalog:".length));
+    if (!entry) throw new Error("That is not allowed.");
+    return entry.link;
+  }
   switch (name) {
     case "source":
       return REPO_URL;

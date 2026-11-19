@@ -18,6 +18,7 @@ import {
   text,
 } from "../shared/assistant-file";
 import { presetOf } from "../shared/catalog";
+import { connectionPresetOf } from "../shared/connection-catalog";
 import { checkEndpoint } from "../shared/endpoint";
 import {
   cleanSendKey,
@@ -74,7 +75,7 @@ const MAX_SOURCES = 20;
 const MAX_MESSAGES = 500;
 const MAX_FOLDERS = 10;
 const MAX_SITES = 100;
-const MAX_CONNECTIONS = 10;
+const MAX_CONNECTIONS = 20;
 const MAX_ALLOWED_TOOLS = 200;
 
 /** Seconds-precise ISO times only, so a bad value never reaches a date. */
@@ -345,11 +346,16 @@ export class Store {
     const state = this.read();
     const list = state.connections ?? [];
     const existing = list.find((c) => c.id === input.id);
+    if (nameTaken(list, input.name, existing?.id))
+      throw new Error(DUPLICATE_NAME);
     const next: StoredConnection = {
       id: existing?.id ?? randomUUID(),
       name: input.name,
       baseUrl: input.baseUrl,
-      ...(input.preset === "composio" ? { preset: "composio" as const } : {}),
+      ...(input.preset &&
+      connectionPresetOf({ preset: input.preset }) !== "custom"
+        ? { preset: connectionPresetOf({ preset: input.preset }) }
+        : {}),
       tools: input.tools,
       checkedAt: new Date().toISOString(),
     };
@@ -625,6 +631,21 @@ export class Store {
     }
     return this.assistant(saved.id);
   }
+}
+
+export const DUPLICATE_NAME =
+  "You already have a connection with that name. Pick another name, so you can tell them apart.";
+
+/** True when another connection already has this name, ignoring case. */
+export function nameTaken(
+  list: { id: string; name: string }[],
+  name: string,
+  exceptId?: string,
+): boolean {
+  const wanted = name.trim().toLowerCase();
+  return list.some(
+    (c) => c.id !== exceptId && c.name.trim().toLowerCase() === wanted,
+  );
 }
 
 /** The ids the page sent, kept only when they name a saved connection. */
