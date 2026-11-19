@@ -304,7 +304,11 @@ function parseLines(
       const row = (text: string): Inline[][] => {
         const parts = cells(text).slice(0, width);
         while (parts.length < width) parts.push("");
-        return parts.map((part) => parseInline(part, options));
+        // A cell holds one line, so models write "<br>" for a new one: it
+        // becomes a line break, never HTML.
+        return parts.map((part) =>
+          parseInline(part.replace(/<br\s*\/?>/gi, "\n"), options),
+        );
       };
       const head = row(line);
       const rows: Inline[][][] = [];

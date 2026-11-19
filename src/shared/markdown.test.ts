@@ -325,6 +325,23 @@ describe("tables", () => {
     });
   });
 
+  it("reads a <br> in a cell as a line break, never as HTML", () => {
+    const [table] = parseMarkdown("| a |\n|---|\n| one<br>two <BR/> three |");
+    expect(table).toMatchObject({
+      rows: [
+        [
+          [
+            { type: "text", text: "one" },
+            { type: "break" },
+            { type: "text", text: "two " },
+            { type: "break" },
+            { type: "text", text: " three" },
+          ],
+        ],
+      ],
+    });
+  });
+
   it("is not a table when the dashed line does not match the header", () => {
     expect(parseMarkdown("a | b\n--- | --- | ---")[0]?.type).toBe("paragraph");
     expect(parseMarkdown("Title\n---")[0]?.type).not.toBe("table");
