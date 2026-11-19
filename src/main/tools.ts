@@ -32,8 +32,11 @@ export interface Ask {
   why: string;
   /** The site an "always allow" would remember. */
   site?: string;
-  /** The one read of one connection an "always allow" would remember. */
-  remember?: { connectionId: string; tool: string };
+  /**
+   * What an "always allow" would remember: one read of one connection, or
+   * reading one mail account.
+   */
+  remember?: { connectionId: string; tool: string } | { mailAccountId: string };
 }
 
 export interface PlannedCall {
@@ -147,10 +150,11 @@ export function planCall(
   rawArguments: string,
   web?: WebDeps,
   /**
-   * True once this answer has read from the person's folders, or "screen" once
-   * it has looked at the screen: either can hold text that an address carries out.
+   * True once this answer has read from the person's folders, "screen" once it
+   * has looked at the screen, or "mail" once it has read mail: any of them can
+   * hold text that an address carries out.
    */
-  afterFiles: boolean | "screen" = false,
+  afterFiles: boolean | "screen" | "mail" = false,
 ): PlannedCall {
   const offered = toolsFor(assistant).some((tool) => tool.name === name);
   // The screen tool has its own path in the agent, which asks before it looks.
@@ -213,7 +217,9 @@ export function planCall(
         why:
           afterFiles === "screen"
             ? "It looked at your screen in this answer, and an address can carry text out. Check the address holds nothing private."
-            : "It has read from your folders in this answer, and an address can carry text out. Check the address holds nothing private.",
+            : afterFiles === "mail"
+              ? "It has read your mail in this answer, and an address can carry text out. Check the address holds nothing private."
+              : "It has read from your folders in this answer, and an address can carry text out. Check the address holds nothing private.",
       },
     };
   }

@@ -3,6 +3,7 @@ import { COLORS, PETS, SKILLS } from "../../shared/catalog";
 import type {
   Assistant,
   Connection,
+  MailAccount,
   ModelSource,
   PetColor,
   PetId,
@@ -23,6 +24,7 @@ interface AssistantFormProps {
   assistant: Assistant | undefined;
   sources: ModelSource[];
   connections: Connection[];
+  mailAccounts: MailAccount[];
   onSaved(assistant: Assistant): void;
   /** Folders or sites changed; the form stays open. */
   onChanged(): void;
@@ -31,7 +33,7 @@ interface AssistantFormProps {
 }
 
 export function AssistantForm(props: AssistantFormProps) {
-  const { assistant, sources, connections } = props;
+  const { assistant, sources, connections, mailAccounts } = props;
   const [name, setName] = useState(assistant?.name ?? "");
   const [group, setGroup] = useState(assistant?.group ?? "Personal");
   const [pet, setPet] = useState<PetId>(assistant?.pet ?? "glim");
@@ -43,6 +45,7 @@ export function AssistantForm(props: AssistantFormProps) {
   const [connectionIds, setConnectionIds] = useState<string[]>(
     assistant?.connections ?? [],
   );
+  const [mailIds, setMailIds] = useState<string[]>(assistant?.mail ?? []);
   const [sourceId, setSourceId] = useState(assistant?.sourceId ?? "");
   const [model, setModel] = useState(assistant?.model ?? "");
   const [error, setError] = useState("");
@@ -90,6 +93,7 @@ export function AssistantForm(props: AssistantFormProps) {
           web,
           screen,
           connections: connectionIds,
+          mail: mailIds,
           ...(sourceId ? { sourceId } : {}),
           ...(sourceId && model.trim() ? { model: model.trim() } : {}),
         }),
@@ -422,6 +426,66 @@ export function AssistantForm(props: AssistantFormProps) {
                     </li>
                   );
                 })}
+              </ul>
+            ) : null}
+          </fieldset>
+
+          <fieldset className="stack-tight">
+            <legend className="section-title">Mail</legend>
+            {mailAccounts.length === 0 ? (
+              <p className="faint">
+                Add a mail account from the sidebar, then pick it here.
+              </p>
+            ) : (
+              <>
+                <p className="faint">
+                  This assistant may read the mail of the accounts you tick. It
+                  can only read: it cannot send, delete, move or mark anything.
+                  Each look asks you first, and what it reads goes to the model
+                  you chose.
+                </p>
+                <div className="stack-tight">
+                  {mailAccounts.map((account) => (
+                    <label className="choice" key={account.id}>
+                      <input
+                        type="checkbox"
+                        checked={mailIds.includes(account.id)}
+                        onChange={(event) =>
+                          setMailIds((ids) =>
+                            event.target.checked
+                              ? [...ids, account.id]
+                              : ids.filter((id) => id !== account.id),
+                          )
+                        }
+                      />
+                      <span>{account.name}</span>
+                    </label>
+                  ))}
+                </div>
+              </>
+            )}
+            {assistant && (assistant.mailReads ?? []).length > 0 ? (
+              <ul className="list card" aria-label="Mail it may always read">
+                {(assistant.mailReads ?? []).map((accountId) => (
+                  <li key={accountId}>
+                    <span className="grow">
+                      {mailAccounts.find((m) => m.id === accountId)?.name ??
+                        "A mail account"}
+                    </span>
+                    <span className="faint">Always allowed</span>
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={() =>
+                        void run(() =>
+                          api.removeMailRead(assistant.id, accountId),
+                        )
+                      }
+                    >
+                      Remove
+                    </button>
+                  </li>
+                ))}
               </ul>
             ) : null}
           </fieldset>

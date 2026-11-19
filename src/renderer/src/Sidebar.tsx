@@ -11,7 +11,13 @@ interface SidebarProps {
   waiting: Set<string>;
   showCloudCard: boolean;
   /** The screen that is open, so its link in the foot reads as the current one. */
-  current?: "models" | "connections" | "backup" | "settings" | undefined;
+  current?:
+    | "models"
+    | "connections"
+    | "mail"
+    | "backup"
+    | "settings"
+    | undefined;
   onSelect(id: string): void;
   onNew(): void;
   onImport(): void;
@@ -19,6 +25,7 @@ interface SidebarProps {
   onModels(): void;
   onSettings(): void;
   onConnections(): void;
+  onMail(): void;
   onCloud(): void;
   onHideCloudCard(): void;
   /** A quiet notice above the foot, such as "a new version is available". */
@@ -35,9 +42,9 @@ export function Sidebar(props: SidebarProps) {
     return a.lastLine ?? "No messages yet";
   };
   const nav = (
-    name: "models" | "connections" | "backup" | "settings",
+    name: "models" | "connections" | "mail" | "backup" | "settings",
     label: string,
-    icon: "sliders" | "link" | "download" | "gear",
+    icon: "sliders" | "link" | "mail" | "download" | "gear",
     onClick: () => void,
   ) => (
     <li key={name}>
@@ -134,6 +141,7 @@ export function Sidebar(props: SidebarProps) {
         <ul className="sidebar-nav">
           {nav("models", "Models", "sliders", props.onModels)}
           {nav("connections", "Connections", "link", props.onConnections)}
+          {nav("mail", "Mail", "mail", props.onMail)}
           {nav("backup", "Move or back up", "download", props.onBackup)}
           {nav("settings", "Settings", "gear", props.onSettings)}
         </ul>

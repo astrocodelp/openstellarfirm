@@ -12,6 +12,7 @@ import { BackupScreen } from "./Backup";
 import { api } from "./bridge";
 import { ChatView } from "./ChatView";
 import { ConnectionsScreen } from "./Connections";
+import { MailScreen } from "./Mail";
 import { ModelsScreen } from "./Models";
 import { SettingsScreen } from "./Settings";
 import { Sidebar } from "./Sidebar";
@@ -24,6 +25,7 @@ type View =
   | { name: "assistant"; id?: string }
   | { name: "models" }
   | { name: "connections" }
+  | { name: "mail" }
   | { name: "backup" }
   | { name: "settings" };
 
@@ -212,6 +214,7 @@ export function App() {
         current={
           view.name === "models" ||
           view.name === "connections" ||
+          view.name === "mail" ||
           view.name === "backup" ||
           view.name === "settings"
             ? view.name
@@ -241,6 +244,7 @@ export function App() {
         onModels={() => setView({ name: "models" })}
         onSettings={() => setView({ name: "settings" })}
         onConnections={() => setView({ name: "connections" })}
+        onMail={() => setView({ name: "mail" })}
         onCloud={() => void act(() => api.openCloud("home"))}
         onHideCloudCard={() =>
           void act(async () => {
@@ -275,6 +279,12 @@ export function App() {
             onChanged={refresh}
             onBack={() => setView({ name: "chat" })}
           />
+        ) : view.name === "mail" ? (
+          <MailScreen
+            state={state}
+            onChanged={refresh}
+            onBack={() => setView({ name: "chat" })}
+          />
         ) : view.name === "models" ? (
           <ModelsScreen
             state={state}
@@ -287,6 +297,7 @@ export function App() {
             assistant={editing}
             sources={state.sources}
             connections={state.connections}
+            mailAccounts={state.mailAccounts}
             onSaved={(saved) => {
               void refresh().then(() => {
                 setSelected(saved.id);

@@ -35,6 +35,7 @@ import {
   type Connection,
   type ConnectionPreset,
   type ConnectionTool,
+  type MailAccount,
   type ModelSource,
   type ModelSourceInput,
   PRESET_IDS,
@@ -59,15 +60,21 @@ export interface StoredConnection
   tools: StoredTool[];
 }
 
+/** A mail account as kept on disk. The password lives in the keychain, never here. */
+export type StoredMail = Omit<MailAccount, "hasPassword">;
+
 interface StoredState {
   v: 1;
   assistants: Assistant[];
   sources: StoredSource[];
   /** Missing in a file saved before connections existed. */
   connections?: StoredConnection[];
+  /** Missing in a file saved before mail existed. */
+  mail?: StoredMail[];
   settings: Settings;
 }
 
+const MAX_MAIL = 5;
 const MAX_ASSISTANTS = 50;
 const MAX_SOURCES = 20;
 const MAX_MESSAGES = 500;
@@ -155,6 +162,7 @@ export class Store {
       connectionTools: a.connectionTools ?? [],
     }));
     parsed.connections ??= [];
+    parsed.mail ??= [];
     return parsed;
   }
 
@@ -205,6 +213,12 @@ export class Store {
           connections,
           state.connections ?? [],
         ),
+        ...mailFields(
+          input.mail === undefined
+            ? (existing.mail ?? [])
+            : cleanMailIds(input.mail, state.mail ?? []),
+          existing.mailReads ?? [],
+        ),
         id,
         createdAt,
         ...(lastLine ? { lastLine } : {}),
@@ -225,6 +239,7 @@ export class Store {
         state.connections ?? [],
       ),
       connectionTools: [],
+      ...mailFields(cleanMailIds(input.mail ?? [], state.mail ?? []), []),
       id: randomUUID(),
       createdAt: new Date().toISOString(),
     };
@@ -412,6 +427,92 @@ export class Store {
     }));
   }
 
+  mailAccounts(): StoredMail[] {
+    return this.read().mail ?? [];
+  }
+
+  /**
+   * Saves a mail account. The password is never here: the caller keeps it in
+   * the keychain. A name is unique among the accounts, whatever its case.
+   */
+  saveMailAccount(input: {
+    id?: string;
+    name: string;
+    host: string;
+    port: number;
+    username: string;
+    ownNetwork: boolean;
+  }): StoredMail {
+    const state = this.read();
+    const list = state.mail ?? [];
+    const existing = list.find((m) => m.id === input.id);
+    if (
+      list.some(
+        (m) =>
+          m.id !== existing?.id &&
+          m.name.toLowerCase() === input.name.toLowerCase(),
+      )
+    )
+      throw new Error("Another mail account already has that name.");
+    const next: StoredMail = {
+      id: existing?.id ?? randomUUID(),
+      name: input.name,
+      host: input.host,
+      port: input.port,
+      username: input.username,
+      ownNetwork: input.ownNetwork,
+      checkedAt: new Date().toISOString(),
+    };
+    if (existing) {
+      state.mail = list.map((m) => (m.id === existing.id ? next : m));
+    } else {
+      if (list.length >= MAX_MAIL)
+        throw new Error(`You can have up to ${MAX_MAIL} mail accounts.`);
+      state.mail = [...list, next];
+    }
+    this.write(state);
+    return next;
+  }
+
+  /** Takes a mail account away from every assistant that had it. */
+  removeMailAccount(id: string): void {
+    const state = this.read();
+    state.mail = (state.mail ?? []).filter((m) => m.id !== id);
+    state.assistants = state.assistants.map((a) => {
+      const { mail: _m, mailReads: _r, ...rest } = a;
+      return {
+        ...rest,
+        ...mailFields(
+          (a.mail ?? []).filter((m) => m !== id),
+          (a.mailReads ?? []).filter((m) => m !== id),
+        ),
+      };
+    });
+    this.write(state);
+  }
+
+  /** Remembers reading one mail account for one assistant that already has it. */
+  allowMail(id: string, accountId: string): Assistant {
+    return this.change(id, (a) => {
+      if (!(a.mail ?? []).includes(accountId)) return a;
+      if ((a.mailReads ?? []).includes(accountId)) return a;
+      return { ...a, mailReads: [...(a.mailReads ?? []), accountId] };
+    });
+  }
+
+  removeAllowedMail(id: string, accountId: string): Assistant {
+    return this.change(id, (a) => {
+      const { mailReads: _gone, ...rest } = a;
+      return {
+        ...rest,
+        ...mailFields(
+          a.mail ?? [],
+          (a.mailReads ?? []).filter((m) => m !== accountId),
+        ),
+      };
+    });
+  }
+
   sources(): StoredSource[] {
     return this.read().sources;
   }
@@ -557,9 +658,12 @@ export class Store {
     let count = 0;
     state.assistants = state.assistants.map((a) => {
       // Every kind of remembered approval: sites, and reads on connections.
-      const held = a.sites.length + a.connectionTools.length;
+      const held =
+        a.sites.length + a.connectionTools.length + (a.mailReads?.length ?? 0);
       count += held;
-      return held > 0 ? { ...a, sites: [], connectionTools: [] } : a;
+      if (held === 0) return a;
+      const { mailReads: _mail, ...rest } = a;
+      return { ...rest, sites: [], connectionTools: [] };
     });
     if (count > 0) this.write(state);
     return count;
@@ -661,4 +765,33 @@ function keptTools(
         ?.tools.some((t) => t.name === tool && t.readOnly) ?? false
     );
   });
+}
+
+/** The ids the page sent, kept only when they name a saved mail account. */
+function cleanMailIds(ids: unknown, saved: StoredMail[]): string[] {
+  if (!Array.isArray(ids)) return [];
+  return [
+    ...new Set(
+      ids.filter(
+        (id): id is string =>
+          typeof id === "string" && saved.some((m) => m.id === id),
+      ),
+    ),
+  ].slice(0, MAX_MAIL);
+}
+
+/**
+ * The mail fields of an assistant, left out when empty so an assistant with no
+ * mail looks exactly as it did before mail existed. A read the person allowed
+ * for good is kept only for an account the assistant still has.
+ */
+function mailFields(
+  mail: string[],
+  reads: string[],
+): { mail?: string[]; mailReads?: string[] } {
+  const kept = reads.filter((id) => mail.includes(id));
+  return {
+    ...(mail.length > 0 ? { mail } : {}),
+    ...(kept.length > 0 ? { mailReads: kept } : {}),
+  };
 }

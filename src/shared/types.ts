@@ -76,6 +76,16 @@ export interface Assistant {
    * Only a tool marked as a read can ever be listed here.
    */
   connectionTools: string[];
+  /**
+   * Ids of the mail accounts it may read. Only the assistant form sets them;
+   * never in a shared file, a backup or a persona. Missing means none.
+   */
+  mail?: string[];
+  /**
+   * Mail accounts the person chose to always allow reading for this assistant.
+   * Only an account listed in `mail` can be here.
+   */
+  mailReads?: string[];
   /** The start of its newest message, for the sidebar. */
   lastLine?: string;
   createdAt: string;
@@ -85,7 +95,13 @@ export interface Assistant {
 export type AssistantInput = Pick<
   Assistant,
   "name" | "group" | "pet" | "color" | "brief" | "skills" | "sourceId" | "model"
-> & { id?: string; web?: boolean; screen?: boolean; connections?: string[] };
+> & {
+  id?: string;
+  web?: boolean;
+  screen?: boolean;
+  connections?: string[];
+  mail?: string[];
+};
 
 /** One thing the assistant did while answering, as a short plain line. */
 export interface ChatStep {
@@ -189,6 +205,37 @@ export interface ConnectionInput {
   apiKey?: string;
 }
 
+/** A mailbox an assistant may read. The password never leaves the main process. */
+export interface MailAccount {
+  id: string;
+  name: string;
+  host: string;
+  port: number;
+  username: string;
+  /** True when the person said the server is on their own network. */
+  ownNetwork: boolean;
+  hasPassword: boolean;
+  checkedAt: string;
+}
+
+export interface MailAccountInput {
+  id?: string;
+  name: string;
+  host: string;
+  port: number;
+  username: string;
+  ownNetwork: boolean;
+  /** Sent once, on check or save. Never returned. Empty keeps the saved one. */
+  password?: string;
+}
+
+/** What a mail check found: the folder names, cut and cleaned. */
+export interface MailCheck {
+  folders: string[];
+  /** How many more folders there were than are listed. */
+  more: number;
+}
+
 export interface Settings {
   onboarded: boolean;
   /** How the app looks: follow the computer, or always dark or light. */
@@ -213,6 +260,7 @@ export interface AppState {
   assistants: Assistant[];
   sources: ModelSource[];
   connections: Connection[];
+  mailAccounts: MailAccount[];
   settings: Settings;
   /** False when this computer has no keychain to keep a key in. */
   keychain: boolean;
@@ -304,6 +352,13 @@ export interface OpenApi {
     connectionId: string,
     tool: string,
   ): Promise<Assistant>;
+  /** Signs in to a mailbox, lists its folders and signs out. Saves nothing. */
+  checkMail(input: MailAccountInput): Promise<MailCheck>;
+  /** Signs in once to prove it works, then saves the account. */
+  saveMail(input: MailAccountInput): Promise<MailAccount>;
+  removeMail(id: string): Promise<void>;
+  /** Takes back an "Always allow" for reading one mail account. */
+  removeMailRead(assistantId: string, accountId: string): Promise<Assistant>;
   saveSource(input: ModelSourceInput): Promise<ModelSource>;
   removeSource(id: string): Promise<void>;
   /** Lists the models of a source that is not saved yet. */
@@ -369,6 +424,10 @@ export const IPC = {
   saveComposio: "connection:composio:save",
   lookupCompany: "company:lookup",
   removeConnectionTool: "assistant:connection-tool:remove",
+  checkMail: "mail:check",
+  saveMail: "mail:save",
+  removeMail: "mail:remove",
+  removeMailRead: "assistant:mail-read:remove",
   saveSource: "source:save",
   removeSource: "source:remove",
   probeModels: "source:probe",
