@@ -116,6 +116,22 @@ app's version and operating system. Please do not include a real key.
   or a tool's
   arguments can carry text out. Nothing in the app answers an approval for
   you.
+- **Memory.** Notes are kept in the app's data folder, one file per
+  assistant, readable only by your user account. They go into the assistant's
+  instructions with every message, marked as your saved notes, so a note that
+  reads like a key, a password or a token is refused, from you or from the
+  assistant. The `remember` tool is offered only in an answer to you, never in
+  a check or to an assistant that was asked a question. It is taken away, and
+  refused if called anyway, as soon as that answer has read a file, a web
+  page, mail, a connection, the screen or another assistant's answer, so text
+  from outside can never write itself into memory. It saves at most 3 notes an
+  answer, never asks for an Approve, and every note it saves is shown in the
+  chat with Undo. Notes are in a backup only when you include chats, and never
+  in a shared assistant file or the StellarFirm cloud link.
+- **Summaries.** "Summarise and continue" runs only on your click, with the
+  assistant's own model and no tools. The older messages stop being sent at
+  once but are deleted only when you keep the summary; Undo sends them again.
+  The summary is sent framed as information, not as your words.
 - **Model wires.** A model's wire (OpenAI-compatible, Anthropic or Gemini) is
   decided in the main process from its preset; the page cannot choose it. The
   only queries the app adds to a model address are fixed, non-secret text.

@@ -2,6 +2,7 @@ import type { ChatStep, Decision } from "../shared/types";
 import type { McpGate } from "./connections";
 import { FolderError } from "./folders";
 import type { MailGate } from "./mail";
+import { type MemoryGate, REMEMBER_TOOL_NAME, readOutside } from "./memory";
 import {
   assistantTurn,
   ModelError,
@@ -63,6 +64,7 @@ const CHECK_HIDDEN = new Set([
   "save_new_file",
   SCREEN_TOOL_NAME,
   ASK_TOOL_NAME,
+  REMEMBER_TOOL_NAME,
 ]);
 
 /** Told to the model when a call in a check needs the person's Approve. */
@@ -92,6 +94,11 @@ export interface AgentDeps {
   modeKey?: string;
   /** Other assistants this one may ask. Never set for an assistant that was asked. */
   team?: TeamGate;
+  /**
+   * The `remember` tool. Only an answer to the person has it, and only while
+   * memory is on. It is not offered once the answer has read outside text.
+   */
+  memory?: MemoryGate;
   /**
    * True for a check, which only reads. Any call that would need the person's
    * Approve is left undone, never shown and never run, and the tools that
@@ -142,6 +149,7 @@ async function run(
     ...(deps.mcp?.specs ?? []),
     ...(deps.mail?.specs ?? []),
     ...(deps.team ? [deps.team.spec] : []),
+    ...(deps.memory ? [deps.memory.spec] : []),
   ];
   const specs = deps.readOnly
     ? offeredAll.filter((spec) => !CHECK_HIDDEN.has(spec.name))
@@ -184,7 +192,12 @@ async function run(
     try {
       for await (const event of deps.turn(
         messages,
-        textMode || toolsOff ? [] : specs,
+        textMode || toolsOff
+          ? []
+          : // Once outside text is in the answer, saving a note is not offered.
+            readOutside(seen)
+            ? specs.filter((spec) => spec.name !== REMEMBER_TOOL_NAME)
+            : specs,
       )) {
         if (event.type === "text") {
           text += event.text;
@@ -313,6 +326,18 @@ async function runCall(
   }
   if (name === ASK_TOOL_NAME)
     return askAssistant(rawArguments, steps, deps, seen, tally);
+  if (name === REMEMBER_TOOL_NAME) {
+    if (!deps.memory) {
+      steps.push({
+        label: "Turned down a step that is not allowed",
+        ok: false,
+      });
+      return toolFailure(new FolderError("That tool is not available here."));
+    }
+    const saved = deps.memory.save(rawArguments, readOutside(seen));
+    steps.push(saved.step);
+    return saved.result;
+  }
   if (name === SCREEN_TOOL_NAME) {
     const looked = await lookAtScreen(
       Boolean(assistant.screen),
@@ -386,6 +411,9 @@ async function runCall(
     steps.push({ label: planned.label, ok: true });
     if (FOLDER_READS.has(name)) seen.files = true;
     if (deps.mail?.owns(name)) seen.mail = true;
+    // Outside text that no gate here watches, but memory does.
+    if (name === "read_web_page") seen.web = true;
+    if (deps.mcp?.owns(name)) seen.connection = true;
     return result;
   } catch (error) {
     steps.push({
@@ -427,6 +455,8 @@ async function askAssistant(
   }
   tally.asks += 1;
   deps.onActivity(`Asking ${peer.name}`);
+  // Another assistant's answer is outside text, however the question ends.
+  seen.assistant = true;
   const inner = copyFlags(seen);
   try {
     const run = await team.ask(peer, question, {

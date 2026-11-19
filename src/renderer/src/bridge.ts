@@ -1,9 +1,11 @@
 import { presetOf } from "../../shared/catalog";
 import { catalogEntry, catalogPreset } from "../../shared/connection-catalog";
+import { cleanNoteText } from "../../shared/memory";
 import { searchChats } from "../../shared/search";
 import type {
   AppState,
   Assistant,
+  AssistantMemory,
   ChatDone,
   ChatMessage,
   Connection,
@@ -11,6 +13,124 @@ import type {
   ModelSource,
   OpenApi,
 } from "../../shared/types";
+
+type MemoryApi = Pick<
+  OpenApi,
+  | "memory"
+  | "addNote"
+  | "editNote"
+  | "removeNote"
+  | "setMemoryOn"
+  | "forgetMessage"
+  | "undoForget"
+  | "clearChat"
+  | "summariseChat"
+  | "keepSummary"
+  | "undoSummary"
+>;
+
+/** Memory and chat context for the browser preview: kept in memory, no model. */
+function previewMemory(chats: Map<string, ChatMessage[]>): MemoryApi {
+  const memories = new Map<string, AssistantMemory>();
+  const get = (assistantId: string): AssistantMemory =>
+    memories.get(assistantId) ?? { on: true, notes: [] };
+  const set = (assistantId: string, next: AssistantMemory) => {
+    memories.set(assistantId, next);
+    return structuredClone(next);
+  };
+  return {
+    memory: async (assistantId) => structuredClone(get(assistantId)),
+    addNote: async (assistantId, text) => {
+      const m = get(assistantId);
+      return set(assistantId, {
+        ...m,
+        notes: [
+          ...m.notes,
+          {
+            id: crypto.randomUUID(),
+            text: cleanNoteText(text),
+            at: new Date().toISOString(),
+            by: "person",
+          },
+        ],
+      });
+    },
+    editNote: async (assistantId, noteId, text) => {
+      const m = get(assistantId);
+      const clean = cleanNoteText(text);
+      return set(assistantId, {
+        ...m,
+        notes: m.notes.map((n) =>
+          n.id === noteId ? { ...n, text: clean } : n,
+        ),
+      });
+    },
+    removeNote: async (assistantId, noteId) => {
+      const m = get(assistantId);
+      return set(assistantId, {
+        ...m,
+        notes: m.notes.filter((n) => n.id !== noteId),
+      });
+    },
+    setMemoryOn: async (assistantId, on) =>
+      set(assistantId, { ...get(assistantId), on }),
+    forgetMessage: async (assistantId, messageId) => {
+      const next = (chats.get(assistantId) ?? []).filter(
+        (m) => m.id !== messageId,
+      );
+      chats.set(assistantId, next);
+      return next;
+    },
+    undoForget: async (assistantId) => chats.get(assistantId) ?? [],
+    clearChat: async (assistantId) => {
+      chats.delete(assistantId);
+    },
+    // No model here: the summary is a fixed line, so the screens can be worked on.
+    summariseChat: async (assistantId) => {
+      const all = chats.get(assistantId) ?? [];
+      const older = all.filter((m) => !m.summarised).slice(0, -6);
+      if (older.length < 4)
+        throw new Error(
+          "This chat is still short. There is nothing to summarise.",
+        );
+      const summary: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        text: "This is the browser preview. In the app, the assistant's own model writes the summary here.",
+        at: new Date().toISOString(),
+        summary: "pending",
+      };
+      const covered = new Set(older.map((m) => m.id));
+      const marked = all.map((m) =>
+        covered.has(m.id) ? { ...m, summarised: summary.id } : m,
+      );
+      const first = marked.findIndex((m) => covered.has(m.id));
+      const next = [...marked.slice(0, first), summary, ...marked.slice(first)];
+      chats.set(assistantId, next);
+      return next;
+    },
+    keepSummary: async (assistantId, summaryId) => {
+      const next = (chats.get(assistantId) ?? [])
+        .filter((m) => m.summarised !== summaryId)
+        .map((m) =>
+          m.id === summaryId ? { ...m, summary: "kept" as const } : m,
+        );
+      chats.set(assistantId, next);
+      return next;
+    },
+    undoSummary: async (assistantId, summaryId) => {
+      const next = (chats.get(assistantId) ?? [])
+        .filter((m) => m.id !== summaryId)
+        .map((m) => {
+          if (m.summarised !== summaryId) return m;
+          const { summarised: _gone, ...rest } = m;
+          return rest;
+        });
+      chats.set(assistantId, next);
+      return next;
+    },
+  };
+}
 
 /**
  * The page talks to the app through `window.stellarOpen`. In a plain browser
@@ -345,6 +465,7 @@ function preview(): OpenApi {
       chats.clear();
       return count;
     },
+    ...previewMemory(chats),
     checkNow: async () => {},
     checkForUpdate: async () => ({ status: "current" }),
     dismissUpdate: async () => state.settings,

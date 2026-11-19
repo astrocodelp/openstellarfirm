@@ -251,6 +251,16 @@ export function App() {
     return source ? `${a.model ?? source.model} · ${source.name}` : null;
   }
 
+  /** The model that answers and its preset, for the chat's context meter. */
+  function modelOf(a: Assistant): { model?: string; preset?: string } {
+    const source = state?.sources.find(
+      (s) => s.id === (a.sourceId ?? state.settings.defaultSourceId),
+    );
+    return source
+      ? { model: a.model ?? source.model, preset: source.preset }
+      : {};
+  }
+
   async function send(a: Assistant, text: string) {
     const sent = await api.send(a.id, text);
     setChats((c) => ({ ...c, [a.id]: [...(c[a.id] ?? []), sent] }));
@@ -465,6 +475,11 @@ export function App() {
             onSaveChat={() => api.exportChat(assistant.id)}
             onCopy={(messageId) => api.copyMessage(assistant.id, messageId)}
             found={found?.assistantId === assistant.id ? found : undefined}
+            {...modelOf(assistant)}
+            onChatChanged={(next) => {
+              setChats((c) => ({ ...c, [assistant.id]: next }));
+              void refresh();
+            }}
           />
         ) : (
           <div className="empty">

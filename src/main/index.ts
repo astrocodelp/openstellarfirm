@@ -19,6 +19,7 @@ import { resolveAddress } from "../shared/address";
 import { headerOf, presetOf } from "../shared/catalog";
 import { checkSettings } from "../shared/checks";
 import { cloudCopyUrl, cloudHomeUrl, MAX_LINK_WINDOWS } from "../shared/cloud";
+import { sentMessages } from "../shared/context";
 import { checkEndpoint, isLocalEndpoint } from "../shared/endpoint";
 import { linkUrl } from "../shared/links";
 import { systemPrompt } from "../shared/prompt";
@@ -50,6 +51,15 @@ import {
   restoreBackup,
 } from "./backup";
 import {
+  applySummary,
+  forgetMessage,
+  keepSummary,
+  planSummary,
+  restoreMessage,
+  undoSummary,
+  writeSummary,
+} from "./chat-context";
+import {
   CheckScheduler,
   checkMessage,
   GAVE_UP_LINE,
@@ -66,6 +76,7 @@ import {
 import { chatFileName, chatMarkdown } from "./export";
 import { folderLabels } from "./folders";
 import { MailService, mailInput } from "./mail";
+import { MemoryStore, rememberGate } from "./memory";
 import { listModels, ModelError, streamTurn, type WireMessage } from "./models";
 import { lookupCompany } from "./poppy";
 import { electronScreen } from "./screen-capture";
@@ -104,6 +115,9 @@ let store: Store;
 let secrets: Secrets;
 let connections: ConnectionService;
 let mail: MailService;
+let memory: MemoryStore;
+/** The newest message forgotten in each chat, so Undo can put it back. */
+const forgotten = new Map<string, { message: ChatMessage; index: number }>();
 let updates: UpdateChecker;
 let checker: CheckScheduler;
 const running = new Map<string, AbortController>();
@@ -282,6 +296,10 @@ async function runAssistant(spec: RunSpec): Promise<AgentResult> {
   const mailGate = mail.gateFor(assistant, signal);
   // A check never looks at the screen, whatever the assistant is set to.
   const screen = assistant.screen === true && kind !== "check";
+  // Notes are the person's: an assistant that is asked a question by another
+  // gets none, and only an answer to the person may save one.
+  const notes = kind === "asked" ? undefined : memoryOf(assistant.id);
+  const remember = kind === "answer" && notes?.on === true;
   const prompt = systemPrompt({
     ...assistant,
     screen,
@@ -301,6 +319,8 @@ async function runAssistant(spec: RunSpec): Promise<AgentResult> {
       : [],
     ...(spec.team ? { askable: spec.team.names } : {}),
     ...(spec.askedBy ? { askedBy: spec.askedBy } : {}),
+    ...(notes?.on ? { notes: notes.notes.map((n) => n.text) } : {}),
+    ...(remember ? { canRemember: true } : {}),
   });
   return runAgent(
     assistant,
@@ -321,6 +341,7 @@ async function runAssistant(spec: RunSpec): Promise<AgentResult> {
       ...(mcp ? { mcp } : {}),
       ...(mailGate ? { mail: mailGate } : {}),
       ...(spec.team ? { team: spec.team } : {}),
+      ...(remember ? { memory: rememberGate(memory, assistant.id) } : {}),
       ...(spec.seen ? { seen: spec.seen } : {}),
       ...(kind === "check"
         ? { readOnly: true, maxTurns: MAX_CHECK_TURNS }
@@ -376,13 +397,86 @@ function teamFor(asker: Assistant): TeamGate | undefined {
   });
 }
 
-/** What the model is shown of a chat: the last 40 messages that worked. */
+/**
+ * What the model is shown of a chat: the last 40 messages that worked, with a
+ * summary in place of the older messages it stands in for.
+ */
 function chatHistory(assistantId: string): WireMessage[] {
-  return store
-    .messages(assistantId)
-    .filter((m) => !m.failed)
-    .slice(-40)
-    .map((m) => ({ role: m.role, content: m.text }));
+  return sentMessages(store.messages(assistantId));
+}
+
+/** An assistant's memory, or none when its file cannot be read. */
+function memoryOf(assistantId: string) {
+  try {
+    return memory.read(assistantId);
+  } catch {
+    return undefined;
+  }
+}
+
+/** One plain call to the assistant's own model, with no tools. */
+async function plainTurn(assistant: Assistant, signal: AbortSignal) {
+  const sourceId = assistant.sourceId ?? store.settings().defaultSourceId;
+  const source = sourceId
+    ? store.sources().find((s) => s.id === sourceId)
+    : undefined;
+  if (!source)
+    throw new ModelError("No model is set up yet. Add one in Models.");
+  const apiKey = await secrets.get(source.id);
+  return (messages: WireMessage[]) =>
+    streamTurn({
+      baseUrl: source.baseUrl,
+      wire: source.wire,
+      auth: headerOf(source.preset),
+      ...(apiKey ? { apiKey } : {}),
+      model: assistant.model ?? source.model,
+      messages,
+      tools: [],
+      signal,
+    });
+}
+
+/** A chat can only be changed while nothing is being written to it. */
+function idle(assistantId: string): void {
+  if (running.has(assistantId))
+    throw new Error("It is still answering. Stop it first, or wait.");
+}
+
+/**
+ * The assistant's own model sums up the older messages. They stop being sent
+ * at once, and are deleted only when the person keeps the summary.
+ */
+async function summariseChat(assistantId: string): Promise<ChatMessage[]> {
+  idle(assistantId);
+  const assistant = store.assistant(assistantId);
+  const plan = planSummary(store.messages(assistantId));
+  const controller = new AbortController();
+  running.set(assistantId, controller);
+  try {
+    const turn = await plainTurn(assistant, controller.signal);
+    const text = await writeSummary(turn, assistant.name, plan.transcript);
+    const next = applySummary(store.messages(assistantId), plan.older, text);
+    store.replaceMessages(assistantId, next);
+    forgotten.delete(assistantId);
+    return next;
+  } catch (error) {
+    if (controller.signal.aborted) throw new Error("Stopped. Nothing changed.");
+    throw error instanceof ModelError || error instanceof Error
+      ? error
+      : new Error("The summary did not work.");
+  } finally {
+    running.delete(assistantId);
+  }
+}
+
+function changeChat(
+  assistantId: string,
+  edit: (messages: ChatMessage[]) => ChatMessage[],
+): ChatMessage[] {
+  idle(assistantId);
+  const next = edit(store.messages(assistantId));
+  store.replaceMessages(assistantId, next);
+  return next;
 }
 
 async function answer(
@@ -592,7 +686,11 @@ async function exportBackup(
   if (picked.canceled || !picked.filePath) return false;
   writeFileSync(
     picked.filePath,
-    JSON.stringify(buildBackup(store, includeChats), null, 2),
+    JSON.stringify(
+      buildBackup(store, includeChats, new Date(), memory),
+      null,
+      2,
+    ),
     { mode: 0o600 },
   );
   return true;
@@ -609,7 +707,7 @@ async function importBackup(
   if (picked.canceled || !path) return null;
   if (statSync(path).size > MAX_BACKUP_BYTES)
     throw new Error("That file is too large to be a backup.");
-  return restoreBackup(store, readFileSync(path, "utf8"));
+  return restoreBackup(store, readFileSync(path, "utf8"), memory);
 }
 
 /**
@@ -710,6 +808,7 @@ function deleteAllChats(): number {
   // An answer that is still being written would save itself after the delete.
   if (running.size > 0)
     throw new Error("An assistant is still answering. Stop it first, or wait.");
+  forgotten.clear();
   return store.deleteAllChats();
 }
 
@@ -721,6 +820,8 @@ function register(window: BrowserWindow): void {
   handle(IPC.removeAssistant, (_e, id: unknown) => {
     running.get(str(id))?.abort();
     store.removeAssistant(str(id));
+    memory.forget(str(id));
+    forgotten.delete(str(id));
   });
   handle(IPC.exportAssistant, (_e, id: unknown) =>
     exportAssistant(window, str(id)),
@@ -872,6 +973,62 @@ function register(window: BrowserWindow): void {
   handle(IPC.copyMessage, (_e, id: unknown, messageId: unknown) =>
     copyMessage(str(id, 64), str(messageId, 64)),
   );
+  registerMemory();
+}
+
+/** Memory notes and the chat's context. Every value from the page is checked. */
+function registerMemory(): void {
+  const known = (id: unknown) => store.assistant(str(id)).id;
+  handle(IPC.memory, (_e, id: unknown) => memory.read(known(id)));
+  handle(IPC.addNote, (_e, id: unknown, text: unknown) => {
+    return memory.add(known(id), str(text, 2000)).memory;
+  });
+  handle(IPC.editNote, (_e, id: unknown, noteId: unknown, text: unknown) =>
+    memory.edit(known(id), str(noteId, 100), str(text, 2000)),
+  );
+  handle(IPC.removeNote, (_e, id: unknown, noteId: unknown) =>
+    memory.remove(known(id), str(noteId, 100)),
+  );
+  handle(IPC.setMemoryOn, (_e, id: unknown, on: unknown) =>
+    memory.setOn(known(id), on),
+  );
+  handle(IPC.forgetMessage, (_e, id: unknown, messageId: unknown) => {
+    const assistantId = known(id);
+    let kept: { message: ChatMessage; index: number } | undefined;
+    const next = changeChat(assistantId, (messages) => {
+      const done = forgetMessage(messages, str(messageId, 100));
+      kept = { message: done.removed, index: done.index };
+      return done.messages;
+    });
+    if (kept) forgotten.set(assistantId, kept);
+    return next;
+  });
+  handle(IPC.undoForget, (_e, id: unknown) => {
+    const assistantId = known(id);
+    const kept = forgotten.get(assistantId);
+    if (!kept) throw new Error("There is nothing to bring back.");
+    const next = changeChat(assistantId, (messages) =>
+      restoreMessage(messages, kept.message, kept.index),
+    );
+    forgotten.delete(assistantId);
+    return next;
+  });
+  handle(IPC.clearChat, (_e, id: unknown) => {
+    const assistantId = known(id);
+    changeChat(assistantId, () => []);
+    forgotten.delete(assistantId);
+  });
+  handle(IPC.summariseChat, (_e, id: unknown) => summariseChat(known(id)));
+  handle(IPC.keepSummary, (_e, id: unknown, summaryId: unknown) =>
+    changeChat(known(id), (messages) =>
+      keepSummary(messages, str(summaryId, 100)),
+    ),
+  );
+  handle(IPC.undoSummary, (_e, id: unknown, summaryId: unknown) =>
+    changeChat(known(id), (messages) =>
+      undoSummary(messages, str(summaryId, 100)),
+    ),
+  );
 }
 
 /**
@@ -934,6 +1091,7 @@ if (app.isPackaged && app.commandLine.hasSwitch("remote-debugging-port")) {
 app.whenReady().then(() => {
   const dir = app.getPath("userData");
   store = new Store(dir);
+  memory = new MemoryStore(dir);
   secrets = new Secrets(join(dir, "keys.json"), {
     available: () => safeStorage.isAsyncEncryptionAvailable(),
     seal: (plain) => safeStorage.encryptStringAsync(plain),

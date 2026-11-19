@@ -10,6 +10,7 @@ import type {
 } from "../../shared/types";
 import { api } from "./bridge";
 import { ConnectionPicker } from "./ConnectionPicker";
+import { MemorySection } from "./Memory";
 import { PersonaGallery } from "./PersonaGallery";
 import type { Persona } from "./personas";
 import { SkillPicker } from "./SkillPicker";
@@ -505,6 +506,8 @@ export function AssistantForm(props: AssistantFormProps) {
               </>
             )}
           </fieldset>
+
+          <MemorySection assistant={assistant} />
 
           <div className="wrap" style={{ alignItems: "flex-start" }}>
             <label className="field grow">
