@@ -36,6 +36,14 @@ interface ChatViewProps {
   mac: boolean;
 }
 
+/** The time a check started, as the person's computer writes it. */
+function clock(at: string): string {
+  const time = new Date(at);
+  return Number.isNaN(time.getTime())
+    ? ""
+    : time.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+}
+
 function Steps({ steps }: { steps: ChatStep[] }) {
   return (
     <ul className="steps" aria-label="What it did">
@@ -221,8 +229,14 @@ export function ChatView(props: ChatViewProps) {
         ) : (
           <div className="chat-column" aria-live="polite">
             {messages.map((m) =>
-              m.failed ? (
+              m.check === "request" ? (
+                <p key={m.id} className="check-note">
+                  <Icon name="check" size={14} />
+                  <span>Started a check at {clock(m.at)}</span>
+                </p>
+              ) : m.failed ? (
                 <div key={m.id} className="turn">
+                  {m.check ? <p className="check-note">Check update</p> : null}
                   {m.steps ? <Steps steps={m.steps} /> : null}
                   <p className="bubble bubble-failed">
                     <Icon name="alert" />
@@ -235,6 +249,7 @@ export function ChatView(props: ChatViewProps) {
                 </p>
               ) : (
                 <div key={m.id} className="turn">
+                  {m.check ? <p className="check-note">Check update</p> : null}
                   {m.steps ? <Steps steps={m.steps} /> : null}
                   <p className="bubble">{m.text}</p>
                 </div>

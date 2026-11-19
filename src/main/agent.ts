@@ -1,8 +1,8 @@
 import type { ChatStep, Decision } from "../shared/types";
 import type { McpGate } from "./connections";
+import { FolderError } from "./folders";
 import {
   assistantTurn,
-  type ImagePart,
   ModelError,
   type ToolSpec,
   type TurnEvent,
@@ -16,6 +16,14 @@ import {
   type ScreenDeps,
   withoutPicture,
 } from "./screen";
+import { carryFlags, copyFlags, newSeen, type Seen } from "./seen";
+import {
+  ASK_TOOL_NAME,
+  askedSteps,
+  attribute,
+  MAX_ASKS_A_ANSWER,
+  type TeamGate,
+} from "./team";
 import {
   needsTextMode,
   parseToolCalls,
@@ -46,6 +54,20 @@ const MAX_CALLS_A_TURN = 4;
 const MAX_RESULT_CHARS = 16_000;
 const FOLDER_READS = new Set(["list_folder", "read_file", "find_files"]);
 
+/**
+ * Tools a check never has: it only reads. A write that needs no Approve, a
+ * look at the screen and a question to another assistant are all left out.
+ */
+const CHECK_HIDDEN = new Set([
+  "save_new_file",
+  SCREEN_TOOL_NAME,
+  ASK_TOOL_NAME,
+]);
+
+/** Told to the model when a call in a check needs the person's Approve. */
+export const CHECK_LEFT_FOR_PERSON =
+  "This needs the person's Approve, which is not asked during a check. Say in your update that it is waiting for them.";
+
 export interface AgentDeps {
   turn(messages: WireMessage[], tools: ToolSpec[]): AsyncGenerator<TurnEvent>;
   /** Shows the step to the person and waits for their decision. */
@@ -65,6 +87,21 @@ export interface AgentDeps {
    * the next answers go straight to asking for them in writing.
    */
   modeKey?: string;
+  /** Other assistants this one may ask. Never set for an assistant that was asked. */
+  team?: TeamGate;
+  /**
+   * True for a check, which only reads. Any call that would need the person's
+   * Approve is left undone, never shown and never run, and the tools that
+   * write, look at the screen or ask another assistant are not offered.
+   */
+  readOnly?: boolean;
+  /** Fewer model turns than the usual eight. */
+  maxTurns?: number;
+  /**
+   * The flags of this answer. When given, the run starts from them and updates
+   * them in place, so an asker can carry them in and take them back.
+   */
+  seen?: Seen;
 }
 
 export interface AgentResult {
@@ -86,13 +123,9 @@ export async function runAgent(
   }
 }
 
-interface Seen {
-  /** Set once this answer has read from the person's folders. */
-  files: boolean;
-  /** Set once this answer has looked at the screen. */
-  screen: boolean;
-  /** The picture the last call made, taken by the loop right after it. */
-  picture?: ImagePart;
+/** What one answer counts, besides what it has seen. */
+interface Tally {
+  asks: number;
 }
 
 async function run(
@@ -101,7 +134,17 @@ async function run(
   deps: AgentDeps,
 ): Promise<AgentResult> {
   const steps: ChatStep[] = [];
-  const specs = [...toolsFor(assistant), ...(deps.mcp?.specs ?? [])];
+  const offeredAll = [
+    ...toolsFor(assistant),
+    ...(deps.mcp?.specs ?? []),
+    ...(deps.team ? [deps.team.spec] : []),
+  ];
+  const specs = deps.readOnly
+    ? offeredAll.filter((spec) => !CHECK_HIDDEN.has(spec.name))
+    : offeredAll;
+  const allowed = new Set(specs.map((spec) => spec.name));
+  const maxTurns = deps.maxTurns ?? MAX_TURNS;
+  const tally: Tally = { asks: 0 };
   // A model that asks for tools in writing is never offered the screen: a
   // picture needs a real tool result to travel in.
   const textSpecs = specs.filter((spec) => spec.name !== SCREEN_TOOL_NAME);
@@ -109,7 +152,7 @@ async function run(
   // The assistant's own list, so a site allowed mid-answer counts at once.
   const live: ToolAssistant = { ...assistant, sites: [...assistant.sites] };
   /** Set once this answer has read from the person's folders. */
-  const seen: Seen = { files: false, screen: false };
+  const seen: Seen = deps.seen ?? newSeen();
   let full = "";
   /** Tools asked for in writing, for a model that cannot call them itself. */
   let textMode = needsTextMode(deps.modeKey) && textSpecs.length > 0;
@@ -121,7 +164,7 @@ async function run(
   if (textMode)
     messages.splice(0, messages.length, ...withTextTools(messages, textSpecs));
 
-  for (let turn = 0; turn < MAX_TURNS; turn += 1) {
+  for (let turn = 0; turn < maxTurns; turn += 1) {
     let text = "";
     let shown = false;
     let calls: Extract<TurnEvent, { type: "calls" }>["calls"] = [];
@@ -203,6 +246,8 @@ async function run(
           steps,
           deps,
           seen,
+          allowed,
+          tally,
         );
         results.push(
           textToolResult(call.name, result.slice(0, MAX_RESULT_CHARS)),
@@ -225,6 +270,8 @@ async function run(
         steps,
         deps,
         seen,
+        allowed,
+        tally,
       );
       const picture = seen.picture;
       delete seen.picture;
@@ -239,7 +286,7 @@ async function run(
     }
   }
   steps.push({
-    label: `Stopped after ${MAX_TURNS} rounds of tools`,
+    label: `Stopped after ${maxTurns} rounds of tools`,
     ok: false,
   });
   return { text: full, steps };
@@ -252,7 +299,16 @@ async function runCall(
   steps: ChatStep[],
   deps: AgentDeps,
   seen: Seen,
+  allowed: Set<string>,
+  tally: Tally,
 ): Promise<string> {
+  // In a check only what was offered can be called, whatever the model names.
+  if (deps.readOnly && !allowed.has(name)) {
+    steps.push({ label: "Turned down a step that is not allowed", ok: false });
+    return toolFailure(new FolderError("That tool is not available here."));
+  }
+  if (name === ASK_TOOL_NAME)
+    return askAssistant(rawArguments, steps, deps, seen, tally);
   if (name === SCREEN_TOOL_NAME) {
     const looked = await lookAtScreen(
       Boolean(assistant.screen),
@@ -289,6 +345,11 @@ async function runCall(
     steps.push({ label: "Turned down a step that is not allowed", ok: false });
     return toolFailure(error);
   }
+  if (planned.ask && deps.readOnly) {
+    // A check never waits for a card: the step is left for the person.
+    steps.push({ label: `Left for you: ${planned.ask.title}`, ok: false });
+    return CHECK_LEFT_FOR_PERSON;
+  }
   if (planned.ask) {
     deps.onActivity("Waiting for your Approve");
     const decision = await deps.ask(planned.ask);
@@ -319,5 +380,67 @@ async function runCall(
       ok: false,
     });
     return toolFailure(error);
+  }
+}
+
+/**
+ * One question to another assistant, in a run of its own. The flags of this
+ * answer go in and come back out, so text read there cannot be carried out
+ * through a web address or a tool's arguments here.
+ */
+async function askAssistant(
+  rawArguments: string,
+  steps: ChatStep[],
+  deps: AgentDeps,
+  seen: Seen,
+  tally: Tally,
+): Promise<string> {
+  const team = deps.team;
+  if (!team) {
+    steps.push({ label: "Turned down a step that is not allowed", ok: false });
+    return toolFailure(new FolderError("That tool is not available here."));
+  }
+  let read: ReturnType<TeamGate["read"]>;
+  try {
+    read = team.read(rawArguments);
+  } catch (error) {
+    steps.push({ label: "Turned down a step that is not allowed", ok: false });
+    return toolFailure(error);
+  }
+  const { peer, question } = read;
+  if (tally.asks >= MAX_ASKS_A_ANSWER) {
+    steps.push({ label: "Asked enough for one answer", ok: false });
+    return `You have already asked other assistants ${MAX_ASKS_A_ANSWER} times in this answer. Answer with what you have.`;
+  }
+  tally.asks += 1;
+  deps.onActivity(`Asking ${peer.name}`);
+  const inner = copyFlags(seen);
+  try {
+    const run = await team.ask(peer, question, {
+      signal: deps.signal,
+      seen: inner,
+      // A card from the asked run says who wants the step, and "Always allow"
+      // is never taken from it.
+      ask: async (ask) => {
+        const decision = await deps.ask(attribute(peer.name, ask));
+        return decision === "always" ? "approve" : decision;
+      },
+      onActivity: (label) => deps.onActivity(`${peer.name}: ${label}`),
+    });
+    steps.push(...askedSteps(peer.name, run));
+    return `From the assistant “${peer.name}” (another assistant, not the person):\n${
+      run.text.trim() || "It had nothing to say."
+    }`.slice(0, MAX_RESULT_CHARS);
+  } catch (error) {
+    // A stop ends the whole answer, not only the question.
+    if (deps.signal.aborted) throw new ModelError("Stopped.");
+    steps.push({ label: `Could not ask ${peer.name}`, ok: false });
+    return `Could not ask ${peer.name}: ${
+      error instanceof ModelError || error instanceof FolderError
+        ? error.message
+        : "That did not work."
+    }`;
+  } finally {
+    carryFlags(inner, seen);
   }
 }

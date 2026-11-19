@@ -2,6 +2,7 @@ import { SEND_KEYS, TEXT_SIZES } from "../../shared/preferences";
 import { THEMES, type Theme } from "../../shared/theme";
 import type { AppState, SendKey, TextSize } from "../../shared/types";
 import { ApprovalsSection, DataSection } from "./SettingsData";
+import { MainAssistantSection } from "./SettingsMain";
 import { Choices, ErrorLine, Section, useSettingsSave } from "./SettingsParts";
 import { AboutSection, UpdatesSection } from "./SettingsUpdates";
 import { ScreenHead } from "./ui";
@@ -107,6 +108,7 @@ export function SettingsScreen({
           </p>
         </Section>
 
+        <MainAssistantSection state={state} onChanged={onChanged} />
         <ApprovalsSection state={state} onChanged={onChanged} />
         <DataSection
           dataDir={state.dataDir}

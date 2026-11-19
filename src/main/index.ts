@@ -8,12 +8,14 @@ import {
   dialog,
   type IpcMainInvokeEvent,
   ipcMain,
+  Notification,
   nativeTheme,
   safeStorage,
   session,
   shell,
 } from "electron";
 import { presetOf } from "../shared/catalog";
+import { checkSettings } from "../shared/checks";
 import { cloudCopyUrl, cloudHomeUrl, MAX_LINK_WINDOWS } from "../shared/cloud";
 import { checkEndpoint, isLocalEndpoint } from "../shared/endpoint";
 import { linkUrl } from "../shared/links";
@@ -38,13 +40,21 @@ import {
   type Settings,
 } from "../shared/types";
 import { availableUpdate } from "../shared/update";
-import { runAgent } from "./agent";
+import { type AgentResult, runAgent } from "./agent";
 import {
   backupName,
   buildBackup,
   MAX_BACKUP_BYTES,
   restoreBackup,
 } from "./backup";
+import {
+  CheckScheduler,
+  checkMessage,
+  GAVE_UP_LINE,
+  MAX_CHECK_TURNS,
+  scheduleChecks,
+  updateNotice,
+} from "./checks";
 import {
   ConnectionService,
   composioInput,
@@ -55,7 +65,15 @@ import { listModels, ModelError, streamTurn, type WireMessage } from "./models";
 import { lookupCompany } from "./poppy";
 import { electronScreen } from "./screen-capture";
 import { Secrets } from "./secrets";
+import type { Seen } from "./seen";
 import { Store } from "./store";
+import {
+  askedMessage,
+  buildTeam,
+  MAX_ASKED_TURNS,
+  type TeamGate,
+} from "./team";
+import type { Ask } from "./tools";
 import { scheduleUpdateChecks, UpdateChecker } from "./update-check";
 
 const pageUrl = pathToFileURL(join(__dirname, "../renderer/index.html")).href;
@@ -80,6 +98,7 @@ let store: Store;
 let secrets: Secrets;
 let connections: ConnectionService;
 let updates: UpdateChecker;
+let checker: CheckScheduler;
 const running = new Map<string, AbortController>();
 /** The step that waits for the person, by assistant. One at a time each. */
 const waiting = new Map<
@@ -230,6 +249,133 @@ function askPerson(
   });
 }
 
+/** What one run of an assistant is for, and what it is handed. */
+interface RunSpec {
+  assistant: Assistant;
+  /** "answer" is the person's message, "check" the app's own read-only look, "asked" one question from another assistant. */
+  kind: "answer" | "check" | "asked";
+  signal: AbortSignal;
+  /** What the model is sent after its instructions. */
+  history: WireMessage[];
+  ask: (ask: Ask) => Promise<Decision>;
+  onText: (text: string) => void;
+  onActivity: (label: string) => void;
+  /** The other assistants an answer may ask. Never given to a check or an asked run. */
+  team?: TeamGate | undefined;
+  /** The name of the assistant that asks, for an asked run. */
+  askedBy?: string;
+  /** The flags an asked run starts from and updates. */
+  seen?: Seen;
+}
+
+/** Runs one assistant on its own model and tools. Saves nothing. */
+async function runAssistant(spec: RunSpec): Promise<AgentResult> {
+  const { assistant, kind, signal } = spec;
+  const sourceId = assistant.sourceId ?? store.settings().defaultSourceId;
+  const source = sourceId
+    ? store.sources().find((s) => s.id === sourceId)
+    : undefined;
+  if (!source)
+    throw new ModelError("No model is set up yet. Add one in Models.");
+  const apiKey = await secrets.get(source.id);
+  const mcp = connections.gateFor(assistant, signal);
+  // A check never looks at the screen, whatever the assistant is set to.
+  const screen = assistant.screen === true && kind !== "check";
+  const prompt = systemPrompt({
+    ...assistant,
+    screen,
+    folderLabels: folderLabels(assistant.folders).map((f) => f.label),
+    connectionNames: mcp
+      ? store
+          .connections()
+          .filter((c) => assistant.connections.includes(c.id))
+          .filter((c) => c.tools.length > 0)
+          .map((c) => c.name)
+      : [],
+    ...(spec.team ? { askable: spec.team.names } : {}),
+    ...(spec.askedBy ? { askedBy: spec.askedBy } : {}),
+  });
+  return runAgent(
+    assistant,
+    [{ role: "system", content: prompt }, ...spec.history],
+    {
+      turn: (messages, tools) =>
+        streamTurn({
+          baseUrl: source.baseUrl,
+          wire: source.wire,
+          ...(apiKey ? { apiKey } : {}),
+          model: assistant.model ?? source.model,
+          messages,
+          tools,
+          signal,
+        }),
+      modeKey: `${source.id}\n${assistant.model ?? source.model}`,
+      ...(mcp ? { mcp } : {}),
+      ...(spec.team ? { team: spec.team } : {}),
+      ...(spec.seen ? { seen: spec.seen } : {}),
+      ...(kind === "check"
+        ? { readOnly: true, maxTurns: MAX_CHECK_TURNS }
+        : kind === "asked"
+          ? { maxTurns: MAX_ASKED_TURNS }
+          : {}),
+      ask: spec.ask,
+      allowSite: (site) => {
+        store.addSite(assistant.id, site);
+      },
+      onText: spec.onText,
+      onActivity: spec.onActivity,
+      signal,
+      ...(screen
+        ? {
+            screen: electronScreen(
+              isLocalEndpoint(source.baseUrl)
+                ? "on this computer"
+                : source.name,
+            ),
+          }
+        : {}),
+    },
+  );
+}
+
+/**
+ * The assistants this one may ask, as a tool. An asked assistant answers in a
+ * run of its own: it sees only the question, writes nothing to its own chat,
+ * and is never given this tool, so questions never chain.
+ */
+function teamFor(asker: Assistant): TeamGate | undefined {
+  const all = store.assistants();
+  const peers = (asker.canAsk ?? []).flatMap((id) => {
+    const found = all.find((a) => a.id === id && a.id !== asker.id);
+    return found
+      ? [{ id: found.id, name: found.name, brief: found.brief }]
+      : [];
+  });
+  return buildTeam(peers, async (peer, question, link) => {
+    const result = await runAssistant({
+      assistant: store.assistant(peer.id),
+      kind: "asked",
+      askedBy: asker.name,
+      signal: link.signal,
+      seen: link.seen,
+      history: [{ role: "user", content: askedMessage(asker.name, question) }],
+      ask: link.ask,
+      onText: () => {},
+      onActivity: link.onActivity,
+    });
+    return { text: result.text, steps: result.steps };
+  });
+}
+
+/** What the model is shown of a chat: the last 40 messages that worked. */
+function chatHistory(assistantId: string): WireMessage[] {
+  return store
+    .messages(assistantId)
+    .filter((m) => !m.failed)
+    .slice(-40)
+    .map((m) => ({ role: m.role, content: m.text }));
+}
+
 async function answer(
   window: BrowserWindow,
   assistant: Assistant,
@@ -240,68 +386,20 @@ async function answer(
   let failed = false;
   let steps: ChatStep[] = [];
   try {
-    const sourceId = assistant.sourceId ?? store.settings().defaultSourceId;
-    const source = sourceId
-      ? store.sources().find((s) => s.id === sourceId)
-      : undefined;
-    if (!source)
-      throw new ModelError("No model is set up yet. Add one in Models.");
-    const history: WireMessage[] = store
-      .messages(assistant.id)
-      .filter((m) => !m.failed)
-      .slice(-40)
-      .map((m) => ({ role: m.role, content: m.text }));
-    const apiKey = await secrets.get(source.id);
-    const mcp = connections.gateFor(assistant, controller.signal);
-    const prompt = systemPrompt({
-      ...assistant,
-      folderLabels: folderLabels(assistant.folders).map((f) => f.label),
-      connectionNames: mcp
-        ? store
-            .connections()
-            .filter((c) => assistant.connections.includes(c.id))
-            .filter((c) => c.tools.length > 0)
-            .map((c) => c.name)
-        : [],
-    });
-    const result = await runAgent(
+    const result = await runAssistant({
       assistant,
-      [{ role: "system", content: prompt }, ...history],
-      {
-        turn: (messages, tools) =>
-          streamTurn({
-            baseUrl: source.baseUrl,
-            wire: source.wire,
-            ...(apiKey ? { apiKey } : {}),
-            model: assistant.model ?? source.model,
-            messages,
-            tools,
-            signal: controller.signal,
-          }),
-        modeKey: `${source.id}\n${assistant.model ?? source.model}`,
-        ...(mcp ? { mcp } : {}),
-        ask: (ask) => askPerson(window, assistant.id, ask, controller.signal),
-        allowSite: (site) => {
-          store.addSite(assistant.id, site);
-        },
-        onText: (text) => {
-          full += text;
-          tell(window, IPC.delta, { assistantId: assistant.id, text });
-        },
-        onActivity: (label) =>
-          tell(window, IPC.activity, { assistantId: assistant.id, label }),
-        signal: controller.signal,
-        ...(assistant.screen
-          ? {
-              screen: electronScreen(
-                isLocalEndpoint(source.baseUrl)
-                  ? "on this computer"
-                  : source.name,
-              ),
-            }
-          : {}),
+      kind: "answer",
+      signal: controller.signal,
+      history: chatHistory(assistant.id),
+      team: teamFor(assistant),
+      ask: (ask) => askPerson(window, assistant.id, ask, controller.signal),
+      onText: (text) => {
+        full += text;
+        tell(window, IPC.delta, { assistantId: assistant.id, text });
       },
-    );
+      onActivity: (label) =>
+        tell(window, IPC.activity, { assistantId: assistant.id, label }),
+    });
     steps = result.steps;
     if (!full) throw new ModelError("The model sent an empty answer.");
   } catch (error) {
@@ -327,6 +425,119 @@ async function answer(
     tell(window, IPC.done, { assistantId: assistant.id, message });
   } catch {
     // The assistant was removed while it was answering: nothing to keep.
+  }
+}
+
+/**
+ * One check by the main assistant: the app's own message, answered with the
+ * assistant's own model, read only. It never asks the person: a step that
+ * would need an Approve is left for them. The check and its update are saved
+ * together, marked as a check.
+ */
+async function runCheck(window: BrowserWindow): Promise<"done" | "stopped"> {
+  const settings = checkSettings(store.settings());
+  const main = settings.mainAssistantId
+    ? store.assistant(settings.mainAssistantId)
+    : undefined;
+  if (!main) throw new Error("Pick the main assistant first.");
+  if (running.has(main.id)) throw new Error("It is answering right now.");
+  const controller = new AbortController();
+  running.set(main.id, controller);
+  const startedAt = new Date();
+  const request = checkMessage(settings.lookFor, startedAt);
+  let full = "";
+  let failed = false;
+  let steps: ChatStep[] = [];
+  let problem: unknown;
+  try {
+    const result = await runAssistant({
+      assistant: main,
+      kind: "check",
+      signal: controller.signal,
+      history: [...chatHistory(main.id), { role: "user", content: request }],
+      // A check never waits for a card. This is only a second lock.
+      ask: async () => "reject",
+      onText: (text) => {
+        full += text;
+        tell(window, IPC.delta, { assistantId: main.id, text });
+      },
+      onActivity: (label) =>
+        tell(window, IPC.activity, { assistantId: main.id, label }),
+    });
+    steps = result.steps;
+    if (!full) throw new ModelError("The model sent an empty answer.");
+  } catch (error) {
+    problem = error;
+    if (!(controller.signal.aborted && full)) {
+      failed = true;
+      full =
+        error instanceof ModelError
+          ? error.message
+          : "The check stopped because of an error.";
+    }
+  } finally {
+    running.delete(main.id);
+  }
+  try {
+    const saved = store.appendMessage(
+      main.id,
+      "user",
+      request,
+      false,
+      [],
+      "request",
+      startedAt,
+    );
+    const message = store.appendMessage(
+      main.id,
+      "assistant",
+      full,
+      failed,
+      steps,
+      "update",
+    );
+    if (!failed) {
+      store.markCheckUpdate(main.id);
+      if (settings.notify && Notification.isSupported()) {
+        const notice = new Notification({ title: updateNotice(main.name) });
+        notice.on("click", () => {
+          if (window.isDestroyed()) return;
+          window.show();
+          window.focus();
+        });
+        notice.show();
+      }
+    }
+    tell(window, IPC.done, {
+      assistantId: main.id,
+      message,
+      request: saved,
+    });
+  } catch {
+    // The assistant was removed while it was checking: nothing to keep.
+  }
+  if (controller.signal.aborted) return "stopped";
+  if (failed) throw problem ?? new Error("The check did not work.");
+  return "done";
+}
+
+/** Says in the main assistant's chat that checking is off, and why. */
+function giveUpChecks(window: BrowserWindow): void {
+  const id = store.settings().mainAssistantId;
+  store.stopChecks();
+  if (!id) return;
+  try {
+    const message = store.appendMessage(
+      id,
+      "assistant",
+      GAVE_UP_LINE,
+      true,
+      [],
+      "update",
+    );
+    tell(window, IPC.done, { assistantId: id, message });
+  } catch {
+    // The assistant is gone: nothing to say it in.
   }
 }
 
@@ -564,6 +775,7 @@ function register(window: BrowserWindow): void {
     async () => (await updates.check(true)) ?? { status: "unknown" },
   );
   handle(IPC.dismissUpdate, () => store.dismissUpdate());
+  handle(IPC.checkNow, () => checker.start());
 }
 
 /**
@@ -656,7 +868,22 @@ app.whenReady().then(() => {
   session.defaultSession.setPermissionRequestHandler(
     (_contents, _permission, done) => done(false),
   );
-  register(createWindow());
+  const window = createWindow();
+  register(window);
+  checker = new CheckScheduler({
+    now: () => new Date(),
+    startedAt: new Date(),
+    settings: () => checkSettings(store.settings()),
+    busy: () => {
+      const main = store.settings().mainAssistantId;
+      return (main !== undefined && running.has(main)) || waiting.size > 0;
+    },
+    load: () => store.checkCounters(),
+    save: (counters) => store.saveCheckCounters(counters),
+    run: () => runCheck(window),
+    giveUp: () => giveUpChecks(window),
+  });
+  scheduleChecks(checker);
 });
 
 app.on("window-all-closed", () => {
