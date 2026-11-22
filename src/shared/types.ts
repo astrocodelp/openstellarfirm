@@ -63,6 +63,7 @@ export const PRESET_IDS = [
   "together",
   "xai",
   "deepseek",
+  "alibaba",
   "groq",
   "cerebras",
   "nvidia",

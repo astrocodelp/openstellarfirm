@@ -108,7 +108,7 @@ Check it: `sha256sum -c SHA256SUMS.txt --ignore-missing`.
   access: only the ones an assistant has ticked go into its instructions.
 - **Your own model.** On this computer with Ollama or LM Studio, or your own
   key for OpenAI, Anthropic (Claude), Google (Gemini), Mistral, xAI, DeepSeek,
-  Groq, Cerebras, NVIDIA, Together AI, Hugging Face, OpenRouter, Requesty,
+  Alibaba Cloud (Qwen), Groq, Cerebras, NVIDIA, Together AI, Hugging Face, OpenRouter, Requesty,
   Vercel AI Gateway, LLM API, Ironlane, OrcaRouter, Azure OpenAI, Amazon
   Bedrock, a LiteLLM gateway, or any OpenAI-compatible address. An assistant
   can have a model of its own. Google Vertex AI is not supported: it signs in
