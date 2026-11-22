@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Alibaba Cloud (Qwen) as a model provider, with your own Model Studio key. It uses Model
+  Studio's international address (its Singapore region), so the key must be made in that
+  region. Pick a suggested model or type its name, such as `qwen4-max`.
 - A GitHub Actions release workflow (`.github/workflows/release.yml`), ported from pull request
   #6 onto the current history: a `vX.Y.Z` or `vX.Y.Z-rc.N` tag builds the macOS and Windows
   installers on GitHub's runners and publishes the release, with `SHA256SUMS.txt` and the

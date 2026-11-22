@@ -42,6 +42,9 @@ describe("the preset catalog", () => {
     const url = (id: Parameters<typeof presetOf>[0]) => presetOf(id).baseUrl;
     expect(url("xai")).toBe("https://api.x.ai/v1");
     expect(url("deepseek")).toBe("https://api.deepseek.com");
+    expect(url("alibaba")).toBe(
+      "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+    );
     expect(url("groq")).toBe("https://api.groq.com/openai/v1");
     expect(url("cerebras")).toBe("https://api.cerebras.ai/v1");
     expect(url("nvidia")).toBe("https://integrate.api.nvidia.com/v1");

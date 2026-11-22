@@ -272,6 +272,24 @@ export const PRESETS: Preset[] = [
     "Your own key, from the DeepSeek platform.",
     { lists: true },
   ),
+  // Model Studio's international address, which is its Singapore region. A key
+  // works only in the region it was made in. Its documentation gives no model
+  // list on this address, so a few names are suggested and any can be typed.
+  hosted(
+    "alibaba",
+    "Alibaba Cloud (Qwen)",
+    "makers",
+    "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+    "Your own Model Studio key, made in its Singapore (international) region.",
+    {
+      // The three Qwen models its models page leads with (read 2026-11-22).
+      suggested: [
+        { id: "qwen4-max" },
+        { id: "qwen3.7-plus" },
+        { id: "qwen3.8-flash" },
+      ],
+    },
+  ),
   hosted(
     "groq",
     "Groq",
