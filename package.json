@@ -1,7 +1,7 @@
 {
   "name": "openstellarfirm",
   "productName": "OpenStellarFirm",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "OpenStellarFirm, a desktop app for personal AI assistants that run on your own computer, on your own model. Nothing is saved in a cloud.",
   "license": "SEE LICENSE IN LICENSE",

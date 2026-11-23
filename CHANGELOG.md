@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-23
+
+Desk pets, Alibaba Qwen as a model provider, an in-app update notice, and tighter release scripts. These builds are not signed yet: see the README's [Install a release](README.md#install-a-release) for how to open them and check their sums.
+
 ### Added
 
 - Alibaba Cloud (Qwen) as a model provider, with your own Model Studio key. It uses Model
@@ -348,5 +352,6 @@ product name was set used `~/.config/openstellarfirm`.
   scripts pin their build images by digest, and a release build runs only in
   a Fly app named for it (there is no default).
 
-[Unreleased]: https://github.com/astrocodelp/openstellarfirm/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/astrocodelp/openstellarfirm/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/astrocodelp/openstellarfirm/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/astrocodelp/openstellarfirm/releases/tag/v0.1.0
